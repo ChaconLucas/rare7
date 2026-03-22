@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 40" width="120" height="40">
+  <defs>
+    <style>
+      .text-logo { fill: #E6007E; font-family: Arial, sans-serif; font-weight: 800; font-size: 24px; }
+      .heart { fill: #E6007E; }
+      .butterfly { fill: #000000; }
+    </style>
+  </defs>
+  
+  <!-- Coração -->
+  <path class="heart" d="M8 15c0-4 3-7 7-7s7 3 7 7c0 0-7 10-7 10s-7-10-7-10z" transform="scale(0.8) translate(5,-3)"/>
+  
+  <!-- Texto D&Z -->
+  <text class="text-logo" x="35" y="28">D&Z</text>
+  
+  <!-- Borboleta estilizada -->
+  <g class="butterfly" transform="translate(100, 12) scale(0.6)">
+    <path d="M10 15c-3-2-6-1-6 2s3 4 6 2"/>
+    <path d="M10 15c3-2 6-1 6 2s-3 4-6 2"/>
+    <path d="M10 15c-2-4-5-3-5 0s3 4 5 0"/>
+    <path d="M10 15c2-4 5-3 5 0s-3 4-5 0"/>
+    <circle cx="10" cy="15" r="1"/>
+  </g>
+</svg>

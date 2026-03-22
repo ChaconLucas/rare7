@@ -1,0 +1,204 @@
+﻿const sideMenu = document.querySelector("aside");
+const menuBtn = document.querySelector("#menu-btn");
+const closeBtn = document.querySelector("#close-btn");
+const themeToggler = document.querySelector(".theme-toggler");
+const __noopLog = (...args) => {};
+
+//mostrar sidebar
+if (menuBtn) {
+  menuBtn.addEventListener("click", () => {
+    sideMenu.style.display = "block";
+  });
+}
+
+//fehcar sidebar
+if (closeBtn) {
+  closeBtn.addEventListener("click", () => {
+    sideMenu.style.display = "none";
+  });
+}
+
+//mudar tema
+if (themeToggler) {
+  themeToggler.addEventListener("click", () => {
+    // Adicionar um pequeno feedback visual
+    themeToggler.style.transform = "scale(0.95)";
+    setTimeout(() => {
+      themeToggler.style.transform = "scale(1)";
+    }, 100);
+
+    // MudanÃ§a de tema com transiÃ§Ã£o suave
+    document.body.classList.toggle("dark-theme-variables");
+    const isDark = document.body.classList.contains("dark-theme-variables");
+
+    // Persistir preferÃªncia
+    localStorage.setItem("darkTheme", isDark ? "true" : "false");
+
+    // Animar os Ã­cones do toggle
+    const sunIcon = themeToggler.querySelector("span:nth-child(1)");
+    const moonIcon = themeToggler.querySelector("span:nth-child(2)");
+
+    sunIcon.classList.toggle("active");
+    moonIcon.classList.toggle("active");
+
+    // Adicionar uma pequena rotaÃ§Ã£o aos Ã­cones
+    sunIcon.style.transform = sunIcon.classList.contains("active")
+      ? "rotate(0deg)"
+      : "rotate(180deg)";
+    moonIcon.style.transform = moonIcon.classList.contains("active")
+      ? "rotate(0deg)"
+      : "rotate(-180deg)";
+  });
+}
+
+// Restore persisted theme on load
+document.addEventListener("DOMContentLoaded", () => {
+  const saved = localStorage.getItem("darkTheme");
+
+  if (saved === "true") {
+    document.body.classList.add("dark-theme-variables");
+    const s = themeToggler.querySelector("span:nth-child(1)");
+    const m = themeToggler.querySelector("span:nth-child(2)");
+    if (s) s.classList.remove("active");
+    if (m) m.classList.add("active");
+  } else if (saved === "false") {
+    // ensure the default state is light
+    document.body.classList.remove("dark-theme-variables");
+    const s = themeToggler.querySelector("span:nth-child(1)");
+    const m = themeToggler.querySelector("span:nth-child(2)");
+    if (s) s.classList.add("active");
+    if (m) m.classList.remove("active");
+  }
+});
+
+/* Sidebar: ensure only one item is marked active (panel) and persist active by pathname */
+document.addEventListener("DOMContentLoaded", function () {
+  const sidebarLinks = document.querySelectorAll("aside .sidebar a");
+  if (!sidebarLinks.length) return;
+
+  // Helper to remove active marks
+  const clearActive = () =>
+    sidebarLinks.forEach((l) => l.classList.remove("panel", "active"));
+
+  // Determine current path (filename)
+  const currentPath = window.location.pathname.split("/").pop() || "index.html";
+
+  // Try to highlight by matching href to current path
+  let matched = false;
+  sidebarLinks.forEach((link) => {
+    const href = link.getAttribute("href")
+      ? link.getAttribute("href").split("/").pop()
+      : "";
+    if (href && href === currentPath) {
+      clearActive();
+      link.classList.add("panel");
+      matched = true;
+    }
+  });
+
+  // If no match by path, try the saved href from localStorage
+  if (!matched) {
+    const saved = localStorage.getItem("sidebarActiveHref");
+    if (saved) {
+      const savedLink = Array.from(sidebarLinks).find(
+        (l) => l.getAttribute("href") === saved,
+      );
+      if (savedLink) {
+        clearActive();
+        savedLink.classList.add("panel");
+      }
+    }
+  }
+
+  // Attach click handlers to persist selection and update UI immediately
+  sidebarLinks.forEach((link) => {
+    link.addEventListener("click", function () {
+      clearActive();
+      this.classList.add("panel");
+      if (this.getAttribute("href")) {
+        localStorage.setItem("sidebarActiveHref", this.getAttribute("href"));
+      }
+    });
+  });
+
+  // Inicializar contador de mensagens
+  __noopLog("ðŸš€ Iniciando sistema de contador de mensagens...");
+  atualizarContadorMensagens();
+
+  // Atualizar contador a cada 30 segundos
+  setInterval(atualizarContadorMensagens, 30000);
+});
+
+// FunÃ§Ã£o para atualizar o contador de mensagens nÃ£o lidas
+window.atualizarContadorMensagens = async function () {
+  try {
+    const apiUrl = window.API_SISTEMA_URL
+      ? `${window.API_SISTEMA_URL}?api=1&endpoint=admin&action=get_stats`
+      : window.BASE_URL +
+        "admin/src/php/sistema.php?api=1&endpoint=admin&action=get_stats";
+
+    const response = await fetch(apiUrl);
+
+    if (!response.ok) {
+      throw new Error(`HTTP error ${response.status}`);
+    }
+
+    if (response.ok) {
+      const stats = await response.json();
+      __noopLog("ðŸ“Š Stats recebidas:", stats);
+      const messageCountElements = document.querySelectorAll(".message-count");
+      __noopLog("ðŸŽ¯ Elementos encontrados:", messageCountElements.length);
+
+      if (messageCountElements.length === 0) {
+        console.warn("âš ï¸ Nenhum elemento .message-count encontrado!");
+        return;
+      }
+
+      messageCountElements.forEach((element) => {
+        const novasNaoLidas = stats.nao_lidas || 0;
+        __noopLog(
+          "ðŸ”¢ Atualizando contador:",
+          element.textContent,
+          "->",
+          novasNaoLidas,
+        );
+
+        // AnimaÃ§Ã£o de atualizaÃ§Ã£o apenas se o nÃºmero mudou
+        if (element.textContent != novasNaoLidas) {
+          element.style.transform = "scale(1.2)";
+          element.style.background = "var(--color-warning)";
+
+          setTimeout(() => {
+            element.textContent = novasNaoLidas;
+            element.style.transform = "scale(1)";
+            element.style.background =
+              novasNaoLidas > 0
+                ? "var(--color-danger)"
+                : "var(--color-info-light)";
+          }, 150);
+        } else {
+          element.textContent = novasNaoLidas;
+          element.style.background =
+            novasNaoLidas > 0
+              ? "var(--color-danger)"
+              : "var(--color-info-light)";
+        }
+
+        // Ocultar contador se nÃ£o hÃ¡ mensagens
+        element.style.display = novasNaoLidas > 0 ? "block" : "none";
+      });
+
+      __noopLog("ðŸ“§ Contador de mensagens atualizado:", stats.nao_lidas);
+    } else {
+      console.error(
+        "âŒ Response nÃ£o OK:",
+        response.status,
+        response.statusText,
+      );
+      const errorText = await response.text();
+      console.error("âŒ Error response:", errorText);
+    }
+  } catch (error) {
+    console.error("âŒ Erro ao atualizar contador de mensagens:", error);
+  }
+};

@@ -1,0 +1,9 @@
+# Pasta de Avatars dos Depoimentos
+
+Esta pasta armazena as fotos dos clientes que deixaram depoimentos.
+
+- Formato: `avatar_{uniqid}.jpg/png/webp`
+- Extensões permitidas: JPG, JPEG, PNG, WEBP
+- Gerado automaticamente via upload no admin
+
+Se o cliente não tiver avatar, será exibido um círculo com a inicial do nome.

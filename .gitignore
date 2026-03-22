@@ -1,0 +1,45 @@
+# Uploads de usuários (manter apenas .gitkeep para estrutura)
+uploads/banners/*
+!uploads/banners/.gitkeep
+
+uploads/testimonials/*
+!uploads/testimonials/.gitkeep
+
+# Imagens de teste (produtos temporários)
+admin/assets/images/produtos/test-*.jpg
+
+# Composer
+vendor/
+
+# Configurações locais
+admin/config/config.php
+admin/config/email-config.php
+
+# Logs e cache
+*.log
+*.cache
+debug_webhook.txt
+webhook_debug.txt
+log_viva.txt
+
+# Arquivos de teste temporários
+viva.php
+mp_webhook.php
+teste_*.php
+**/teste.php
+
+# Documentação temporária debug
+CHECKOUT-TRANSPARENTE-DEBUG.md
+IMPORTANTE-JUROS-MERCADOPAGO.md
+MERCADOPAGO-INTEGRATION.md
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Sistema
+.DS_Store
+Thumbs.db
