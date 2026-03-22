@@ -1,4 +1,4 @@
-# 🎯 D&Z Admin - Sistema Completo de Gestão E-commerce
+# 🎯 Rare7 Admin - Sistema Completo de Gestão E-commerce
 
 **Painel administrativo moderno com CMS integrado para gerenciamento completo de e-commerce de produtos de beleza profissional.**
 
@@ -26,7 +26,7 @@
 
 ## 🚀 **Sobre o Projeto**
 
-O **D&Z Admin** é um sistema completo de administração desenvolvido para e-commerce de produtos profissionais de beleza (unhas, cílios) com:
+O **Rare7 Admin** é um sistema completo de administração desenvolvido para e-commerce de produtos profissionais de beleza (unhas, cílios) com:
 
 - ✅ **Painel Admin Completo**: Produtos, pedidos, vendedores, métricas
 - ✅ **CMS Integrado**: Gerenciamento de conteúdo do site público
@@ -62,7 +62,7 @@ O **D&Z Admin** é um sistema completo de administração desenvolvido para e-co
 ## 📁 **Estrutura do Projeto**
 
 ```
-admin-teste/
+rare7/
 ├── 📂 admin/                      # Painel administrativo
 │   ├── config/
 │   │   ├── base.php              # BASE_URL e caminhos globais
@@ -158,14 +158,14 @@ define('GROQ_API_KEY', 'sua-chave-aqui');
 
 ```php
 <?php
-define('BASE_URL', '/admin-teste/');
+define('BASE_URL', '/rare7/');
 define('API_SISTEMA_URL', BASE_URL . 'admin/src/php/sistema.php');
 ```
 
 ### **Passo 4: Acesso**
 
-- **Admin:** `http://localhost/admin-teste/admin/PHP/login.php`
-- **Site Público:** `http://localhost/admin-teste/cliente/`
+- **Admin:** `http://localhost/rare7/admin/PHP/login.php`
+- **Site Público:** `http://localhost/rare7/cliente/`
 
 ---
 
@@ -527,7 +527,7 @@ pedidos_historico_status    -- Histórico de mudanças
 ### **Tecnologia:**
 
 - **API:** Groq (llama-3.3-70b-versatile)
-- **Personalidade:** DAIze - Consultora digital D&Z
+- **Personalidade:** DAIze - Consultora digital Rare7
 
 ### **Funcionalidades:**
 
@@ -592,7 +592,7 @@ cliente/
 
 ```php
 // admin/config/base.php
-define('BASE_URL', '/admin-teste/');
+define('BASE_URL', '/rare7/');
 define('UPLOADS_URL', BASE_URL . 'uploads/');
 define('BANNERS_URL', UPLOADS_URL . 'banners/');
 ```
@@ -733,7 +733,7 @@ SHOW TABLE STATUS WHERE Name='home_settings';
 
 ---
 
-**Desenvolvido com ❤️ para D&Z - Produtos Profissionais de Beleza**
+**Desenvolvido com ❤️ para Rare7 - Produtos Profissionais de Beleza**
 
 **Versão Atual:** 2.2  
 **Última Atualização:** 05 de Março de 2026
