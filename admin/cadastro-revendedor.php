@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chat de Cadastro - D&Z Revendedores</title>
+    <title>Chat de Cadastro - RARE7 Revendedores</title>
     <style>
         * {
             margin: 0;
@@ -303,7 +303,7 @@
 <body>
     <div class="container">
         <div class="logo">
-            <h1>D&Z</h1>
+            <h1>RARE7</h1>
             <p>Pré-Cadastro de Revendedores</p>
         </div>
         

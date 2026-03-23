@@ -1,6 +1,6 @@
 <?php
 /**
- * API de Carrinho - D&Z E-commerce
+ * API de Carrinho - RARE7 E-commerce
  * Endpoint para operações de carrinho:
  * - sync: Sincronizar carrinho do localStorage
  * - get: Buscar carrinho salvo

@@ -1,6 +1,6 @@
 <?php
 /**
- * API de Frete - D&Z E-commerce
+ * API de Frete - RARE7 E-commerce
  * Integração com Melhor Envio usando dados reais dos produtos
  */
 
@@ -29,6 +29,38 @@ function jsonResponse($success, $data = [], $message = '', $debug = []) {
         'debug' => $debug
     ], JSON_UNESCAPED_UNICODE);
     exit;
+}
+
+// Monta opções de frete de fallback quando a integração externa não estiver disponível
+function montarOpcoesFallback($subtotal, $fallbackValue, $freteGratisLimite = 0) {
+    $opcoes = [];
+
+    if ($freteGratisLimite > 0 && $subtotal >= $freteGratisLimite) {
+        $opcoes[] = [
+            'id' => 0,
+            'nome' => 'Frete Grátis',
+            'empresa' => 'RARE7',
+            'valor' => 0.00,
+            'prazo_dias' => 10,
+            'data_estimada' => date('d/m/Y', strtotime('+10 days')),
+            'prazo_texto' => '10 dias úteis',
+            'gratis' => true
+        ];
+    }
+
+    $opcoes[] = [
+        'id' => 'fallback-standard',
+        'nome' => 'Entrega Padrão',
+        'empresa' => 'RARE7',
+        'valor' => max(0, (float)$fallbackValue),
+        'prazo_dias' => 7,
+        'data_estimada' => date('d/m/Y', strtotime('+7 days')),
+        'prazo_texto' => '3 a 7 dias úteis',
+        'gratis' => false,
+        'fallback' => true
+    ];
+
+    return $opcoes;
 }
 
 // Validar CEP
@@ -89,7 +121,7 @@ function calcularMelhorEnvio($token, $cep_origem, $cep_destino, $peso, $altura, 
         "Authorization: Bearer " . $token,
         "Content-Type: application/json",
         "Accept: application/json",
-        "User-Agent: Sistema-DZ-Ecommerce/1.0"
+        "User-Agent: Sistema-RARE7-Ecommerce/1.0"
     ];
     
     $curl = curl_init();
@@ -180,6 +212,30 @@ try {
             }
 
             $debug_log[] = "✅ Endereço encontrado: " . ($endereco['localidade'] ?? 'N/A');
+
+            // Ler configurações de fallback e frete grátis
+            $fallbackEnabled = 1;
+            $fallbackValue = 15.00;
+            $fallbackMessage = 'Frete estimado automaticamente. O valor final será confirmado no envio.';
+            $freteGratisLimite = (float)getFreteGratisThreshold($pdo);
+
+            try {
+                $queryFreteSettings = "SELECT fallback_enabled, fallback_value, fallback_message FROM freight_settings WHERE id = 1 LIMIT 1";
+                $resultFreteSettings = mysqli_query($conn, $queryFreteSettings);
+
+                if ($resultFreteSettings && mysqli_num_rows($resultFreteSettings) > 0) {
+                    $settingsFrete = mysqli_fetch_assoc($resultFreteSettings);
+                    $fallbackEnabled = (int)($settingsFrete['fallback_enabled'] ?? 1);
+                    $fallbackValue = (float)($settingsFrete['fallback_value'] ?? 15.00);
+                    $fallbackMessageDb = trim((string)($settingsFrete['fallback_message'] ?? ''));
+
+                    if ($fallbackMessageDb !== '') {
+                        $fallbackMessage = $fallbackMessageDb;
+                    }
+                }
+            } catch (Exception $e) {
+                $debug_log[] = "⚠️ Erro ao carregar fallback do frete: " . $e->getMessage();
+            }
 
             // ===== BUSCAR DIMENSÕES E PESO DOS PRODUTOS =====
             $pesoTotal = 0;
@@ -458,6 +514,30 @@ try {
                             jsonResponse(false, [], 'Erro ao calcular frete. Tente novamente ou entre em contato.', $debug_log);
                         }
                     }
+
+                    if ($fallbackEnabled) {
+                        $debug_log[] = "🛟 Aplicando fallback de frete após falha no Melhor Envio";
+                        $opcoesFallback = montarOpcoesFallback($subtotal, $fallbackValue, $freteGratisLimite);
+
+                        jsonResponse(true, [
+                            'cep' => $cepLimpo,
+                            'endereco' => [
+                                'logradouro' => $endereco['logradouro'] ?? '',
+                                'bairro' => $endereco['bairro'] ?? '',
+                                'cidade' => $endereco['localidade'] ?? '',
+                                'uf' => $endereco['uf'] ?? '',
+                                'complemento' => $endereco['complemento'] ?? ''
+                            ],
+                            'opcoes' => $opcoesFallback,
+                            'peso_total' => $pesoTotal,
+                            'dimensoes' => [
+                                'altura' => $alturaMax,
+                                'largura' => $larguraMax,
+                                'comprimento' => $comprimentoMax
+                            ],
+                            'fallback_used' => true
+                        ], $fallbackMessage, $debug_log);
+                    }
                     
                     // Mensagem genérica
                     jsonResponse(false, [], 'Frete incorreto. Verifique o CEP e tente novamente.', $debug_log);
@@ -529,6 +609,31 @@ try {
                         $debug_log[] = "💡 Possível causa: Peso/dimensões acumuladas excedem limites das transportadoras";
                         $debug_log[] = "💡 Produtos no carrinho: " . count($items);
                         $debug_log[] = "💡 Peso total: {$pesoTotal}kg";
+
+                        if ($fallbackEnabled) {
+                            $debug_log[] = "🛟 Aplicando fallback de frete por ausência de opções válidas";
+                            $opcoesFallback = montarOpcoesFallback($subtotal, $fallbackValue, $freteGratisLimite);
+
+                            jsonResponse(true, [
+                                'cep' => $cepLimpo,
+                                'endereco' => [
+                                    'logradouro' => $endereco['logradouro'] ?? '',
+                                    'bairro' => $endereco['bairro'] ?? '',
+                                    'cidade' => $endereco['localidade'] ?? '',
+                                    'uf' => $endereco['uf'] ?? '',
+                                    'complemento' => $endereco['complemento'] ?? ''
+                                ],
+                                'opcoes' => $opcoesFallback,
+                                'peso_total' => $pesoTotal,
+                                'dimensoes' => [
+                                    'altura' => $alturaMax,
+                                    'largura' => $larguraMax,
+                                    'comprimento' => $comprimentoMax
+                                ],
+                                'fallback_used' => true
+                            ], $fallbackMessage, $debug_log);
+                        }
+
                         jsonResponse(false, [], 'Quantidade de produtos muito alta para frete automático. Reduza a quantidade ou entre em contato.', $debug_log);
                     }
                 }
@@ -537,19 +642,42 @@ try {
             // ===== FALLBACK: Melhor Envio NÃO configurado =====
             if (!$usarMelhorEnvio) {
                 $debug_log[] = "❌ Melhor Envio não configurado ou inativo";
-                jsonResponse(false, [], 'Frete incorreto. Verifique o CEP e tente novamente.', $debug_log);
+
+                if ($fallbackEnabled) {
+                    $debug_log[] = "🛟 Aplicando fallback de frete sem integração ativa";
+                    $opcoesFallback = montarOpcoesFallback($subtotal, $fallbackValue, $freteGratisLimite);
+
+                    jsonResponse(true, [
+                        'cep' => $cepLimpo,
+                        'endereco' => [
+                            'logradouro' => $endereco['logradouro'] ?? '',
+                            'bairro' => $endereco['bairro'] ?? '',
+                            'cidade' => $endereco['localidade'] ?? '',
+                            'uf' => $endereco['uf'] ?? '',
+                            'complemento' => $endereco['complemento'] ?? ''
+                        ],
+                        'opcoes' => $opcoesFallback,
+                        'peso_total' => $pesoTotal,
+                        'dimensoes' => [
+                            'altura' => $alturaMax,
+                            'largura' => $larguraMax,
+                            'comprimento' => $comprimentoMax
+                        ],
+                        'fallback_used' => true
+                    ], $fallbackMessage, $debug_log);
+                }
+
+                jsonResponse(false, [], 'Frete indisponível no momento. Configure a integração no painel admin.', $debug_log);
             }
 
             // ===== FRETE GRÁTIS =====
-            // Buscar do banco via função em config.php
-            $freteGratisLimite = getFreteGratisThreshold($pdo);
             $debug_log[] = "🎯 Frete grátis configurado para: R$ " . $freteGratisLimite;
             
             if ($subtotal >= $freteGratisLimite) {
                 array_unshift($opcoesFrete, [
                     'id' => 0,
                     'nome' => 'Frete Grátis',
-                    'empresa' => 'D&Z',
+                    'empresa' => 'RARE7',
                     'valor' => 0.00,
                     'prazo_dias' => 10,
                     'data_estimada' => date('d/m/Y', strtotime('+10 days')),

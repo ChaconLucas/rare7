@@ -11,7 +11,7 @@ if (isset($_SESSION['usuario_logado'])) {
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Login D&Z</title>
+    <title>Login RARE7</title>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/png" href="../assets/images/logo_png.png" />
@@ -89,7 +89,7 @@ if (isset($_SESSION['usuario_logado'])) {
 </head>
 <body>
     <div class="login-container">
-        <img src="../assets/images/logo_png.png" alt="D&Z Logo" class="login-logo" />
+        <img src="../assets/images/logo_png.png" alt="RARE7 Logo" class="login-logo" />
         
         <h2 class="login-title">Login</h2>
         

@@ -7,6 +7,8 @@ header("Expires: 0");
 
 session_start();
 require_once '../config.php';
+require_once '../conexao.php';
+require_once '../cms_data_provider.php';
 
 // Verificar se está logado
 if (!isset($_SESSION['cliente'])) {
@@ -17,10 +19,14 @@ if (!isset($_SESSION['cliente'])) {
 $nomeUsuario = htmlspecialchars($_SESSION['cliente']['nome']);
 $clienteId = $_SESSION['cliente']['id'];
 $usuarioLogado = true;
-$pageTitle = 'Meus Pedidos - D&Z';
+$pageTitle = 'Meus Pedidos - RARE7';
 
 // Buscar configuração de frete grátis
 $freteGratisValor = getFreteGratisThreshold($pdo);
+
+$cms = new CMSProvider($conn);
+$footerData = $cms->getFooterData();
+$footerLinks = $cms->getFooterLinks();
 
 // Buscar cores dos status da gestão de fluxo
 $statusCores = [];
@@ -113,6 +119,9 @@ function corStatus($status) {
     
     <!-- Material Symbols (ícones) -->
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Sharp:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+    
+    <!-- Link para css/loja.css que contém a base de estilos -->
+    <link rel="stylesheet" href="../css/loja.css">
     
     <title><?php echo $pageTitle; ?></title>
     <style>
@@ -1891,13 +1900,13 @@ function corStatus($status) {
     </script>
 </head>
 <body>
-    <!-- ===== NAVBAR PREMIUM D&Z ===== -->
+    <!-- ===== NAVBAR PREMIUM RARE7 ===== -->
     <header class="header-loja" id="navbar">
         <div class="container-header">
-            <!-- Logo D&Z Oficial -->
+            <!-- Logo RARE7 -->
             <a href="../index.php" class="logo-container" title="Voltar à página inicial" style="text-decoration: none; color: inherit;">
-                <img src="../assets/images/Logodz.png" alt="D&Z" class="logo-dz-oficial">
-                <span class="logo-text">D&Z</span>
+                <img src="../assets/images/logo.png" alt="RARE7" class="logo-dz-oficial">
+                <span class="logo-text">RARE7</span>
             </a>
             
             <!-- Navegação -->
@@ -1962,7 +1971,7 @@ function corStatus($status) {
                         <a href="../produtos.php?secao=marcas">MARCAS <span class="dropdown-icon">▼</span></a>
                         <div class="dropdown-menu">
                             <ul>
-                                <li><a href="../produtos.php?marca=D%26Z">D&Z</a></li>
+                                <li><a href="../produtos.php?marca=D%26Z">RARE7</a></li>
                                 <li><a href="../produtos.php?marca=Sioux">Sioux</a></li>
                                 <li><a href="../produtos.php?marca=Sunny%27s">Sunny's</a></li>
                                 <li><a href="../produtos.php?marca=Crush">Crush</a></li>
@@ -2011,7 +2020,7 @@ function corStatus($status) {
                         <div class="user-dropdown-menu">
                             <div class="user-greeting">Olá, <?php echo $nomeUsuario; ?></div>
                             <a href="minha-conta.php">Minha conta</a>
-                            <a href="pedidos.php">Meus pedidos</a>
+                            <a href="minha-conta.php?tab=pedidos">Meus pedidos</a>
                             <a href="logout.php">Sair</a>
                         </div>
                     </div>
@@ -2381,7 +2390,7 @@ function corStatus($status) {
             chatModal.innerHTML = `
                 <div class="chat-header">
                     <div>
-                        <h3>D&Z Atendimento</h3>
+                        <h3>RARE7 Atendimento</h3>
                         <div class="online-status"><div class="online-indicator"></div><span>Online agora</span></div>
                     </div>
                     <button class="chat-close" onclick="toggleChatModal()">×</button>
@@ -2389,7 +2398,7 @@ function corStatus($status) {
                 
                 <div class="chat-messages" id="chatMessages">
                     <div class="chat-message bot">
-                        <div>Olá! 😊 Seja bem-vinda à D&Z! Como posso te ajudar hoje?</div>
+                        <div>Olá! 😊 Seja bem-vinda à RARE7! Como posso te ajudar hoje?</div>
                         <div class="chat-message-time">${getCurrentTime()}</div>
                     </div>
                     
@@ -2493,50 +2502,50 @@ function corStatus($status) {
         function getResponseForMessage(message) {
             if (message.includes('preço') || message.includes('valor') || message.includes('quanto custa')) {
                 return [
-                    'Nossos produtos têm preços a partir de R$ 19,90! 😊 Que tipo de produto você tem interesse?',
-                    'Temos opções para todos os orçamentos! Kit completo por R$ 89,90 ou itens avulsos a partir de R$ 19,90. 💰'
+                    'Nossas camisas têm preços a partir de R$ 99,90! 😊 Você busca clube, seleção ou modelo retrô?',
+                    'Temos opções para todos os orçamentos, com modelos premium e versões torcedor. 💰'
                 ];
             }
             
             if (message.includes('entrega') || message.includes('frete') || message.includes('envio')) {
                 return [
-                    'Entrega grátis para compras acima de R$ 99! 🚚 Entregamos em todo o Brasil em até 5 dias úteis.',
-                    'Frete grátis acima de R$ 99,00! Para valores menores, o frete varia de R$ 15 a R$ 25. 🚚'
+                    'Entrega grátis para compras acima de R$ 299! 🚚 Entregamos em todo o Brasil em até 5 dias úteis.',
+                    'Para pedidos abaixo do frete grátis, o valor varia conforme o CEP e a transportadora. 🚚'
                 ];
             }
             
-            if (message.includes('unha') || message.includes('esmalte')) {
+            if (message.includes('time') || message.includes('clube') || message.includes('camisa')) {
                 return [
-                    'Nossos produtos para unhas são incríveis! 💅 Temos esmaltes em gel, kits profissionais e acessórios.',
-                    'Para unhas, recomendo nosso Kit Profissional por R$ 89,90 - vem com tudo que você precisa! ✨'
+                    'Temos camisas de clubes nacionais e internacionais, além de versões retrô incríveis! ⚽',
+                    'Se quiser, te ajudo a encontrar camisa por time, temporada ou faixa de preço. 👕'
                 ];
             }
             
-            if (message.includes('cílios') || message.includes('cilios')) {
+            if (message.includes('seleção') || message.includes('selecao')) {
                 return [
-                    'Nossos cílios dão um volume incrível! 👀 Temos tanto para uso diário quanto para ocasiões especiais.',
-                    'Cílios premium com efeito natural! O kit de alongamento é nosso best-seller 😍'
+                    'Temos camisas de seleções clássicas e atuais para você vestir sua paixão em dias de jogo! 🇧🇷',
+                    'Posso te mostrar opções de seleções por tamanho e disponibilidade em estoque. 🔎'
                 ];
             }
             
             if (message.includes('desconto') || message.includes('promoção') || message.includes('cupom')) {
                 return [
-                    'Temos uma super promoção! Use o cupom BEM-VINDA15 e ganhe 15% OFF na primeira compra! 🎉',
-                    'Primeira compra? Use BEM-VINDA15 e ganhe 15% de desconto! 😎'
+                    'Sempre temos campanhas especiais em dias de jogo e lançamentos da temporada! 🎉',
+                    'Posso te avisar das promoções ativas e cupons disponíveis no momento. 😎'
                 ];
             }
             
             if (message.includes('whatsapp') || message.includes('telefone') || message.includes('contato')) {
                 return [
                     'Nosso WhatsApp é (11) 99999-9999! Mas aqui no chat também consigo te ajudar perfeitamente! 😊',
-                    'Para contato direto: contato@dzecommerce.com.br ou (11) 99999-9999. Como posso te ajudar agora? 💬'
+                    'Para contato direto: contato@rare7.com.br ou (11) 99999-9999. Como posso te ajudar agora? 💬'
                 ];
             }
             
             return [
-                'Que interessante! Posso te ajudar com informações sobre nossos produtos. O que gostaria de saber? 😊',
-                'Claro! Estou aqui para esclarecer suas dúvidas. Tem alguma pergunta sobre nossos produtos? ✨',
-                'Entendi! Nossos produtos de beleza são incríveis. Quer saber mais sobre alguma categoria específica? 💄'
+                'Que interessante! Posso te ajudar com informações sobre camisas de clubes e seleções. O que você procura? 😊',
+                'Claro! Estou aqui para esclarecer suas dúvidas sobre tamanhos, modelos e envio. ✨',
+                'Entendi! Quer que eu te indique os modelos mais procurados no momento? ⚽'
             ];
         }
         
@@ -3137,5 +3146,8 @@ function corStatus($status) {
             }
         }
     </style>
+
+<?php require_once '../includes/footer.php'; ?>
+
 </body>
 </html>

@@ -122,6 +122,31 @@ $stats = mysqli_fetch_assoc($stats_result) ?? ['total' => 0];
         .btn-icon.move {
             background: var(--color-info-dark);
         }
+        .btn-icon.featured {
+            background: var(--color-warning);
+            color: #fff;
+        }
+        .product-item.is-main-featured {
+            border-color: rgba(244, 188, 52, 0.55);
+            background: linear-gradient(120deg, rgba(244, 188, 52, 0.08), rgba(255,255,255,0));
+        }
+        .main-featured-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            margin-top: 0.35rem;
+            padding: 0.18rem 0.5rem;
+            border-radius: 999px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            background: rgba(244, 188, 52, 0.16);
+            color: #b38a17;
+        }
+        .main-featured-pill .material-symbols-sharp {
+            font-size: 0.9rem;
+        }
         .btn-icon:hover {
             opacity: 0.8;
             transform: translateY(-2px);
@@ -261,7 +286,7 @@ $stats = mysqli_fetch_assoc($stats_result) ?? ['total' => 0];
             </div>
         </aside>
 
-        <!-- CONTE√sDO PRINCIPAL -->
+        <!-- CONTEÔøΩsDO PRINCIPAL -->
         <main>
             <h1>CMS > Produtos em Destaque (Lan√ßamentos)</h1>
 
@@ -322,7 +347,7 @@ $stats = mysqli_fetch_assoc($stats_result) ?? ['total' => 0];
                         Produtos Selecionados
                     </h3>
                     <p style="color: var(--color-dark-variant); margin-bottom: 1rem;">
-                        Arraste para reordenar ou use os bot√µes
+                        Arraste para reordenar ou use os bot√µes. O item na posi√ß√£o #1 vira o produto grande da vitrine.
                     </p>
                     <div id="selectedProducts" class="product-list">
                         <div class="empty-state">
@@ -363,7 +388,7 @@ $stats = mysqli_fetch_assoc($stats_result) ?? ['total' => 0];
 
         // Garantir tema dark
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('Y"" P√°gina carregada - Iniciando featured.php');
+            console.log('ÔøΩY"" P√°gina carregada - Iniciando featured.php');
             
             const savedTheme = localStorage.getItem('darkTheme');
             if (savedTheme === 'true') {
@@ -402,12 +427,12 @@ $stats = mysqli_fetch_assoc($stats_result) ?? ['total' => 0];
 
         // Carregar todos os produtos
         async function loadAllProducts() {
-            console.log('Y"¶ Iniciando carregamento de todos os produtos...');
+            console.log('ÔøΩY"ÔøΩ Iniciando carregamento de todos os produtos...');
             try {
                 const response = await fetch('cms_api.php?action=list_products');
                 const result = await response.json();
                 
-                console.log('Y"¶ Todos os produtos retornados pela API:', result);
+                console.log('ÔøΩY"ÔøΩ Todos os produtos retornados pela API:', result);
                 
                 if (result.success) {
                     allProducts = result.data;
@@ -425,18 +450,18 @@ $stats = mysqli_fetch_assoc($stats_result) ?? ['total' => 0];
                 const response = await fetch('cms_api.php?action=list_featured_products');
                 const result = await response.json();
                 
-                console.log('Y"ç Produtos selecionados retornados pela API:', result);
+                console.log('ÔøΩY"ÔøΩ Produtos selecionados retornados pela API:', result);
                 
                 if (result.success) {
                     selectedProducts = result.data;
-                    console.log('‚o. Total de produtos selecionados:', selectedProducts.length);
+                    console.log('ÔøΩo. Total de produtos selecionados:', selectedProducts.length);
                     document.getElementById('totalSelected').textContent = selectedProducts.length;
                     renderSelectedProducts();
                 } else {
-                    console.error('‚ùO API retornou erro:', result.message);
+                    console.error('ÔøΩO API retornou erro:', result.message);
                 }
             } catch (error) {
-                console.error('‚ùO Erro ao carregar produtos selecionados:', error);
+                console.error('ÔøΩO Erro ao carregar produtos selecionados:', error);
             }
         }
 
@@ -493,7 +518,7 @@ $stats = mysqli_fetch_assoc($stats_result) ?? ['total' => 0];
         function renderSelectedProducts() {
             const container = document.getElementById('selectedProducts');
             
-            console.log('YZ® Renderizando produtos selecionados:', selectedProducts);
+            console.log('ÔøΩYZÔøΩ Renderizando produtos selecionados:', selectedProducts);
             
             // Placeholder SVG inline (base64) - leve e sem depend√™ncia de arquivo
             const placeholderSVG = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCA4MCA4MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjgwIiBoZWlnaHQ9IjgwIiBmaWxsPSIjZjVmNWY1Ii8+CjxwYXRoIGQ9Ik00MCAzMEw1MCA0NUgzMEw0MCAzMFoiIGZpbGw9IiNjY2MiLz4KPGNpcmNsZSBjeD0iNDUiIGN5PSIyNSIgcj0iNCIgZmlsbD0iI2NjYyIvPgo8dGV4dCB4PSI0MCIgeT0iNjAiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSI5IiBmaWxsPSIjOTk5IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5Qcm9kdXRvPC90ZXh0Pgo8L3N2Zz4=';
@@ -505,16 +530,21 @@ $stats = mysqli_fetch_assoc($stats_result) ?? ['total' => 0];
             
             container.innerHTML = selectedProducts.map((item, index) => {
                 const imgSrc = item.produto_imagem ? `../../../../assets/images/produtos/${item.produto_imagem}` : placeholderSVG;
+                const isMainFeatured = Number(item.position) === 1;
                 return `
-                <div class="product-item">
+                <div class="product-item ${isMainFeatured ? 'is-main-featured' : ''}">
                     <img src="${imgSrc}" 
                          alt="${item.produto_nome}"
                          onerror="this.src='${placeholderSVG}'">
                     <div class="product-info">
                         <strong>${item.produto_nome}</strong>
                         <small>Posi√ß√£o: #${item.position}</small>
+                        ${isMainFeatured ? '<div class="main-featured-pill"><span class="material-symbols-sharp">star</span> Produto grande atual</div>' : ''}
                     </div>
                     <div class="product-actions">
+                        <button onclick="setMainFeatured(${item.id})" class="btn-icon featured" title="Marcar como produto grande">
+                            <span class="material-symbols-sharp">star</span>
+                        </button>
                         <button onclick="moveProduct(${item.id}, 'up')" class="btn-icon move" title="Subir">
                             <span class="material-symbols-sharp">arrow_upward</span>
                         </button>
@@ -537,7 +567,7 @@ $stats = mysqli_fetch_assoc($stats_result) ?? ['total' => 0];
 
         // Adicionar produto
         async function addProduct(productId) {
-            console.log('‚z. Adicionando produto ID:', productId);
+            console.log('ÔøΩz. Adicionando produto ID:', productId);
             
             const formData = new FormData();
             formData.append('action', 'add_featured_product');
@@ -550,7 +580,7 @@ $stats = mysqli_fetch_assoc($stats_result) ?? ['total' => 0];
                 });
                 const result = await response.json();
                 
-                console.log('‚z. Resposta da API ao adicionar:', result);
+                console.log('ÔøΩz. Resposta da API ao adicionar:', result);
                 
                 if (result.success) {
                     await loadSelectedProducts();
@@ -560,7 +590,7 @@ $stats = mysqli_fetch_assoc($stats_result) ?? ['total' => 0];
                     alert(result.message);
                 }
             } catch (error) {
-                console.error('‚ùO Erro ao adicionar produto:', error);
+                console.error('ÔøΩO Erro ao adicionar produto:', error);
                 alert('Erro ao adicionar produto');
             }
         }
@@ -613,6 +643,29 @@ $stats = mysqli_fetch_assoc($stats_result) ?? ['total' => 0];
                 }
             } catch (error) {
                 alert('Erro ao mover produto');
+            }
+        }
+
+        // Definir produto principal (posi√ß√£o #1) para vitrine de lan√ßamentos
+        async function setMainFeatured(id) {
+            const formData = new FormData();
+            formData.append('action', 'set_featured_product');
+            formData.append('id', id);
+
+            try {
+                const response = await fetch('cms_api.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    await loadSelectedProducts();
+                } else {
+                    alert(result.message || 'N√£o foi poss√≠vel definir o destaque');
+                }
+            } catch (error) {
+                alert('Erro ao definir produto em destaque');
             }
         }
     </script>

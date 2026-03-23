@@ -1,8 +1,10 @@
 ﻿<?php
-// E-commerce D&Z - PÃ¡gina de Produtos
+// E-commerce RARE7 - PÃ¡gina de Produtos
 // Listagem com filtros por categoria e busca
 
 session_start();
+
+header('Content-Type: text/html; charset=UTF-8');
 
 // Incluir configuraÃ§Ã£o e conexÃ£o
 require_once 'config.php';
@@ -26,7 +28,11 @@ $freteGratisValor = getFreteGratisThreshold($pdo);
 // ===== PROCESSAMENTO DE FILTROS =====
 $categoria = isset($_GET['categoria']) ? trim($_GET['categoria']) : '';
 $busca = isset($_GET['busca']) ? trim($_GET['busca']) : '';
-$menu = isset($_GET['menu']) ? trim($_GET['menu']) : '';
+$menu = isset($_GET['menu']) ? mb_strtolower(trim($_GET['menu'])) : '';
+$menuGroupsPadrao = ['clubes', 'selecoes', 'retro', 'raras'];
+$isMenuLancamentos = ($menu === 'lancamentos');
+$isMenuGroup = in_array($menu, $menuGroupsPadrao, true);
+$isMenuTime = (!empty($menu) && !$isMenuLancamentos && !$isMenuGroup);
 $marca = isset($_GET['marca']) ? trim($_GET['marca']) : '';
 $secao_marcas = isset($_GET['secao']) && $_GET['secao'] == 'marcas'; // Filtrar apenas produtos com marca
 $preco_min = isset($_GET['preco_min']) && is_numeric($_GET['preco_min']) ? (float)$_GET['preco_min'] : null;
@@ -35,7 +41,7 @@ $apenas_promocao = isset($_GET['promo']) && $_GET['promo'] == '1';
 $ordenar = isset($_GET['ordenar']) ? trim($_GET['ordenar']) : 'recentes';
 
 // PaginaÃ§Ã£o
-$produtosPorPagina = 12;
+$produtosPorPagina = 13; // hero (1) + grid (12 = 3 linhas × 4 colunas)
 $paginaAtual = isset($_GET['pagina']) && is_numeric($_GET['pagina']) ? max(1, (int)$_GET['pagina']) : 1;
 $offset = ($paginaAtual - 1) * $produtosPorPagina;
 
@@ -51,7 +57,7 @@ while ($row = mysqli_fetch_assoc($resultMarcas)) {
 
 // ===== LÃ“GICA ESPECIAL PARA LANÃ‡AMENTOS =====
 // Se menu=lancamentos, buscar produtos da tabela home_featured_products (section_key='launches')
-if (!empty($menu) && $menu === 'lancamentos') {
+if ($isMenuLancamentos) {
     // Query de count para lanÃ§amentos
     $queryCountLancamentos = "
         SELECT COUNT(*) as total
@@ -78,6 +84,13 @@ if (!empty($menu) && $menu === 'lancamentos') {
             p.created_at,
             c.nome AS categoria,
             fp.position,
+                        (SELECT COUNT(*) FROM produto_variacoes pv WHERE pv.produto_id = p.id AND pv.ativo = 1) AS tem_variacoes,
+                        (SELECT GROUP_CONCAT(DISTINCT TRIM(pv.valor) ORDER BY pv.valor SEPARATOR '||')
+                         FROM produto_variacoes pv
+                         WHERE pv.produto_id = p.id
+                             AND pv.ativo = 1
+                             AND LOWER(TRIM(pv.tipo)) = 'tamanho'
+                             AND TRIM(COALESCE(pv.valor, '')) <> '') AS tamanhos_csv,
             'yes' AS is_lancamento
         FROM home_featured_products fp
         INNER JOIN produtos p ON fp.product_id = p.id
@@ -119,11 +132,20 @@ if (!empty($categoria)) {
     $queryCount .= " AND LOWER(c.nome) = LOWER(?)";
     $params[] = $categoria;
     $types .= 's';
-} elseif (!empty($menu)) {
+} elseif ($isMenuGroup) {
     // Se nÃ£o houver categoria, filtrar por grupo de menu
     $queryCount .= " AND c.menu_group = ?";
     $params[] = $menu;
     $types .= 's';
+} elseif ($isMenuTime) {
+    // menu customizado com nome do time
+    $queryCount .= " AND (LOWER(p.nome) LIKE ? OR LOWER(p.descricao) LIKE ? OR LOWER(c.nome) LIKE ? OR LOWER(COALESCE(p.marca, '')) LIKE ?)";
+    $menuLike = '%' . $menu . '%';
+    $params[] = $menuLike;
+    $params[] = $menuLike;
+    $params[] = $menuLike;
+    $params[] = $menuLike;
+    $types .= 'ssss';
 }
 
 // Filtro por marca
@@ -185,12 +207,19 @@ $query = "
         p.descricao,
         p.preco,
         p.preco_promocional,
+        p.destaque,
         p.estoque,
         p.imagem_principal,
         p.created_at,
         c.nome AS categoria,
         CASE WHEN fp.product_id IS NOT NULL THEN 'yes' ELSE NULL END AS is_lancamento,
-        (SELECT COUNT(*) FROM produto_variacoes pv WHERE pv.produto_id = p.id AND pv.ativo = 1) AS tem_variacoes
+                (SELECT COUNT(*) FROM produto_variacoes pv WHERE pv.produto_id = p.id AND pv.ativo = 1) AS tem_variacoes,
+                (SELECT GROUP_CONCAT(DISTINCT TRIM(pv.valor) ORDER BY pv.valor SEPARATOR '||')
+                 FROM produto_variacoes pv
+                 WHERE pv.produto_id = p.id
+                     AND pv.ativo = 1
+                     AND LOWER(TRIM(pv.tipo)) = 'tamanho'
+                     AND TRIM(COALESCE(pv.valor, '')) <> '') AS tamanhos_csv
     FROM produtos p
     LEFT JOIN categorias c ON p.categoria_id = c.id
     LEFT JOIN home_featured_products fp ON p.id = fp.product_id AND fp.section_key = 'launches'
@@ -207,11 +236,20 @@ if (!empty($categoria)) {
     $query .= " AND LOWER(c.nome) = LOWER(?)";
     $params[] = $categoria;
     $types .= 's';
-} elseif (!empty($menu)) {
+} elseif ($isMenuGroup) {
     // Se nÃ£o houver categoria, filtrar por grupo de menu
     $query .= " AND c.menu_group = ?";
     $params[] = $menu;
     $types .= 's';
+} elseif ($isMenuTime) {
+    // menu customizado com nome do time
+    $query .= " AND (LOWER(p.nome) LIKE ? OR LOWER(p.descricao) LIKE ? OR LOWER(c.nome) LIKE ? OR LOWER(COALESCE(p.marca, '')) LIKE ?)";
+    $menuLike = '%' . $menu . '%';
+    $params[] = $menuLike;
+    $params[] = $menuLike;
+    $params[] = $menuLike;
+    $params[] = $menuLike;
+    $types .= 'ssss';
 }
 
 if (!empty($marca)) {
@@ -252,20 +290,20 @@ if ($apenas_promocao) {
 // OrdenaÃ§Ã£o
 switch ($ordenar) {
     case 'menor_preco':
-        $query .= " ORDER BY COALESCE(p.preco_promocional, p.preco) ASC";
+        $query .= " ORDER BY p.destaque DESC, COALESCE(p.preco_promocional, p.preco) ASC";
         break;
     case 'maior_preco':
-        $query .= " ORDER BY COALESCE(p.preco_promocional, p.preco) DESC";
+        $query .= " ORDER BY p.destaque DESC, COALESCE(p.preco_promocional, p.preco) DESC";
         break;
     case 'nome_az':
-        $query .= " ORDER BY p.nome ASC";
+        $query .= " ORDER BY p.destaque DESC, p.nome ASC";
         break;
     case 'nome_za':
-        $query .= " ORDER BY p.nome DESC";
+        $query .= " ORDER BY p.destaque DESC, p.nome DESC";
         break;
     case 'recentes':
     default:
-        $query .= " ORDER BY p.id DESC";
+        $query .= " ORDER BY p.destaque DESC, p.id DESC";
         break;
 }
 
@@ -293,22 +331,135 @@ $result = mysqli_stmt_get_result($stmt);
 } // Fim do bloco else (query normal)
 
 // Definir tÃ­tulo da pÃ¡gina
+foreach ($produtos as &$produtoLinha) {
+    $tamanhos = [];
+    $csv = trim((string)($produtoLinha['tamanhos_csv'] ?? ''));
+    if ($csv !== '') {
+        $parts = explode('||', $csv);
+        foreach ($parts as $part) {
+            $size = trim((string)$part);
+            if ($size === '') {
+                continue;
+            }
+            $exists = false;
+            foreach ($tamanhos as $existing) {
+                if (mb_strtolower((string)$existing) === mb_strtolower($size)) {
+                    $exists = true;
+                    break;
+                }
+            }
+            if (!$exists) {
+                $tamanhos[] = $size;
+            }
+        }
+    }
+    $produtoLinha['tamanhos'] = $tamanhos;
+    $produtoLinha['tem_tamanhos'] = count($tamanhos);
+}
+unset($produtoLinha);
+
+// Definir título da página
 $pageTitle = 'Todos os Produtos';
 if (!empty($categoria)) {
     $pageTitle = 'Categoria: ' . ucfirst($categoria);
 } elseif (!empty($busca)) {
     $pageTitle = 'Resultados para: ' . htmlspecialchars($busca);
 } elseif (!empty($menu)) {
-    $pageTitle = ($menu === 'lancamentos') ? 'LanÃ§amentos' : ucfirst($menu);
+    if ($isMenuLancamentos) {
+        $pageTitle = 'Lancamentos';
+    } elseif ($isMenuTime) {
+        $pageTitle = 'Time: ' . ucwords($menu);
+    } else {
+        $pageTitle = ucfirst($menu);
+    }
 } elseif (!empty($marca)) {
     $pageTitle = 'Marca: ' . htmlspecialchars($marca);
 } elseif ($secao_marcas) {
     $pageTitle = 'Produtos com Marca';
 }
 
+$pageKicker = $isMenuLancamentos ? 'LANCAMENTOS' : ($isMenuTime ? 'TIME' : 'CATALOGO');
+$pageSubtitle = $isMenuLancamentos
+    ? 'Somente produtos selecionados como lancamentos no CMS.'
+    : ($isMenuTime
+        ? 'Produtos filtrados pelo time selecionado na home.'
+        : 'Um novo layout para explorar a colecao completa da RARE.');
+
+$produtoDestaque = $produtos[0] ?? null;
+$produtosLista = $produtoDestaque ? array_slice($produtos, 1) : [];
+
+$filtroBotoes = [
+    [
+        'label' => 'Todos',
+        'url' => 'produtos.php',
+        'active' => empty($menu) && empty($categoria) && !$apenas_promocao && empty($marca) && !$secao_marcas && empty($busca)
+    ],
+    [
+        'label' => 'Lancamentos',
+        'url' => 'produtos.php?menu=lancamentos',
+        'active' => $menu === 'lancamentos'
+    ],
+    [
+        'label' => 'Clubes',
+        'url' => 'produtos.php?menu=clubes',
+        'active' => $menu === 'clubes' || $isMenuTime
+    ],
+    [
+        'label' => 'Selecoes',
+        'url' => 'produtos.php?menu=selecoes',
+        'active' => $menu === 'selecoes'
+    ],
+    [
+        'label' => 'Retro',
+        'url' => 'produtos.php?menu=retro',
+        'active' => $menu === 'retro'
+    ]
+];
+
+// Usa a variante de navbar flutuante premium do include para manter a mesma aparencia da tela principal.
+$currentPage = 'cart';
+
 ?>
 <?php require_once 'includes/header.php'; ?>
 <?php require_once 'includes/navbar.php'; ?>
+
+<style>
+    body {
+        padding-top: 0 !important;
+        background: #0e0e0e;
+    }
+
+    .rare-products-page {
+        padding-top: 6.4rem;
+    }
+
+    /* Nesta tela, manter o mesmo comportamento da home: hover apenas com elevação. */
+    .rare-products-page .rare-product-cta .rare-btn-secondary {
+        background: rgba(255, 255, 255, 0.04);
+        border-color: rgba(255, 255, 255, 0.12);
+        color: rgba(255, 255, 255, 0.82);
+    }
+
+    .rare-products-page .rare-product-cta .rare-btn-secondary:hover {
+        background: rgba(255, 255, 255, 0.04);
+        border-color: rgba(255, 255, 255, 0.12);
+        color: rgba(255, 255, 255, 0.82);
+    }
+
+    .rare-products-page .rare-product-cta .btn-buy-now.rare-btn-primary {
+        background: linear-gradient(135deg, rgba(198, 167, 94, 1), rgba(198, 167, 94, 0.78));
+        border-color: transparent;
+        color: #131313;
+        box-shadow: 0 18px 35px rgba(198, 167, 94, 0.18);
+    }
+
+    .rare-products-page .rare-product-cta .btn-buy-now.rare-btn-primary:hover {
+        background: linear-gradient(135deg, rgba(198, 167, 94, 1), rgba(198, 167, 94, 0.78));
+        border-color: transparent;
+        color: #131313;
+        box-shadow: 0 18px 35px rgba(198, 167, 94, 0.18);
+    }
+</style>
 
 <!-- Mini Cart Overlay -->
 <div class="mini-cart-overlay" id="miniCartOverlay"></div>
@@ -340,180 +491,190 @@ if (!empty($categoria)) {
     </div>
 </div>
 
-<!-- ===== PÃGINA DE PRODUTOS ===== -->
-<section class="produtos-page" style="padding: 0 0 60px; min-height: 70vh; background: #fafafa; margin-top: 0;">
-    <div class="produtos-container-wide">
-        
-        <!-- Layout: Sidebar + ConteÃºdo -->
-        <div class="produtos-layout">
-            
-            <!-- ===== SIDEBAR DE FILTROS - NOVA ESTRUTURA MINIMALISTA ===== -->
-            <aside class="filtros-sidebar">
-                <div class="sidebar-header">
-                    <h3>Filtrar por</h3>
-                    <?php if (!empty($marca) || $preco_min !== null || $preco_max !== null || $apenas_promocao || $secao_marcas): ?>
-                        <a href="produtos.php" class="btn-limpar">Limpar</a>
+<section class="rare-products-page">
+    <div class="rare-products-shell">
+        <div class="rare-products-topbar">
+            <div class="rare-products-heading">
+                <span class="rare-products-kicker"><?php echo htmlspecialchars($pageKicker); ?></span>
+                <h1><?php echo htmlspecialchars($pageTitle); ?></h1>
+                <p><?php echo htmlspecialchars($pageSubtitle); ?></p>
+            </div>
+
+        </div>
+
+        <div class="rare-products-toolbar">
+            <div class="rare-products-filter-pills">
+                <?php foreach ($filtroBotoes as $botaoFiltro): ?>
+                    <a href="<?php echo htmlspecialchars($botaoFiltro['url']); ?>" class="rare-filter-pill <?php echo !empty($botaoFiltro['active']) ? 'is-active' : ''; ?>">
+                        <?php echo htmlspecialchars($botaoFiltro['label']); ?>
+                    </a>
+                <?php endforeach; ?>
+                <?php if (!empty($categoria)): ?>
+                    <a href="produtos.php?categoria=<?php echo urlencode($categoria); ?>" class="rare-filter-pill is-active"><?php echo htmlspecialchars($categoria); ?></a>
+                <?php endif; ?>
+                <?php if (!empty($marca)): ?>
+                    <a href="produtos.php?marca=<?php echo urlencode($marca); ?>" class="rare-filter-pill is-active"><?php echo htmlspecialchars($marca); ?></a>
+                <?php endif; ?>
+                <?php if (!empty($busca)): ?>
+                    <a href="produtos.php?busca=<?php echo urlencode($busca); ?>" class="rare-filter-pill is-active">Busca: <?php echo htmlspecialchars($busca); ?></a>
+                <?php endif; ?>
+                <?php if ($isMenuTime): ?>
+                    <a href="produtos.php?menu=<?php echo urlencode($menu); ?>" class="rare-filter-pill is-active">Time: <?php echo htmlspecialchars(ucwords($menu)); ?></a>
+                <?php endif; ?>
+            </div>
+            <?php if (!empty($marca) || !empty($categoria) || !empty($busca) || !empty($menu) || $apenas_promocao || $secao_marcas || $preco_min !== null || $preco_max !== null): ?>
+                <a href="produtos.php" class="rare-clear-link">Limpar filtros</a>
+            <?php endif; ?>
+        </div>
+
+        <?php if (!empty($produtoDestaque) && $paginaAtual === 1): ?>
+            <div class="rare-hero-destaque-label">
+                <span class="material-symbols-sharp">workspace_premium</span>
+                Produto em Destaque
+            </div>
+            <?php
+                $heroBadge = getProductBadge($produtoDestaque);
+                $heroPrice = isOnSale($produtoDestaque) ? ($produtoDestaque['preco_promocional'] ?? $produtoDestaque['preco']) : ($produtoDestaque['preco'] ?? 0);
+                $heroDescription = trim((string) ($produtoDestaque['descricao'] ?? ''));
+                $heroExcerpt = $heroDescription !== '' ? mb_substr($heroDescription, 0, 220) . (mb_strlen($heroDescription) > 220 ? '...' : '') : 'Peca selecionada para abrir a vitrine da RARE com presenca forte, acabamento premium e proposta editorial.';
+                $heroImage = !empty($produtoDestaque['imagem_principal']) ? '../admin/assets/images/produtos/' . rawurlencode($produtoDestaque['imagem_principal']) : '';
+            ?>
+            <article class="rare-product-hero" data-product-card data-product-id="<?php echo (int) $produtoDestaque['id']; ?>" data-has-variacoes="<?php echo (isset($produtoDestaque['tem_variacoes']) && $produtoDestaque['tem_variacoes'] > 0) ? '1' : '0'; ?>" data-has-tamanhos="<?php echo (!empty($produtoDestaque['tamanhos'])) ? '1' : '0'; ?>">
+                <a href="produto.php?id=<?php echo $produtoDestaque['id']; ?>" class="rare-product-hero-media" aria-label="Abrir produto <?php echo htmlspecialchars($produtoDestaque['nome']); ?>">
+                    <?php if ($heroImage !== ''): ?>
+                        <img src="<?php echo htmlspecialchars($heroImage); ?>" alt="<?php echo htmlspecialchars($produtoDestaque['nome']); ?>" loading="lazy" onerror="this.parentElement.classList.add('is-fallback'); this.remove();">
                     <?php endif; ?>
-                </div>
-                
-                <!-- SEÃ‡ÃƒO: MARCAS -->
-                <?php if (!empty($marcas)): ?>
-                <div class="filtro-secao">
-                    <h4 class="filtro-titulo">Marcas</h4>
-                    <ul class="filtro-lista">
-                        <?php foreach ($marcas as $m): ?>
-                        <li>
-                            <a href="?marca=<?php echo urlencode($m); ?>" 
-                               class="filtro-link <?php echo ($marca == $m) ? 'active' : ''; ?>">
-                                <?php echo htmlspecialchars($m); ?>
-                            </a>
-                        </li>
-                        <?php endforeach; ?>
-                    </ul>
-                </div>
-                <?php endif; ?>
-                
-                <!-- SEÃ‡ÃƒO: FAIXA DE PREÃ‡O -->
-                <div class="filtro-secao">
-                    <h4 class="filtro-titulo">Faixa de PreÃ§o</h4>
-                    <ul class="filtro-lista">
-                        <li>
-                            <a href="?preco_max=50<?php echo !empty($marca) ? '&marca='.urlencode($marca) : ''; ?>" 
-                               class="filtro-link <?php echo ($preco_max == 50 && $preco_min === null) ? 'active' : ''; ?>">
-                                AtÃ© R$ 50
-                            </a>
-                        </li>
-                        <li>
-                            <a href="?preco_min=50&preco_max=100<?php echo !empty($marca) ? '&marca='.urlencode($marca) : ''; ?>" 
-                               class="filtro-link <?php echo ($preco_min == 50 && $preco_max == 100) ? 'active' : ''; ?>">
-                                R$ 50 â€“ R$ 100
-                            </a>
-                        </li>
-                        <li>
-                            <a href="?preco_min=100<?php echo !empty($marca) ? '&marca='.urlencode($marca) : ''; ?>" 
-                               class="filtro-link <?php echo ($preco_min == 100 && $preco_max === null) ? 'active' : ''; ?>">
-                                Acima de R$ 100
-                            </a>
-                        </li>
-                    </ul>
-                </div>
-                
-                <!-- SEÃ‡ÃƒO: STATUS -->
-                <div class="filtro-secao">
-                    <h4 class="filtro-titulo">Status</h4>
-                    <div class="filtro-opcoes">
-                        <label class="filtro-checkbox">
-                            <input type="checkbox" <?php echo $apenas_promocao ? 'checked' : ''; ?> 
-                                   onchange="window.location.href='?promo=<?php echo $apenas_promocao ? '0' : '1'; ?><?php echo !empty($marca) ? '&marca='.urlencode($marca) : ''; ?><?php echo $preco_min !== null ? '&preco_min='.$preco_min : ''; ?><?php echo $preco_max !== null ? '&preco_max='.$preco_max : ''; ?>'">
-                            <span>Apenas promoÃ§Ãµes</span>
-                        </label>
-                        <label class="filtro-checkbox">
-                            <input type="checkbox">
-                            <span>Apenas lanÃ§amentos</span>
-                        </label>
+                    <div class="rare-product-hero-fallback">
+                        <span class="material-symbols-sharp">stadium</span>
                     </div>
-                </div>
-            </aside>
-            
-            <!-- ===== CONTEÃšDO PRINCIPAL (TÃ­tulo + Barra Superior + Grid) ===== -->
-            <div class="produtos-conteudo">
-                
-                <!-- TÃ­tulo e contagem -->
-                <div class="produtos-header-inline">
-                    <div>
-                        <h1 class="produtos-titulo"><?php echo htmlspecialchars($pageTitle); ?></h1>
-                        <p class="produtos-contagem">
-                            <?php if ($totalProdutos > 0): ?>
-                                Mostrando <strong><?php echo $offset + 1; ?></strong>â€“<strong><?php echo min($offset + $produtosPorPagina, $totalProdutos); ?></strong> de <strong><?php echo $totalProdutos; ?></strong> produto<?php echo $totalProdutos > 1 ? 's' : ''; ?>
-                            <?php else: ?>
-                                Nenhum produto encontrado
-                            <?php endif; ?>
-                        </p>
-                    </div>
-                    
-                    <div class="barra-ordenacao">
-                        <label for="ordenar">Ordenar:</label>
-                        <select name="ordenar" id="ordenar" onchange="aplicarOrdenacao(this.value)">
-                            <option value="recentes" <?php echo ($ordenar == 'recentes') ? 'selected' : ''; ?>>Mais recentes</option>
-                            <option value="menor_preco" <?php echo ($ordenar == 'menor_preco') ? 'selected' : ''; ?>>Menor preÃ§o</option>
-                            <option value="maior_preco" <?php echo ($ordenar == 'maior_preco') ? 'selected' : ''; ?>>Maior preÃ§o</option>
-                            <option value="nome_az" <?php echo ($ordenar == 'nome_az') ? 'selected' : ''; ?>>Nome (A-Z)</option>
-                            <option value="nome_za" <?php echo ($ordenar == 'nome_za') ? 'selected' : ''; ?>>Nome (Z-A)</option>
-                        </select>
-                    </div>
-                </div>
-                
-                <!-- ===== BARRA DE PAGINAÃ‡ÃƒO (se necessÃ¡rio) ===== -->
-                <?php if ($totalPaginas > 1): ?>
-                <div class="produtos-barra-superior">
-                    <div class="barra-info">
-                        <span class="pagina-info">PÃ¡gina <strong><?php echo $paginaAtual; ?></strong> de <strong><?php echo $totalPaginas; ?></strong></span>
-                    </div>
-                </div>
-                <?php endif; ?>
-                
-                <!-- Grid de Produtos -->
-                <?php if (!empty($produtos)): ?>
-                <div class="produtos-grid-page">
-                    
-                    <?php foreach ($produtos as $product): ?>
-                    <!-- Produto: <?php echo htmlspecialchars($product['nome']); ?> -->
-                    <?php $badge = getProductBadge($product); ?>
-                    <!-- Badge: [<?php echo $badge ?: 'NENHUM'; ?>] -->
-                    <a href="produto.php?id=<?php echo $product['id']; ?>" class="produto-card-link">
-                        <div class="produto-card">
-                            <div class="produto-image<?php echo !empty($badge) ? ' ' . $badge : ''; ?>">
-                                <?php if (!empty($product['imagem_principal'])): ?>
-                                <img src="../admin/assets/images/produtos/<?php echo htmlspecialchars($product['imagem_principal']); ?>" 
-                                     alt="<?php echo htmlspecialchars($product['nome']); ?>"
-                                     style="width: 100%; height: 100%; object-fit: cover; border-radius: 12px;"
-                                     onerror="this.parentElement.innerHTML='<div class=\'produto-placeholder\'>ðŸ’…</div>';">
-                                <?php else: ?>
-                                <div class="produto-placeholder">ðŸ’…</div>
-                                <?php endif; ?>
+                </a>
+                <div class="rare-product-hero-copy">
+                    <div class="rare-product-hero-copy-inner">
+                        <?php if (!empty($heroBadge)): ?>
+                            <span class="rare-badge"><?php echo strtoupper(htmlspecialchars($heroBadge)); ?></span>
+                        <?php else: ?>
+                            <span class="rare-badge">PREMIUM</span>
+                        <?php endif; ?>
+                        <span class="rare-product-category"><?php echo htmlspecialchars($produtoDestaque['categoria'] ?? 'Colecao Rare'); ?></span>
+                        <h2><?php echo htmlspecialchars($produtoDestaque['nome']); ?></h2>
+                        <p class="rare-product-description"><?php echo htmlspecialchars($heroExcerpt); ?></p>
+
+                        <?php if (!empty($produtoDestaque['tamanhos'])): ?>
+                        <div class="rare-size-selector" data-product-sizes data-product-id="<?php echo (int) $produtoDestaque['id']; ?>">
+                            <span class="rare-size-label">Tamanhos</span>
+                            <div class="rare-size-options">
+                                <?php foreach ($produtoDestaque['tamanhos'] as $size): ?>
+                                    <button type="button" class="rare-size-chip" data-size-option="<?php echo htmlspecialchars($size); ?>"><?php echo htmlspecialchars($size); ?></button>
+                                <?php endforeach; ?>
                             </div>
-                            
-                            <div class="produto-content">
-                                <h3 class="produto-title"><?php echo htmlspecialchars($product['nome']); ?></h3>
-                                <p class="produto-description">
-                                    <?php echo htmlspecialchars(substr($product['descricao'] ?? '', 0, 80)); ?><?php echo strlen($product['descricao'] ?? '') > 80 ? '...' : ''; ?>
-                                </p>
-                                
-                                <div class="produto-price">
-                                    <?php if (isOnSale($product)): ?>
-                                        <span style="text-decoration: line-through; opacity: 0.6; font-size: 0.85em; margin-right: 8px;">
-                                            <?php echo formatPrice($product['preco']); ?>
-                                        </span>
-                                        <span style="color: var(--color-magenta); font-weight: 700;">
-                                            <?php echo formatPrice($product['preco_promocional']); ?>
-                                        </span>
-                                    <?php else: ?>
-                                        <?php echo formatPrice($product['preco']); ?>
-                                    <?php endif; ?>
+                        </div>
+                        <?php endif; ?>
+
+                        <div class="rare-product-price-block">
+                            <?php if (isOnSale($produtoDestaque)): ?>
+                                <span class="rare-price-old"><?php echo formatPrice($produtoDestaque['preco']); ?></span>
+                            <?php endif; ?>
+                            <strong class="rare-price-current"><?php echo formatPrice($heroPrice); ?></strong>
+                        </div>
+
+                        <div class="rare-product-cta" onclick="event.stopPropagation(); event.preventDefault();">
+                            <button class="rare-btn rare-btn-secondary" onclick="addToCart(<?php echo (int) $produtoDestaque['id']; ?>, '<?php echo htmlspecialchars($produtoDestaque['nome'], ENT_QUOTES); ?>', event)">Adicionar ao carrinho</button>
+                            <button class="rare-btn rare-btn-primary btn-buy-now" onclick="buyNow(<?php echo (int) $produtoDestaque['id']; ?>, event)" data-has-variacoes="<?php echo (isset($produtoDestaque['tem_variacoes']) && $produtoDestaque['tem_variacoes'] > 0) ? '1' : '0'; ?>">Comprar agora</button>
+                        </div>
+                    </div>
+                </div>
+            </article>
+        <?php endif; ?>
+
+        <div class="rare-sort-bar">
+            <span class="rare-sort-bar-count">
+                <?php if ($totalProdutos > 0): ?>
+                    <?php echo $totalProdutos; ?> produto<?php echo $totalProdutos > 1 ? 's' : ''; ?> disponív<?php echo $totalProdutos > 1 ? 'eis' : 'el'; ?>
+                <?php endif; ?>
+            </span>
+            <div class="rare-sort-bar-right">
+                <label>Ordenar por</label>
+                <?php
+                    $sortLabels = [
+                        'recentes'    => 'Mais recentes',
+                        'menor_preco' => 'Menor preço',
+                        'maior_preco' => 'Maior preço',
+                    ];
+                    $sortAtual = $sortLabels[$ordenar] ?? 'Mais recentes';
+                ?>
+                <div class="rare-custom-select" id="sortDropdown">
+                    <button class="rare-custom-select-trigger" type="button" onclick="toggleSortDropdown(event)" aria-haspopup="listbox" aria-expanded="false">
+                        <span id="sortLabel"><?php echo htmlspecialchars($sortAtual); ?></span>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="10" height="6" viewBox="0 0 10 6"><path d="M0 0l5 6 5-6z" fill="currentColor"/></svg>
+                    </button>
+                    <ul class="rare-custom-select-options" role="listbox">
+                        <li role="option" data-value="recentes" <?php echo ($ordenar === 'recentes') ? 'class="is-selected"' : ''; ?>>Mais recentes</li>
+                        <li role="option" data-value="menor_preco" <?php echo ($ordenar === 'menor_preco') ? 'class="is-selected"' : ''; ?>>Menor preço</li>
+                        <li role="option" data-value="maior_preco" <?php echo ($ordenar === 'maior_preco') ? 'class="is-selected"' : ''; ?>>Maior preço</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <?php if (!empty($produtos)): ?>
+            <div class="rare-products-editorial-list">
+                <?php foreach ($produtosLista as $product): ?>
+                    <?php
+                        $badge = getProductBadge($product);
+                        $productImage = !empty($product['imagem_principal']) ? '../admin/assets/images/produtos/' . rawurlencode($product['imagem_principal']) : '';
+                        $priceValue = isOnSale($product) ? ($product['preco_promocional'] ?? $product['preco']) : ($product['preco'] ?? 0);
+                        $description = trim((string) ($product['descricao'] ?? ''));
+                        $excerpt = $description !== '' ? mb_substr($description, 0, 150) . (mb_strlen($description) > 150 ? '...' : '') : 'Peca com acabamento refinado, curadoria premium e presenca marcante dentro da colecao RARE.';
+                    ?>
+                    <article class="rare-product-row" data-product-card data-product-id="<?php echo (int) $product['id']; ?>" data-has-variacoes="<?php echo (isset($product['tem_variacoes']) && $product['tem_variacoes'] > 0) ? '1' : '0'; ?>" data-has-tamanhos="<?php echo (!empty($product['tamanhos'])) ? '1' : '0'; ?>">
+                        <a href="produto.php?id=<?php echo $product['id']; ?>" class="rare-product-row-media" aria-label="Abrir produto <?php echo htmlspecialchars($product['nome']); ?>">
+                            <?php if ($productImage !== ''): ?>
+                                <img src="<?php echo htmlspecialchars($productImage); ?>" alt="<?php echo htmlspecialchars($product['nome']); ?>" loading="lazy" onerror="this.parentElement.classList.add('is-fallback'); this.remove();">
+                            <?php endif; ?>
+                            <div class="rare-product-row-fallback">
+                                <span class="material-symbols-sharp">sports_soccer</span>
+                            </div>
+                            <?php if (!empty($badge)): ?>
+                                <span class="rare-inline-badge"><?php echo strtoupper(htmlspecialchars($badge)); ?></span>
+                            <?php endif; ?>
+                        </a>
+                        <div class="rare-product-row-content">
+                            <div class="rare-product-row-topline">
+                                <span class="rare-product-category"><?php echo htmlspecialchars($product['categoria'] ?? 'Colecao Rare'); ?></span>
+                            </div>
+                            <h3><a href="produto.php?id=<?php echo $product['id']; ?>"><?php echo htmlspecialchars($product['nome']); ?></a></h3>
+                            <p class="rare-product-description"><?php echo htmlspecialchars($excerpt); ?></p>
+
+                            <?php if (!empty($product['tamanhos'])): ?>
+                            <div class="rare-size-selector" data-product-sizes data-product-id="<?php echo (int) $product['id']; ?>">
+                                <span class="rare-size-label">Tamanhos</span>
+                                <div class="rare-size-options">
+                                    <?php foreach ($product['tamanhos'] as $size): ?>
+                                        <button type="button" class="rare-size-chip" data-size-option="<?php echo htmlspecialchars($size); ?>"><?php echo htmlspecialchars($size); ?></button>
+                                    <?php endforeach; ?>
                                 </div>
-                                
-                                <div class="produto-actions" onclick="event.stopPropagation(); event.preventDefault();">
-                                    <button class="btn-add-cart" onclick="addToCart(<?php echo $product['id']; ?>, '<?php echo htmlspecialchars($product['nome'], ENT_QUOTES); ?>', event)">
-                                        ðŸ›’ Adicionar
-                                    </button>
-                                    <button class="btn-buy-now" 
-                                            onclick="buyNow(<?php echo $product['id']; ?>, event)" 
-                                            data-has-variacoes="<?php echo (isset($product['tem_variacoes']) && $product['tem_variacoes'] > 0) ? '1' : '0'; ?>">
-                                        Comprar
-                                    </button>
+                            </div>
+                            <?php endif; ?>
+
+                            <div class="rare-product-row-footer" onclick="event.stopPropagation(); event.preventDefault();">
+                                <div class="rare-product-price-block">
+                                    <?php if (isOnSale($product)): ?>
+                                        <span class="rare-price-old"><?php echo formatPrice($product['preco']); ?></span>
+                                    <?php endif; ?>
+                                    <strong class="rare-price-current"><?php echo formatPrice($priceValue); ?></strong>
+                                </div>
+                                <div class="rare-product-cta compact">
+                                    <button class="rare-btn rare-btn-secondary" onclick="addToCart(<?php echo (int) $product['id']; ?>, '<?php echo htmlspecialchars($product['nome'], ENT_QUOTES); ?>', event)">Adicionar</button>
+                                    <button class="rare-btn rare-btn-primary btn-buy-now" onclick="buyNow(<?php echo (int) $product['id']; ?>, event)" data-has-variacoes="<?php echo (isset($product['tem_variacoes']) && $product['tem_variacoes'] > 0) ? '1' : '0'; ?>">Comprar</button>
                                 </div>
                             </div>
                         </div>
-                    </a>
-                    <?php endforeach; ?>
-                    
-                </div>
-                
-                <!-- ===== PAGINAÃ‡ÃƒO ===== -->
-                <?php if ($totalPaginas > 1): ?>
-                <div class="paginacao">
-                    <?php
-                    // Construir query string preservando filtros
+                    </article>
+                <?php endforeach; ?>
+            </div>
+
+            <?php if ($totalPaginas > 1): ?>
+                <?php
                     $queryString = '';
                     if (!empty($categoria)) $queryString .= '&categoria=' . urlencode($categoria);
                     if (!empty($marca)) $queryString .= '&marca=' . urlencode($marca);
@@ -523,1262 +684,91 @@ if (!empty($categoria)) {
                     if ($preco_max !== null) $queryString .= '&preco_max=' . $preco_max;
                     if ($apenas_promocao) $queryString .= '&promo=1';
                     if (!empty($ordenar)) $queryString .= '&ordenar=' . urlencode($ordenar);
-                    ?>
-                    
+                ?>
+                <div class="rare-products-pagination">
                     <?php if ($paginaAtual > 1): ?>
-                        <a href="?pagina=<?php echo $paginaAtual - 1; ?><?php echo $queryString; ?>" class="btn-paginacao">â† Anterior</a>
+                        <a href="?pagina=<?php echo $paginaAtual - 1; ?><?php echo $queryString; ?>" class="rare-page-link">Anterior</a>
                     <?php endif; ?>
-                    
-                    <div class="paginacao-numeros">
+
+                    <div class="rare-page-numbers">
                         <?php
-                        $range = 2; // Mostrar 2 pÃ¡ginas antes e depois
-                        $start = max(1, $paginaAtual - $range);
-                        $end = min($totalPaginas, $paginaAtual + $range);
-                        
-                        if ($start > 1): ?>
-                            <a href="?pagina=1<?php echo $queryString; ?>" class="btn-pagina">1</a>
-                            <?php if ($start > 2): ?>
-                                <span class="paginacao-ellipsis">...</span>
-                            <?php endif; ?>
+                            $range = 2;
+                            $start = max(1, $paginaAtual - $range);
+                            $end = min($totalPaginas, $paginaAtual + $range);
+                            if ($start > 1):
+                        ?>
+                            <a href="?pagina=1<?php echo $queryString; ?>" class="rare-page-number">1</a>
+                            <?php if ($start > 2): ?><span class="rare-page-dots">...</span><?php endif; ?>
                         <?php endif; ?>
-                        
                         <?php for ($i = $start; $i <= $end; $i++): ?>
-                            <a href="?pagina=<?php echo $i; ?><?php echo $queryString; ?>" 
-                               class="btn-pagina <?php echo ($i == $paginaAtual) ? 'active' : ''; ?>">
-                                <?php echo $i; ?>
-                            </a>
+                            <a href="?pagina=<?php echo $i; ?><?php echo $queryString; ?>" class="rare-page-number <?php echo $i === $paginaAtual ? 'is-active' : ''; ?>"><?php echo $i; ?></a>
                         <?php endfor; ?>
-                        
                         <?php if ($end < $totalPaginas): ?>
-                            <?php if ($end < $totalPaginas - 1): ?>
-                                <span class="paginacao-ellipsis">...</span>
-                            <?php endif; ?>
-                            <a href="?pagina=<?php echo $totalPaginas; ?><?php echo $queryString; ?>" class="btn-pagina"><?php echo $totalPaginas; ?></a>
+                            <?php if ($end < $totalPaginas - 1): ?><span class="rare-page-dots">...</span><?php endif; ?>
+                            <a href="?pagina=<?php echo $totalPaginas; ?><?php echo $queryString; ?>" class="rare-page-number"><?php echo $totalPaginas; ?></a>
                         <?php endif; ?>
                     </div>
-                    
+
                     <?php if ($paginaAtual < $totalPaginas): ?>
-                        <a href="?pagina=<?php echo $paginaAtual + 1; ?><?php echo $queryString; ?>" class="btn-paginacao">PrÃ³xima â†’</a>
+                        <a href="?pagina=<?php echo $paginaAtual + 1; ?><?php echo $queryString; ?>" class="rare-page-link">Proxima</a>
                     <?php endif; ?>
                 </div>
-                <?php endif; ?>
-                
-                <?php else: ?>
-                
-                <!-- Mensagem quando nÃ£o hÃ¡ produtos -->
-                <div class="no-products" style="text-align: center; padding: 80px 20px; background: white; border-radius: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.08);">
-                    <div style="font-size: 64px; margin-bottom: 20px; opacity: 0.3;">ðŸ”</div>
-                    <h3 style="font-size: 24px; color: #333; margin-bottom: 12px;">Nenhum produto encontrado</h3>
-                    <p style="color: #666; margin-bottom: 30px;">
-                        Tente ajustar seus filtros ou explore outras categorias.
-                    </p>
-                    <a href="produtos.php" class="btn-primary" style="display: inline-block; padding: 12px 32px; background: linear-gradient(135deg, #E6007E, #C4006A); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; transition: transform 0.2s;">
-                        Ver todos os produtos
-                    </a>
-                </div>
-                
-                <?php endif; ?>
-                
+            <?php endif; ?>
+        <?php else: ?>
+            <div class="rare-products-empty">
+                <span class="material-symbols-sharp">search_off</span>
+                <h3>Nenhum produto encontrado</h3>
+                <p>Tente ajustar os filtros ou volte para a colecao completa da RARE.</p>
+                <a href="produtos.php" class="rare-btn rare-btn-primary">Ver todos os produtos</a>
             </div>
-            
-        </div>
-        
+        <?php endif; ?>
     </div>
 </section>
-
-<!-- CSS do Mini Cart -->
-<style>
-    /* ===== BADGES/SELOS DOS CARDS (ESPECÃFICO PRODUTOS.PHP) ===== */
-    .produtos-grid-page .produto-image {
-        position: relative;
-        overflow: hidden;
-        border-radius: 12px;
-    }
-    
-    /* Badges - aplicar APENAS quando houver classe especÃ­fica */
-    .produtos-grid-page .produto-image.novo::before {
-        content: 'NOVO';
-        position: absolute;
-        top: 10px;
-        right: 10px;
-        padding: 6px 12px;
-        min-height: 28px;
-        max-width: calc(100% - 20px);
-        background: #10b981;
-        color: white;
-        border-radius: 12px;
-        font-size: 0.75rem;
-        font-weight: 700;
-        line-height: 1.3;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        white-space: nowrap;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        z-index: 3;
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-        box-sizing: border-box;
-    }
-    
-    .produtos-grid-page .produto-image.promocao::before {
-        content: 'PROMOÃ‡ÃƒO';
-        position: absolute;
-        top: 10px;
-        right: 10px;
-        padding: 4px 10px;
-        min-height: 22px;
-        max-width: calc(100% - 20px);
-        background: #ef4444;
-        color: white;
-        border-radius: 12px;
-        font-size: 0.6rem;
-        font-weight: 700;
-        line-height: 1.3;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        white-space: nowrap;
-        text-transform: uppercase;
-        letter-spacing: 0.3px;
-        z-index: 3;
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-        box-sizing: border-box;
-    }
-    
-    .produtos-grid-page .produto-image.lancamento::before {
-        content: 'LANÃ‡AMENTO';
-        position: absolute;
-        top: 10px;
-        right: 10px;
-        padding: 4px 10px;
-        min-height: 22px;
-        max-width: calc(100% - 20px);
-        background: #f59e0b;
-        color: white;
-        border-radius: 12px;
-        font-size: 0.6rem;
-        font-weight: 700;
-        line-height: 1.3;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        white-space: nowrap;
-        text-transform: uppercase;
-        letter-spacing: 0.3px;
-        z-index: 3;
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-        box-sizing: border-box;
-    }
-    
-    .produtos-grid-page .produto-image.exclusivo::before {
-        content: 'EXCLUSIVO';
-        position: absolute;
-        top: 10px;
-        right: 10px;
-        padding: 4px 10px;
-        min-height: 22px;
-        max-width: calc(100% - 20px);
-        background: #8b5cf6;
-        color: white;
-        border-radius: 12px;
-        font-size: 0.6rem;
-        font-weight: 700;
-        line-height: 1.3;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        white-space: nowrap;
-        text-transform: uppercase;
-        letter-spacing: 0.3px;
-        z-index: 3;
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-        box-sizing: border-box;
-    }
-    
-    /* ===== CONTAINER PRINCIPAL LARGO ===== */
-    .produtos-container-wide {
-        max-width: 1500px;
-        width: 100%;
-        padding: 24px 24px 32px;
-        margin: 0 auto;
-    }
-    
-    /* ===== CABEÃ‡ALHO INTEGRADO (dentro do conteÃºdo) ===== */
-    .produtos-header-inline {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        margin-bottom: 16px;
-        padding-bottom: 16px;
-        border-bottom: 2px solid #f0f0f0;
-        gap: 20px;
-        flex-wrap: wrap;
-    }
-    
-    .produtos-titulo {
-        font-size: 1.75rem;
-        color: #333;
-        margin: 0 0 4px 0;
-        font-weight: 700;
-        letter-spacing: -0.02em;
-    }
-    
-    .produtos-contagem {
-        font-size: 0.9rem;
-        color: #666;
-        margin: 0;
-        font-weight: 400;
-    }
-    
-    .produtos-contagem strong {
-        color: #E6007E;
-        font-weight: 600;
-    }
-    
-    /* ===== LAYOUT: SIDEBAR + CONTEÃšDO ===== */
-    .produtos-layout {
-        display: grid;
-        grid-template-columns: 220px 1fr;
-        gap: 28px;
-        align-items: start;
-    }
-    
-    /* ===== SIDEBAR DE FILTROS - MINIMALISTA E ELEGANTE ===== */
-    .filtros-sidebar {
-        background: white;
-        border-radius: 8px;
-        padding: 0;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-        height: fit-content;
-        position: sticky;
-        top: 100px;
-        border: 1px solid #f0f0f0;
-        overflow: hidden;
-    }
-    
-    /* HEADER DA SIDEBAR */
-    .sidebar-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 18px 20px;
-        border-bottom: 1px solid #f5f5f5;
-    }
-    
-    .sidebar-header h3 {
-        font-size: 0.938rem;
-        color: #333;
-        margin: 0;
-        font-weight: 600;
-        letter-spacing: 0.2px;
-    }
-    
-    .btn-limpar {
-        font-size: 0.813rem;
-        color: #E6007E;
-        text-decoration: none;
-        font-weight: 500;
-        padding: 0;
-        background: none;
-        border: none;
-        cursor: pointer;
-        transition: color 0.2s;
-    }
-    
-    .btn-limpar:hover {
-        color: #C4006A;
-        text-decoration: underline;
-    }
-    
-    /* SEÃ‡Ã•ES DE FILTRO */
-    .filtro-secao {
-        padding: 16px 20px;
-        border-bottom: 1px solid #f5f5f5;
-    }
-    
-    .filtro-secao:last-child {
-        border-bottom: none;
-    }
-    
-    .filtro-titulo {
-        font-size: 0.75rem;
-        color: #888;
-        margin: 0 0 12px 0;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.8px;
-    }
-    
-    /* LISTAS DE LINKS */
-    .filtro-lista {
-        list-style: none;
-        padding: 0;
-        margin: 0;
-    }
-    
-    .filtro-lista li {
-        margin: 0;
-    }
-    
-    .filtro-link {
-        display: block;
-        padding: 7px 0;
-        color: #555;
-        text-decoration: none;
-        font-size: 0.875rem;
-        font-weight: 400;
-        line-height: 1.3;
-        transition: all 0.2s ease;
-        position: relative;
-        padding-left: 0;
-    }
-    
-    .filtro-link:hover {
-        color: #E6007E;
-        padding-left: 3px;
-    }
-    
-    .filtro-link.active {
-        color: #E6007E;
-        font-weight: 500;
-        padding-left: 3px;
-    }
-    
-    .filtro-link.active::before {
-        content: '';
-        position: absolute;
-        left: -10px;
-        top: 50%;
-        transform: translateY(-50%);
-        width: 3px;
-        height: 3px;
-        background: #E6007E;
-        border-radius: 50%;
-    }
-    
-    /* CHECKBOXES (STATUS) */
-    .filtro-opcoes {
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-    }
-    
-    .filtro-checkbox {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        cursor: pointer;
-        font-size: 0.875rem;
-        color: #555;
-        font-weight: 400;
-        transition: color 0.2s;
-    }
-    
-    .filtro-checkbox:hover {
-        color: #E6007E;
-    }
-    
-    .filtro-checkbox input[type="checkbox"] {
-        width: 16px;
-        height: 16px;
-        cursor: pointer;
-        accent-color: #E6007E;
-        margin: 0;
-    }
-    
-    .filtro-checkbox span {
-        user-select: none;
-    }
-    
-    /* ===== CONTEÃšDO PRINCIPAL ===== */
-    .produtos-conteudo {
-        min-width: 0; /* Fix para grid overflow */
-        margin-top: 0;
-        padding-top: 0;
-    }
-    
-    /* ===== BARRA SUPERIOR DE INFORMAÃ‡Ã•ES (PaginaÃ§Ã£o) ===== */
-    .produtos-barra-superior {
-        background: transparent;
-        padding: 0;
-        margin-bottom: 16px;
-        border: none;
-        display: flex;
-        justify-content: flex-start;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 16px;
-    }
-    
-    .barra-info {
-        display: flex;
-        align-items: center;
-        gap: 16px;
-    }
-    
-    .pagina-info {
-        font-size: 0.85rem;
-        color: #666;
-        margin: 0;
-        white-space: nowrap;
-    }
-    
-    .pagina-info strong {
-        color: #E6007E;
-        font-weight: 600;
-    }
-    
-    .barra-ordenacao {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 8px 14px;
-        background: #f8f9fa;
-        border-radius: 8px;
-        border: 1px solid #e9ecef;
-    }
-    
-    .barra-ordenacao label {
-        font-size: 0.9rem;
-        color: #666;
-        font-weight: 500;
-        white-space: nowrap;
-    }
-    
-    .barra-ordenacao select {
-        padding: 6px 10px;
-        border: 1px solid #ddd;
-        border-radius: 6px;
-        font-size: 0.9rem;
-        background: white;
-        cursor: pointer;
-        transition: all 0.2s;
-        min-width: 160px;
-    }
-    
-    .barra-ordenacao select:hover,
-    .barra-ordenacao select:focus {
-        border-color: #E6007E;
-        outline: none;
-    }
-    
-    /* ===== PAGINAÃ‡ÃƒO ===== */
-    .paginacao {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        gap: 12px;
-        margin-top: 48px;
-        flex-wrap: wrap;
-    }
-    
-    .btn-paginacao,
-    .btn-pagina {
-        padding: 10px 16px;
-        background: white;
-        color: #666;
-        text-decoration: none;
-        border-radius: 8px;
-        font-weight: 600;
-        font-size: 0.95rem;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        transition: all 0.2s;
-    }
-    
-    .btn-paginacao:hover,
-    .btn-pagina:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.12);
-        color: #E6007E;
-    }
-    
-    .btn-pagina.active {
-        background: linear-gradient(135deg, #E6007E, #C4006A);
-        color: white;
-    }
-    
-    .paginacao-numeros {
-        display: flex;
-        gap: 8px;
-        align-items: center;
-    }
-    
-    .paginacao-ellipsis {
-        color: #999;
-        padding: 0 4px;
-    }
-    
-    /* ===== RESPONSIVIDADE ===== */
-    @media (max-width: 1200px) {
-        .produtos-container-wide {
-            max-width: 1200px;
-            padding: 16px 20px 24px;
-        }
-        
-        .produtos-grid-page {
-            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-        }
-    }
-    
-    @media (max-width: 992px) {
-        .produtos-container-wide {
-            padding: 12px 16px 20px;
-        }
-        
-        .produtos-header-inline {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 12px;
-            margin-bottom: 12px;
-            padding-bottom: 12px;
-        }
-        
-        .produtos-titulo {
-            font-size: 1.5rem;
-        }
-        
-        .produtos-layout {
-            grid-template-columns: 1fr;
-            gap: 24px;
-        }
-        
-        .filtros-sidebar {
-            position: static;
-            order: 2;
-        }
-        
-        .produtos-conteudo {
-            order: 1;
-        }
-        
-        .produtos-grid-page {
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 16px;
-        }
-    }
-    
-    @media (max-width: 768px) {
-        .produtos-titulo {
-            font-size: 1.4rem;
-        }
-        
-        .produtos-contagem {
-            font-size: 0.85rem;
-        }
-        
-        .produtos-header-inline {
-            margin-bottom: 10px;
-            padding-bottom: 10px;
-        }
-        
-        .barra-ordenacao {
-            width: 100%;
-            justify-content: space-between;
-        }
-        
-        .barra-ordenacao label {
-            font-size: 0.85rem;
-        }
-        
-        .barra-ordenacao select {
-            flex: 1;
-            max-width: 200px;
-            font-size: 0.85rem;
-        }
-        
-        .produtos-barra-superior {
-            padding-bottom: 12px;
-        }
-        
-        .barra-info {
-            flex-direction: column;
-            gap: 6px;
-            align-items: flex-start;
-        }
-        
-        .produtos-grid-page {
-            grid-template-columns: repeat(2, 1fr);
-            gap: 16px;
-        }
-        
-        .filtros-sidebar {
-            padding: 16px;
-        }
-        
-        .btn-paginacao,
-        .btn-pagina {
-            padding: 8px 12px;
-            font-size: 0.9rem;
-        }
-    }
-    
-    @media (max-width: 480px) {
-        .produtos-grid-page {
-            grid-template-columns: repeat(2, 1fr);
-            gap: 12px;
-        }
-        
-        .paginacao {
-            gap: 8px;
-        }
-        
-        .btn-paginacao {
-            font-size: 0.85rem;
-            padding: 8px 10px;
-        }
-        
-        .btn-pagina {
-            padding: 8px 10px;
-            font-size: 0.85rem;
-        }
-    }
-    
-    /* ===== GRID DE PRODUTOS (PÃ¡gina de Listagem) ===== */
-    .produtos-grid-page {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-        gap: 20px;
-        width: 100%;
-        margin: 0 auto;
-        align-items: start;
-    }
-    
-    /* Link wrapper para tornar cards clicÃ¡veis */
-    .produto-card-link {
-        text-decoration: none;
-        color: inherit;
-        display: block;
-        transition: all 0.3s ease;
-    }
-    
-    .produto-card-link:hover .produto-card {
-        transform: translateY(-4px);
-        box-shadow: 0 8px 24px rgba(0,0,0,0.15);
-    }
-    
-    /* Ajustar cards para grid (sem comportamento de carrossel) */
-    .produtos-grid-page .produto-card {
-        flex: none;
-        width: 100%;
-        min-width: 100%;
-        max-width: 100%;
-        height: 480px;
-        min-height: 480px;
-        display: flex;
-        flex-direction: column;
-        transition: all 0.3s ease;
-    }
-    
-    /* Garantir altura uniforme do conteÃºdo */
-    .produtos-grid-page .produto-card .produto-content {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-    }
-    
-    /* Empurrar botÃµes para o final */
-    .produtos-grid-page .produto-card .produto-actions {
-        margin-top: auto;
-    }
-    
-    /* Garantir alturas fixas dos elementos de conteÃºdo */
-    .produtos-grid-page .produto-card .produto-title {
-        height: 3.4rem;
-        min-height: 3.4rem;
-        max-height: 3.4rem;
-    }
-    
-    .produtos-grid-page .produto-card .produto-description {
-        height: 2.7rem;
-        min-height: 2.7rem;
-        max-height: 2.7rem;
-    }
-    
-    .produtos-grid-page .produto-card .produto-price {
-        height: 2.25rem;
-        min-height: 2.25rem;
-        max-height: 2.25rem;
-    }
-    
-    /* ===== MINI CARRINHO DRAWER - CSS ===== */
-    .mini-cart-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.5);
-        backdrop-filter: blur(4px);
-        z-index: 9998;
-        opacity: 0;
-        visibility: hidden;
-        transition: opacity 0.3s ease, visibility 0.3s ease;
-    }
-
-    .mini-cart-overlay.active {
-        opacity: 1;
-        visibility: visible;
-    }
-
-    .mini-cart-drawer {
-        position: fixed;
-        top: 0;
-        right: 0;
-        width: 380px;
-        max-width: 100%;
-        height: 100vh;
-        background: white;
-        box-shadow: -4px 0 24px rgba(0, 0, 0, 0.15);
-        z-index: 9999;
-        transform: translateX(100%);
-        transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-        display: flex;
-        flex-direction: column;
-    }
-
-    .mini-cart-drawer.active {
-        transform: translateX(0);
-    }
-
-    .mini-cart-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 20px;
-        border-bottom: 2px solid #f1f5f9;
-        flex-shrink: 0;
-    }
-
-    .mini-cart-header h2 {
-        font-size: 1.4rem;
-        font-weight: 700;
-        color: #1e293b;
-        margin: 0;
-    }
-
-    .btn-close-cart {
-        width: 38px;
-        height: 38px;
-        border-radius: 19px;
-        border: none;
-        background: rgba(230, 0, 126, 0.1);
-        color: var(--color-magenta);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        transition: all 0.3s ease;
-    }
-
-    .btn-close-cart:hover {
-        background: var(--color-magenta);
-        color: white;
-        transform: rotate(90deg) scale(1.05);
-    }
-
-    .btn-close-cart:active {
-        transform: rotate(90deg) scale(0.95);
-    }
-
-    .mini-cart-body {
-        flex: 1;
-        overflow-y: auto;
-        overflow-x: hidden;
-        padding: 14px;
-        min-height: 200px;
-        max-height: calc(100vh - 320px);
-        background: #f8fafc;
-    }
-
-    .mini-cart-body::-webkit-scrollbar {
-        width: 6px;
-    }
-
-    .mini-cart-body::-webkit-scrollbar-track {
-        background: #e2e8f0;
-        border-radius: 3px;
-        margin: 4px 0;
-    }
-
-    .mini-cart-body::-webkit-scrollbar-thumb {
-        background: linear-gradient(135deg, var(--color-magenta) 0%, var(--color-magenta-dark) 100%);
-        border-radius: 3px;
-    }
-
-    .mini-cart-body::-webkit-scrollbar-thumb:hover {
-        background: var(--color-magenta-dark);
-    }
-
-    .cart-empty {
-        text-align: center;
-        padding: 40px 20px;
-    }
-
-    .cart-empty-icon {
-        font-size: 56px;
-        margin-bottom: 12px;
-        opacity: 0.3;
-    }
-
-    .cart-empty h3 {
-        font-size: 1.1rem;
-        color: #64748b;
-        margin-bottom: 6px;
-    }
-
-    .cart-empty p {
-        color: #94a3b8;
-        margin-bottom: 20px;
-        font-size: 0.9rem;
-    }
-
-    .btn-continue-shopping {
-        background: linear-gradient(135deg, var(--color-magenta) 0%, var(--color-magenta-dark) 100%);
-        color: white;
-        padding: 10px 20px;
-        border-radius: 22px;
-        border: none;
-        font-weight: 600;
-        font-size: 0.9rem;
-        cursor: pointer;
-        transition: all 0.3s ease;
-    }
-
-    .btn-continue-shopping:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 20px rgba(230, 0, 126, 0.3);
-    }
-
-    .cart-item {
-        display: grid;
-        grid-template-columns: 70px 1fr;
-        gap: 12px;
-        padding: 14px;
-        background: white;
-        border-radius: 12px;
-        margin-bottom: 10px;
-        position: relative;
-        transition: all 0.3s ease;
-        align-items: start;
-        border: 1px solid #f1f5f9;
-    }
-
-    .cart-item:hover {
-        background: #fafafa;
-        border-color: #e2e8f0;
-        box-shadow: 0 2px 8px rgba(230, 0, 126, 0.08);
-    }
-
-    .cart-item:last-child {
-        margin-bottom: 0;
-    }
-
-    .cart-item-image {
-        width: 70px;
-        height: 70px;
-        border-radius: 10px;
-        background: white;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.8rem;
-        flex-shrink: 0;
-        border: 1px solid #e2e8f0;
-        overflow: hidden;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-    }
-
-    .cart-item-image img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        border-radius: 10px;
-    }
-
-    .cart-item-image span {
-        display: block;
-        font-size: 2rem;
-        line-height: 1;
-    }
-
-    .cart-item-details {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-        min-width: 0;
-        width: 100%;
-    }
-
-    .cart-item-name {
-        font-weight: 600;
-        color: #1e293b;
-        font-size: 0.9rem;
-        line-height: 1.4;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        line-clamp: 2;
-        -webkit-box-orient: vertical;
-        word-break: break-word;
-        margin-bottom: 2px;
-    }
-
-    .cart-item-variant {
-        font-size: 0.75rem;
-        color: #64748b;
-        background: #f1f5f9;
-        padding: 2px 8px;
-        border-radius: 4px;
-        display: inline-block;
-        margin-top: 2px;
-    }
-
-    .cart-item-price {
-        font-weight: 700;
-        color: var(--color-magenta);
-        font-size: 1.05rem;
-        margin: 0;
-        letter-spacing: -0.01em;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        font-variant-numeric: tabular-nums;
-    }
-
-    .cart-item-actions {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 8px;
-        margin-top: 6px;
-    }
-
-    .qty-control {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        background: white;
-        border-radius: 20px;
-        padding: 4px 6px;
-        border: 1.5px solid #e2e8f0;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-    }
-
-    .qty-btn {
-        width: 26px;
-        height: 26px;
-        border-radius: 13px;
-        border: none;
-        background: linear-gradient(135deg, rgba(230, 0, 126, 0.1) 0%, rgba(230, 0, 126, 0.15) 100%);
-        color: var(--color-magenta);
-        font-weight: 700;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 15px;
-        line-height: 1;
-    }
-
-    .qty-btn:hover:not(:disabled) {
-        background: linear-gradient(135deg, var(--color-magenta) 0%, var(--color-magenta-dark) 100%);
-        color: white;
-        transform: scale(1.1);
-        box-shadow: 0 2px 6px rgba(230, 0, 126, 0.3);
-    }
-
-    .qty-btn:active:not(:disabled) {
-        transform: scale(0.95);
-    }
-
-    .qty-btn:disabled {
-        opacity: 0.35;
-        cursor: not-allowed;
-        background: rgba(148, 163, 184, 0.1);
-        color: #94a3b8;
-    }
-
-    .qty-btn:disabled {
-        opacity: 0.3;
-        cursor: not-allowed;
-    }
-
-    .qty-value {
-        min-width: 28px;
-        text-align: center;
-        font-weight: 700;
-        color: var(--color-magenta);
-        font-size: 0.95rem;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        letter-spacing: -0.02em;
-    }
-
-    .btn-remove-item {
-        width: 30px;
-        height: 30px;
-        border-radius: 15px;
-        border: none;
-        background: rgba(239, 68, 68, 0.1);
-        color: #ef4444;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
-    }
-
-    .btn-remove-item:hover {
-        background: #ef4444;
-        color: white;
-        transform: scale(1.15);
-    }
-
-    .btn-remove-item:active {
-        transform: scale(0.95);
-    }
-
-    .btn-remove-item svg {
-        width: 15px;
-        height: 15px;
-    }
-
-    .free-shipping-bar {
-        padding: 14px;
-        background: linear-gradient(135deg, #fdf2f8 0%, #fce7f3 100%);
-        border-radius: 10px;
-        margin-bottom: 14px;
-        border: 1px solid #fbcfe8;
-    }
-
-    .shipping-text {
-        font-size: 0.8rem;
-        color: #1e293b;
-        margin-bottom: 8px;
-        font-weight: 600;
-        text-align: center;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    }
-
-    .shipping-progress {
-        height: 6px;
-        background: rgba(255, 255, 255, 0.7);
-        border-radius: 3px;
-        overflow: hidden;
-        position: relative;
-        box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
-    }
-
-    .shipping-progress-bar {
-        height: 100%;
-        background: linear-gradient(135deg, var(--color-magenta) 0%, var(--color-magenta-dark) 100%);
-        border-radius: 4px;
-        transition: width 0.5s ease;
-        position: relative;
-    }
-
-    .shipping-progress-bar::after {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
-        animation: shimmer 2s infinite;
-    }
-
-    @keyframes shimmer {
-        0% { transform: translateX(-100%); }
-        100% { transform: translateX(100%); }
-    }
-
-    .shipping-unlocked {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        color: #10b981;
-        font-weight: 600;
-        font-size: 0.9rem;
-    }
-
-    .mini-cart-footer {
-        padding: 16px 20px;
-        border-top: 2px solid #f1f5f9;
-        background: white;
-        flex-shrink: 0;
-    }
-
-    .mini-cart-subtotal {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 14px;
-        padding: 12px 14px;
-        background: #fafafa;
-        border-radius: 8px;
-        border: 1px solid #f1f5f9;
-    }
-
-    .mini-cart-subtotal span {
-        color: #64748b;
-        font-weight: 600;
-        font-size: 0.95rem;
-    }
-
-    .mini-cart-subtotal strong {
-        color: var(--color-magenta);
-        font-size: 1.3rem;
-        font-weight: 700;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        font-variant-numeric: tabular-nums;
-        letter-spacing: -0.02em;
-    }
-
-    .btn-view-cart {
-        display: block;
-        width: 100%;
-        background: linear-gradient(135deg, var(--color-magenta) 0%, var(--color-magenta-dark) 100%);
-        color: white;
-        padding: 15px;
-        border-radius: 10px;
-        text-align: center;
-        text-decoration: none;
-        font-weight: 700;
-        font-size: 0.95rem;
-        transition: all 0.3s ease;
-        box-shadow: 0 4px 12px rgba(230, 0, 126, 0.25);
-        letter-spacing: 0.02em;
-    }
-
-    .btn-view-cart:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 24px rgba(230, 0, 126, 0.4);
-    }
-
-    .btn-view-cart:active {
-        transform: translateY(0);
-    }
-
-    /* Responsivo */
-    @media (max-width: 480px) {
-        .mini-cart-drawer {
-            width: 100%;
-        }
-
-        .cart-count {
-            width: 18px;
-            height: 18px;
-            font-size: 0.65rem;
-            top: -4px;
-            right: -4px;
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
-        }
-
-        .cart-item {
-            grid-template-columns: 60px 1fr;
-            gap: 10px;
-            padding: 10px;
-        }
-
-        .cart-item-image {
-            width: 60px;
-            height: 60px;
-            font-size: 1.5rem;
-        }
-
-        .cart-item-image span {
-            font-size: 1.6rem;
-        }
-
-        .cart-item-name {
-            font-size: 0.85rem;
-        }
-
-        .cart-item-price {
-            font-size: 0.95rem;
-        }
-
-        .cart-item-actions {
-            flex-direction: row;
-            gap: 6px;
-        }
-
-        .qty-control {
-            padding: 3px 5px;
-            gap: 3px;
-        }
-
-        .qty-btn {
-            width: 24px;
-            height: 24px;
-            font-size: 14px;
-        }
-
-        .qty-value {
-            min-width: 24px;
-            font-size: 0.9rem;
-        }
-
-        .btn-remove-item {
-            width: 28px;
-            height: 28px;
-        }
-
-        .mini-cart-header {
-            padding: 16px;
-        }
-
-        .mini-cart-header h2 {
-            font-size: 1.25rem;
-        }
-
-        .mini-cart-body {
-            padding: 12px;
-        }
-
-        .mini-cart-footer {
-            padding: 12px 14px;
-        }
-
-        .mini-cart-subtotal {
-            padding: 10px 12px;
-            margin-bottom: 12px;
-        }
-
-        .mini-cart-subtotal span {
-            font-size: 0.9rem;
-        }
-
-        .mini-cart-subtotal strong {
-            font-size: 1.2rem;
-        }
-
-        .free-shipping-bar {
-            padding: 12px;
-        }
-
-        .btn-view-cart {
-            padding: 13px;
-            font-size: 0.9rem;
-        }
-    }
-</style>
 
 <!-- JavaScript do Carrinho -->
 <script>
     const __noopLog = (...args) => {};
 
-    // ===== FUNÃ‡ÃƒO DE ORDENAÃ‡ÃƒO =====
+    // ===== FUNÇÃO DE ORDENAÇÃO =====
     function aplicarOrdenacao(valor) {
         const url = new URL(window.location.href);
         url.searchParams.set('ordenar', valor);
-        url.searchParams.delete('pagina'); // Reset para primeira pÃ¡gina ao mudar ordenaÃ§Ã£o
+        url.searchParams.delete('pagina');
         window.location.href = url.toString();
     }
-    
+
+    // ===== DROPDOWN CUSTOMIZADO DE ORDENAÇÃO =====
+    function toggleSortDropdown(e) {
+        e.stopPropagation();
+        const wrap = document.getElementById('sortDropdown');
+        wrap.classList.toggle('is-open');
+        const btn = wrap.querySelector('.rare-custom-select-trigger');
+        btn.setAttribute('aria-expanded', wrap.classList.contains('is-open'));
+    }
+
+    document.addEventListener('click', function () {
+        const wrap = document.getElementById('sortDropdown');
+        if (wrap) {
+            wrap.classList.remove('is-open');
+            wrap.querySelector('.rare-custom-select-trigger').setAttribute('aria-expanded', 'false');
+        }
+    });
+
+    document.querySelectorAll('.rare-custom-select-options li').forEach(function (li) {
+        li.addEventListener('click', function (e) {
+            e.stopPropagation();
+            const value = li.dataset.value;
+            document.querySelectorAll('.rare-custom-select-options li').forEach(function (el) {
+                el.classList.remove('is-selected');
+            });
+            li.classList.add('is-selected');
+            document.getElementById('sortLabel').textContent = li.textContent;
+            document.getElementById('sortDropdown').classList.remove('is-open');
+            aplicarOrdenacao(value);
+        });
+    });
+
+
     // ===== MINI CARRINHO - JAVASCRIPT =====
     const FREE_SHIPPING_THRESHOLD = <?php echo $freteGratisValor; ?>;
 
@@ -1790,6 +780,76 @@ if (!empty($categoria)) {
 
     function setCart(cart) {
         localStorage.setItem('dz_cart', JSON.stringify(cart));
+    }
+
+    const PRODUCT_SIZE_STORAGE_KEY = 'rare7_selected_sizes';
+
+    function getSelectedSizes() {
+        try {
+            const raw = localStorage.getItem(PRODUCT_SIZE_STORAGE_KEY);
+            return raw ? JSON.parse(raw) : {};
+        } catch (error) {
+            return {};
+        }
+    }
+
+    function setSelectedSizes(map) {
+        localStorage.setItem(PRODUCT_SIZE_STORAGE_KEY, JSON.stringify(map));
+    }
+
+    function getSelectedSizeForProduct(productId) {
+        const map = getSelectedSizes();
+        return map[String(productId)] || '';
+    }
+
+    function setSelectedSizeForProduct(productId, size) {
+        const map = getSelectedSizes();
+        const key = String(productId);
+
+        if (size) {
+            map[key] = size;
+        } else {
+            delete map[key];
+        }
+
+        setSelectedSizes(map);
+    }
+
+    function applySelectedSizesToUI() {
+        document.querySelectorAll('[data-product-sizes]').forEach((selector) => {
+            const productId = selector.getAttribute('data-product-id');
+            const selectedSize = getSelectedSizeForProduct(productId);
+
+            selector.querySelectorAll('[data-size-option]').forEach((button) => {
+                const isActive = button.getAttribute('data-size-option') === selectedSize;
+                button.classList.toggle('is-active', isActive);
+                button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+            });
+        });
+    }
+
+    function initProductSizeSelectors() {
+        applySelectedSizesToUI();
+
+        document.querySelectorAll('[data-size-option]').forEach((button) => {
+            button.addEventListener('click', function(event) {
+                event.preventDefault();
+                event.stopPropagation();
+
+                const selector = this.closest('[data-product-sizes]');
+                if (!selector) {
+                    return;
+                }
+
+                const productId = selector.getAttribute('data-product-id');
+                const clickedSize = this.getAttribute('data-size-option') || '';
+                const currentSize = getSelectedSizeForProduct(productId);
+                const nextSize = currentSize === clickedSize ? '' : clickedSize;
+
+                setSelectedSizeForProduct(productId, nextSize);
+                applySelectedSizesToUI();
+            });
+        });
     }
     
     // FunÃ§Ã£o helper para debug - disponÃ­vel no console
@@ -1805,50 +865,25 @@ if (!empty($categoria)) {
         return getCart();
     };
 
-    function showNotification(message, type = 'success') {
+    function showNotification(message) {
         const notification = document.createElement('div');
-        
-        const colors = {
-            success: 'linear-gradient(135deg, #10b981, #059669)',
-            info: 'linear-gradient(135deg, #3b82f6, #1e40af)',
-            warning: 'linear-gradient(135deg, #f59e0b, #d97706)',
-            error: 'linear-gradient(135deg, #ef4444, #dc2626)'
-        };
-        
-        notification.style.cssText = `
-            position: fixed;
-            top: 100px;
-            right: 20px;
-            background: ${colors[type]};
-            color: white;
-            padding: 16px 24px;
-            border-radius: 12px;
-            font-weight: 600;
-            z-index: 10000;
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
-            transform: translateX(100%);
-            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            max-width: 300px;
-            backdrop-filter: blur(10px);
-        `;
-        notification.textContent = message;
-        
+        notification.className = 'rare-cart-toast';
+        notification.textContent = String(message || 'Produto adicionado ao carrinho.');
+
         document.body.appendChild(notification);
-        
-        // Animar entrada
+
+        requestAnimationFrame(() => {
+            notification.classList.add('is-visible');
+        });
+
         setTimeout(() => {
-            notification.style.transform = 'translateX(0)';
-        }, 100);
-        
-        // Remover apÃ³s 4 segundos
-        setTimeout(() => {
-            notification.style.transform = 'translateX(100%)';
+            notification.classList.remove('is-visible');
             setTimeout(() => {
                 if (document.body.contains(notification)) {
                     document.body.removeChild(notification);
                 }
-            }, 400);
-        }, 4000);
+            }, 220);
+        }, 1700);
     }
 
     function addToCart(productId, productName, event) {
@@ -1868,7 +903,7 @@ if (!empty($categoria)) {
         }
         
         // Buscar informaÃ§Ãµes do produto
-        const productCard = evt.target.closest('.produto-card');
+        const productCard = evt.target.closest('[data-product-card], .produto-card');
         
         if (!productCard) {
             console.error('âŒ Card do produto nÃ£o encontrado');
@@ -1876,9 +911,21 @@ if (!empty($categoria)) {
         }
         
         // Buscar elementos do card
-        let priceElement = productCard.querySelector('.produto-price');
+        let priceElement = productCard.querySelector('.produto-price, .rare-price-current');
         let imgElement = productCard.querySelector('img');
-        let titleElement = productCard.querySelector('.produto-title') || productCard.querySelector('h3');
+        let titleElement = productCard.querySelector('.produto-title') || productCard.querySelector('h2') || productCard.querySelector('h3');
+
+        const productIdValue = productCard.getAttribute('data-product-id') || productId;
+        const hasVariacoes = String(productCard.getAttribute('data-has-variacoes') || '0') === '1';
+        const hasTamanhos = String(productCard.getAttribute('data-has-tamanhos') || '0') === '1';
+        const selectedSize = getSelectedSizeForProduct(productIdValue);
+
+        if (hasVariacoes && hasTamanhos && !selectedSize) {
+            window.location.href = 'produto.php?id=' + encodeURIComponent(productIdValue);
+            return;
+        }
+
+        const variantLabel = selectedSize ? `Tamanho: ${selectedSize}` : '';
         
         // Extrair nome
         const name = titleElement ? titleElement.textContent.trim() : (productName || 'Produto sem nome');
@@ -1917,7 +964,9 @@ if (!empty($categoria)) {
             name: name,
             price: price,
             qty: 1,
-            image: image
+            image: image,
+            variant: variantLabel,
+            variacao_texto: variantLabel
         };
         
         __noopLog('ðŸ“¦ Produto a adicionar:', newProductData);
@@ -1926,7 +975,11 @@ if (!empty($categoria)) {
         let cart = getCart();
         
         // Verificar se produto jÃ¡ existe
-        const existingIndex = cart.findIndex(item => parseInt(item.id) === numericProductId);
+        const existingIndex = cart.findIndex(item => {
+            const itemId = parseInt(item.id);
+            const itemVariant = item.variant || item.variacao_texto || '';
+            return itemId === numericProductId && itemVariant === variantLabel;
+        });
         
         if (existingIndex >= 0) {
             cart[existingIndex].qty += 1;
@@ -1942,7 +995,8 @@ if (!empty($categoria)) {
         renderMiniCart();
         
         // Mostrar notificaÃ§Ã£o
-        showNotification('ðŸ›’ ' + name + ' adicionado ao carrinho!', 'success');
+        const notificationLabel = variantLabel ? (name + ' | ' + variantLabel) : name;
+        showNotification('Adicionado: ' + notificationLabel);
         
         __noopLog('âœ… Produto adicionado ao carrinho!');
     }
@@ -1956,25 +1010,21 @@ if (!empty($categoria)) {
             event.stopPropagation();
         }
         
-        // Verificar se o produto tem variaÃ§Ãµes
-        const button = event?.target?.closest('.btn-buy-now');
-        const hasVariacoes = button?.getAttribute('data-has-variacoes') === '1';
-        
-        __noopLog('ðŸ” Possui variaÃ§Ãµes?', hasVariacoes);
-        
-        // Se tem variaÃ§Ãµes, redirecionar para pÃ¡gina do produto
-        if (hasVariacoes) {
-            __noopLog('âž¡ï¸ Redirecionando para pÃ¡gina do produto (tem variaÃ§Ãµes)');
-            window.location.href = 'produto.php?id=' + productId;
+        const productIdValue = parseInt(productId, 10) || productId;
+        const productCard = event?.target?.closest('[data-product-card]');
+        const hasVariacoes = String(productCard?.getAttribute('data-has-variacoes') || event?.target?.getAttribute('data-has-variacoes') || '0') === '1';
+        const hasTamanhos = String(productCard?.getAttribute('data-has-tamanhos') || event?.target?.getAttribute('data-has-tamanhos') || '0') === '1';
+        const selectedSize = getSelectedSizeForProduct(productIdValue);
+
+        if (hasVariacoes && hasTamanhos && !selectedSize) {
+            window.location.href = 'produto.php?id=' + productIdValue;
             return;
         }
-        
-        // Se nÃ£o tem variaÃ§Ãµes, adicionar direto ao carrinho
-        __noopLog('ðŸ›’ Produto sem variaÃ§Ãµes, adicionando ao carrinho');
+
+        __noopLog('ðŸ›’ Tamanho selecionado, adicionando ao carrinho e indo para checkout');
         
         // Buscar o nome do produto do card
-        const productCard = event?.target?.closest('.produto-card');
-        const titleElement = productCard?.querySelector('.produto-title') || productCard?.querySelector('h3');
+        const titleElement = productCard?.querySelector('.produto-title') || productCard?.querySelector('h3') || productCard?.querySelector('h2');
         const productName = titleElement ? titleElement.textContent.trim() : 'Produto';
         
         // Adicionar ao carrinho usando a funÃ§Ã£o existente
@@ -1983,7 +1033,7 @@ if (!empty($categoria)) {
         // Aguardar um pouco para garantir que foi adicionado e entÃ£o redirecionar
         setTimeout(() => {
             window.location.href = 'pages/carrinho.php';
-        }, 300);
+        }, 150);
     }
 
     function removeFromCart(itemId, variant = '') {
@@ -2152,11 +1202,11 @@ if (!empty($categoria)) {
                     <div class="cart-item-price">R$ ${itemPrice.toFixed(2).replace('.', ',')}</div>
                     <div class="cart-item-actions">
                         <div class="qty-control">
-                            <button class="qty-btn" onclick="updateQty(${itemId}, '', ${itemQty - 1})" ${itemQty <= 1 ? 'disabled' : ''} aria-label="Diminuir quantidade">âˆ’</button>
+                            <button class="qty-btn" onclick="updateQty(${itemId}, '${escapedVariant}', ${itemQty - 1})" ${itemQty <= 1 ? 'disabled' : ''} aria-label="Diminuir quantidade">âˆ’</button>
                             <span class="qty-value">${itemQty}</span>
-                            <button class="qty-btn" onclick="updateQty(${itemId}, '', ${itemQty + 1})" aria-label="Aumentar quantidade">+</button>
+                            <button class="qty-btn" onclick="updateQty(${itemId}, '${escapedVariant}', ${itemQty + 1})" aria-label="Aumentar quantidade">+</button>
                         </div>
-                        <button class="btn-remove-item" onclick="removeFromCart(${itemId}, '')" title="Remover produto" aria-label="Remover produto">
+                        <button class="btn-remove-item" onclick="removeFromCart(${itemId}, '${escapedVariant}')" title="Remover produto" aria-label="Remover produto">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                                 <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
                             </svg>
@@ -2269,6 +1319,7 @@ if (!empty($categoria)) {
         // Atualizar badge ao carregar
         updateCartBadge();
         renderMiniCart();
+        initProductSizeSelectors();
         
         __noopLog('=== CARRINHO INICIALIZADO ===');
         __noopLog('ðŸ’¡ Comandos Ãºteis no console:');
@@ -2432,6 +1483,5 @@ if (!empty($categoria)) {
     });
 </script>
 
-<?php require_once 'includes/chat.php'; ?>
 <?php require_once 'includes/footer.php'; ?>
 

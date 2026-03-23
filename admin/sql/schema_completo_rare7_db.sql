@@ -425,7 +425,7 @@ CREATE TABLE IF NOT EXISTS home_settings (
     id INT PRIMARY KEY DEFAULT 1,
     hero_title VARCHAR(255) DEFAULT 'Bem-vindo à D&Z',
     hero_kicker VARCHAR(120) DEFAULT 'RARE EXPERIENCE',
-    hero_logo_path VARCHAR(255) DEFAULT 'assets/images/logo-dz-oficial.svg',
+    hero_logo_path VARCHAR(255) DEFAULT 'assets/images/logo.png',
     hero_subtitle VARCHAR(255) DEFAULT 'Moda com estilo e qualidade',
     hero_description TEXT,
     hero_button_text VARCHAR(100) DEFAULT 'Ver Coleção',

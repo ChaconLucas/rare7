@@ -2,7 +2,7 @@
 const menuBtn = document.querySelector("#menu-btn");
 const closeBtn = document.querySelector("#close-btn");
 const themeToggler = document.querySelector(".theme-toggler");
-const __noopLog = (...args) => {};
+window.__noopLog = window.__noopLog || function () {};
 
 //mostrar sidebar
 if (menuBtn) {
@@ -132,12 +132,23 @@ document.addEventListener("DOMContentLoaded", function () {
 // FunÃ§Ã£o para atualizar o contador de mensagens nÃ£o lidas
 window.atualizarContadorMensagens = async function () {
   try {
-    const apiUrl = window.API_SISTEMA_URL
-      ? `${window.API_SISTEMA_URL}?api=1&endpoint=admin&action=get_stats`
-      : window.BASE_URL +
-        "admin/src/php/sistema.php?api=1&endpoint=admin&action=get_stats";
+    const primaryApiUrl = new URL(
+      "../sistema.php?api=1&endpoint=admin&action=get_stats",
+      window.location.href,
+    ).toString();
 
-    const response = await fetch(apiUrl);
+    const fallbackApiUrl = new URL(
+      "/admin/src/php/sistema.php?api=1&endpoint=admin&action=get_stats",
+      window.location.origin,
+    ).toString();
+
+    let apiUrl = primaryApiUrl;
+    let response = await fetch(apiUrl);
+
+    if (!response.ok && response.status === 404) {
+      apiUrl = fallbackApiUrl;
+      response = await fetch(apiUrl);
+    }
 
     if (!response.ok) {
       throw new Error(`HTTP error ${response.status}`);

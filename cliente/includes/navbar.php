@@ -3,6 +3,117 @@
 // Detectar se estamos em subdiretório (pages/) ou raiz
 $isSubdir = strpos($_SERVER['PHP_SELF'], '/pages/') !== false;
 $basePath = $isSubdir ? '../' : '';
+$logoPrincipalPath = $isSubdir ? '../../image/logo_png.png' : '../image/logo_png.png';
+
+$usuarioLogado = isset($usuarioLogado) ? (bool) $usuarioLogado : isset($_SESSION['cliente']);
+$nomeUsuario = $nomeUsuario ?? ($_SESSION['cliente']['nome'] ?? 'Cliente');
+
+if (in_array(($currentPage ?? ''), ['login', 'register', 'cart'], true)):
+?>
+<header class="floating-navbar" id="floatingNavbar">
+    <div class="nav-wrap container-shell">
+        <a href="<?php echo $basePath; ?>index.php" class="nav-logo" aria-label="Rare - Inicio">
+            <img src="<?php echo $logoPrincipalPath; ?>" alt="Logo Rare" class="nav-logo-mark" loading="lazy">
+            <span class="nav-logo-text">RARE7</span>
+        </a>
+        <nav>
+            <ul class="nav-links">
+                <li><a href="<?php echo $basePath; ?>produtos.php">Camisas</a></li>
+                <li><a href="<?php echo $basePath; ?>produtos.php?menu=retro">Retro</a></li>
+                <li><a href="<?php echo $basePath; ?>produtos.php?menu=clubes">Clubes</a></li>
+                <li><a href="<?php echo $basePath; ?>produtos.php?menu=selecoes">Selecoes</a></li>
+            </ul>
+        </nav>
+        <div class="nav-icons">
+            <form class="nav-search" id="navSearchForm" action="<?php echo $basePath; ?>produtos.php" method="get" role="search">
+                <input type="search" id="navSearchInput" name="busca" placeholder="Buscar camisa..." aria-label="Buscar produtos">
+                <button type="button" class="nav-icon-link nav-search-toggle" id="navSearchToggle" aria-label="Abrir pesquisa">
+                    <span class="material-symbols-sharp">search</span>
+                </button>
+            </form>
+            <?php if ($usuarioLogado): ?>
+            <div class="user-dropdown">
+                <button class="user-dropdown-btn" onclick="toggleUserDropdown(event)" aria-label="Menu de usuário" aria-expanded="false">
+                    <span class="material-symbols-sharp">person</span>
+                </button>
+                <div class="user-dropdown-menu">
+                    <div class="user-greeting">Olá, <?php echo htmlspecialchars($nomeUsuario); ?></div>
+                    <a href="<?php echo $basePath; ?>pages/minha-conta.php">Minha conta</a>
+                    <a href="<?php echo $basePath; ?>pages/minha-conta.php?tab=pedidos">Meus pedidos</a>
+                    <a href="<?php echo $basePath; ?>pages/logout.php">Sair</a>
+                </div>
+            </div>
+            <?php else: ?>
+            <a href="<?php echo $basePath; ?>pages/login.php" class="nav-icon-link" aria-label="Perfil">
+                <span class="material-symbols-sharp">person</span>
+            </a>
+            <?php endif; ?>
+            <a href="<?php echo $basePath; ?>pages/carrinho.php" class="nav-icon-link" aria-label="Carrinho">
+                <span class="material-symbols-sharp">shopping_bag</span>
+            </a>
+        </div>
+    </div>
+</header>
+
+<script>
+(function () {
+    const navbar = document.getElementById('floatingNavbar');
+    const searchForm = document.getElementById('navSearchForm');
+    const searchInput = document.getElementById('navSearchInput');
+    const searchToggle = document.getElementById('navSearchToggle');
+
+    function toggleNavbar() {
+        if (!navbar) return;
+        const threshold = Math.max(8, Math.min(48, window.innerHeight * 0.08));
+        if (window.scrollY > threshold) {
+            navbar.classList.add('visible');
+        } else {
+            navbar.classList.remove('visible');
+        }
+    }
+
+    window.addEventListener('scroll', toggleNavbar, { passive: true });
+    toggleNavbar();
+
+    if (searchForm && searchInput && searchToggle) {
+        searchToggle.addEventListener('click', function () {
+            searchForm.classList.toggle('active');
+            if (searchForm.classList.contains('active')) {
+                searchInput.focus();
+            }
+        });
+
+        document.addEventListener('click', function (event) {
+            if (!searchForm.contains(event.target) && !searchToggle.contains(event.target)) {
+                searchForm.classList.remove('active');
+            }
+        });
+    }
+
+    window.toggleUserDropdown = function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const dropdown = event.currentTarget.closest('.user-dropdown');
+        if (!dropdown) return;
+
+        dropdown.classList.toggle('active');
+        const expanded = dropdown.classList.contains('active');
+        event.currentTarget.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    };
+
+    document.addEventListener('click', function () {
+        document.querySelectorAll('.user-dropdown.active').forEach(function (el) {
+            el.classList.remove('active');
+            const btn = el.querySelector('.user-dropdown-btn');
+            if (btn) btn.setAttribute('aria-expanded', 'false');
+        });
+    });
+})();
+</script>
+<?php
+return;
+endif;
 ?>
 <style>
     /* FORÇA ESCONDER MENU MOBILE EM TODAS AS CONDIÇÕES */
@@ -68,13 +179,13 @@ $basePath = $isSubdir ? '../' : '';
 
 </style>
 
-<!-- ===== NAVBAR PREMIUM D&Z ===== -->
+<!-- ===== NAVBAR PREMIUM RARE7 ===== -->
 <header class="header-loja" id="navbar">
     <div class="container-header">
-        <!-- Logo D&Z Oficial -->
+        <!-- Logo RARE7 -->
         <a href="<?php echo $basePath; ?>index.php" class="logo-container" title="Voltar à página inicial">
-            <img src="<?php echo $basePath; ?>assets/images/Logodz.png" alt="D&Z" class="logo-dz-oficial">
-            <span class="logo-text">D&Z</span>
+            <img src="<?php echo $logoPrincipalPath; ?>" alt="RARE7" class="logo-dz-oficial">
+            <span class="logo-text">RARE7</span>
         </a>
         
         <!-- Navegação -->
@@ -139,7 +250,7 @@ $basePath = $isSubdir ? '../' : '';
                     <a href="<?php echo $basePath; ?>produtos.php?secao=marcas">MARCAS <span class="dropdown-icon">▼</span></a>
                     <div class="dropdown-menu">
                         <ul>
-                            <li><a href="<?php echo $basePath; ?>produtos.php?marca=D%26Z">D&Z</a></li>
+                            <li><a href="<?php echo $basePath; ?>produtos.php?marca=D%26Z">RARE7</a></li>
                             <li><a href="<?php echo $basePath; ?>produtos.php?marca=Sioux">Sioux</a></li>
                             <li><a href="<?php echo $basePath; ?>produtos.php?marca=Sunny%27s">Sunny's</a></li>
                             <li><a href="<?php echo $basePath; ?>produtos.php?marca=Crush">Crush</a></li>
@@ -193,7 +304,7 @@ $basePath = $isSubdir ? '../' : '';
                     <div class="user-dropdown-menu">
                         <div class="user-greeting">Olá, <?php echo isset($nomeUsuario) ? $nomeUsuario : 'Cliente'; ?></div>
                         <a href="<?php echo $basePath; ?>pages/minha-conta.php">Minha conta</a>
-                        <a href="<?php echo $basePath; ?>pages/pedidos.php">Meus pedidos</a>
+                        <a href="<?php echo $basePath; ?>pages/minha-conta.php?tab=pedidos">Meus pedidos</a>
                         <a href="<?php echo $basePath; ?>pages/logout.php">Sair</a>
                     </div>
                 </div>
@@ -225,7 +336,7 @@ $basePath = $isSubdir ? '../' : '';
         <li><a href="<?php echo $basePath; ?>produtos.php?menu=unhas" onclick="closeMobileMenu()">Unhas</a></li>
         <li><a href="<?php echo $basePath; ?>produtos.php?menu=cilios" onclick="closeMobileMenu()">Cílios</a></li>
         <li><a href="<?php echo $basePath; ?>produtos.php?menu=eletronicos" onclick="closeMobileMenu()">Eletrônicos</a></li>
-        <li><a href="produtos.php?menu=ferramentas" onclick="closeMobileMenu()">Ferramentas</a></li>
-        <li><a href="produtos.php?secao=marcas" onclick="closeMobileMenu()">Marcas</a></li>
+        <li><a href="<?php echo $basePath; ?>produtos.php?menu=ferramentas" onclick="closeMobileMenu()">Ferramentas</a></li>
+        <li><a href="<?php echo $basePath; ?>produtos.php?secao=marcas" onclick="closeMobileMenu()">Marcas</a></li>
     </ul>
 </nav>

@@ -1,7 +1,7 @@
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
     <div class="container-md">
         <a class="navbar-brand" href="index.php">
-            <i class="fas fa-users me-2"></i>Sistema CRUD D&Z
+            <i class="fas fa-users me-2"></i>Sistema CRUD RARE7
         </a>
         
         <div class="navbar-nav ms-auto">

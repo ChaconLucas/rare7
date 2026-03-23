@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chat de Cadastro - D&Z Revendedores</title>
+    <title>Chat de Cadastro - RARE7 Revendedores</title>
     <style>
         * {
             margin: 0;
@@ -268,7 +268,7 @@
     <div class="chat-container">
         <!-- Header do Chat -->
         <div class="chat-header">
-            <h1>Assistente D&Z</h1>
+            <h1>Assistente RARE7</h1>
             <p>Vamos te ajudar a se tornar um revendedor!</p>
             <div class="progress-container">
                 <div class="progress-bar"></div>
@@ -278,16 +278,16 @@
         <!-- Área das Mensagens -->
         <div class="chat-messages" id="chat-messages">
             <div class="message bot">
-                <div class="bot-avatar">D&Z</div>
+                <div class="bot-avatar">R7</div>
                 <div class="message-content">
-                    Olá! 👋 Sou o assistente da D&Z e estou aqui para te ajudar a se tornar nosso revendedor!
+                    Olá! 👋 Sou o assistente da RARE7 e estou aqui para te ajudar a se tornar nosso revendedor!
                 </div>
             </div>
         </div>
 
         <!-- Indicador de digitação -->
         <div class="typing-indicator" id="typing-indicator">
-            <div class="bot-avatar">D&Z</div>
+            <div class="bot-avatar">R7</div>
             <div class="typing-dots">
                 <div class="dots">
                     <div class="dot"></div>
@@ -421,7 +421,7 @@
                 
                 if (isBot) {
                     messageDiv.innerHTML = `
-                        <div class="bot-avatar">D&Z</div>
+                        <div class="bot-avatar">R7</div>
                         <div class="message-content">${content}</div>
                     `;
                 } else {
@@ -582,7 +582,7 @@
                     .then(data => {
                         if (data.success) {
                             setTimeout(() => {
-                                const whatsappMsg = `Olá! Acabei de me cadastrar como revendedor D&Z. Meu nome é ${userData.nome}.`;
+                                const whatsappMsg = `Olá! Acabei de me cadastrar como revendedor RARE7. Meu nome é ${userData.nome}.`;
                                 const whatsappUrl = `https://wa.me/55${data.vendedora_whatsapp}?text=${encodeURIComponent(whatsappMsg)}`;
                                 
                                 addMessage(`🎯 Você foi direcionado(a) para: <strong>${data.vendedora_nome}</strong>`);

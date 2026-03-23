@@ -1,6 +1,6 @@
 <?php
 /**
- * API de Cupom de Desconto - D&Z E-commerce
+ * API de Cupom de Desconto - RARE7 E-commerce
  * Endpoint para validação e aplicação de cupons
  */
 
@@ -33,6 +33,12 @@ function jsonResponse($success, $data = [], $message = '', $debug = []) {
     exit;
 }
 
+function normalizarCodigoCupom($codigo) {
+    $codigo = strtoupper(trim((string)$codigo));
+    // Remove tudo que não for letra ou número para comparação tolerante
+    return preg_replace('/[^A-Z0-9]/', '', $codigo);
+}
+
 // Validar método POST
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     jsonResponse(false, [], 'Método não permitido', $debug_log);
@@ -51,12 +57,17 @@ try {
         case 'validate':
             $codigo = strtoupper(trim($input['codigo'] ?? ''));
             $subtotal = (float)($input['subtotal'] ?? 0);
+            $codigoNormalizado = normalizarCodigoCupom($codigo);
 
             $debug_log[] = "🎟️ Código: " . $codigo;
             $debug_log[] = "💰 Subtotal: R$ " . $subtotal;
 
             if (empty($codigo)) {
                 jsonResponse(false, [], 'Código do cupom não informado', $debug_log);
+            }
+
+            if (empty($codigoNormalizado)) {
+                jsonResponse(false, [], 'Código do cupom inválido', $debug_log);
             }
 
             if ($subtotal <= 0) {
@@ -72,14 +83,61 @@ try {
 
             $debug_log[] = "✅ Tabela cupons existe";
 
-            // Buscar cupom no banco
-            $query = "SELECT * FROM cupons WHERE codigo = ? LIMIT 1";
+            // Buscar cupom no banco por igualdade direta (case-insensitive)
+            $query = "SELECT * FROM cupons WHERE UPPER(codigo) = ? LIMIT 1";
             $stmt = $pdo->prepare($query);
-            $stmt->execute([$codigo]);
+            $stmt->execute([strtoupper($codigo)]);
             $cupom = $stmt->fetch();
+
+            // Fallback: buscar de forma tolerante (ignora espaços, hífens e símbolos)
+            if (!$cupom) {
+                $debug_log[] = "🔎 Cupom não encontrado por igualdade direta. Tentando busca tolerante...";
+
+                $stmtTodos = $pdo->query("SELECT * FROM cupons");
+                $todosCupons = $stmtTodos ? $stmtTodos->fetchAll() : [];
+
+                foreach ($todosCupons as $cupomItem) {
+                    $codigoBancoNormalizado = normalizarCodigoCupom($cupomItem['codigo'] ?? '');
+                    if ($codigoBancoNormalizado !== '' && $codigoBancoNormalizado === $codigoNormalizado) {
+                        $cupom = $cupomItem;
+                        $debug_log[] = "✅ Cupom encontrado por busca tolerante: " . ($cupomItem['codigo'] ?? '');
+                        break;
+                    }
+                }
+            }
 
             if (!$cupom) {
                 $debug_log[] = "❌ Cupom não encontrado no banco";
+
+                $sugestao = null;
+                $menorDistancia = PHP_INT_MAX;
+
+                try {
+                    $stmtSugestoes = $pdo->query("SELECT codigo FROM cupons WHERE ativo = 1");
+                    $codigosAtivos = $stmtSugestoes ? $stmtSugestoes->fetchAll(PDO::FETCH_COLUMN) : [];
+
+                    foreach ($codigosAtivos as $codigoAtivo) {
+                        $codigoAtivoNorm = normalizarCodigoCupom($codigoAtivo);
+                        if ($codigoAtivoNorm === '') {
+                            continue;
+                        }
+
+                        $distancia = levenshtein($codigoNormalizado, $codigoAtivoNorm);
+                        if ($distancia < $menorDistancia) {
+                            $menorDistancia = $distancia;
+                            $sugestao = $codigoAtivo;
+                        }
+                    }
+                } catch (Exception $e) {
+                    $debug_log[] = "⚠️ Erro ao calcular sugestão de cupom: " . $e->getMessage();
+                }
+
+                if ($sugestao !== null && $menorDistancia <= 3) {
+                    jsonResponse(false, [
+                        'sugestao' => $sugestao
+                    ], "Cupom não encontrado. Você quis dizer {$sugestao}?", $debug_log);
+                }
+
                 jsonResponse(false, [], 'Cupom não encontrado', $debug_log);
             }
 

@@ -1,21 +1,28 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+    <?php
+    $scriptName = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '');
+    $clientePos = strpos($scriptName, '/cliente/');
+    $faviconHref = $clientePos !== false
+        ? substr($scriptName, 0, $clientePos) . '/favicon.ico'
+        : '../favicon.ico';
+    ?>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>D&Z - Beleza Premium para Você</title>
+    <title>RARE7 - Camisas de Times e Seleções</title>
     
     <!-- Material Symbols (ícones) -->
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Sharp:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
     
     <!-- Meta tags para SEO -->
-    <meta name="description" content="D&Z - E-commerce premium de beleza. Unhas profissionais, cílios e kits completos para elevar sua beleza ao próximo nível.">
-    <meta name="keywords" content="unhas, cílios, beleza, kit beleza, D&Z, e-commerce premium">
+    <meta name="description" content="RARE7 - Loja de camisas de clubes e seleções. Estilo, autenticidade e paixão pelo futebol em cada coleção.">
+    <meta name="keywords" content="camisa de time, camisa de seleção, futebol, rare7, loja de camisas">
     
     <!-- Favicon -->
-    <link rel="icon" type="image/x-icon" href="../favicon.ico">
+    <link rel="icon" type="image/x-icon" href="<?php echo htmlspecialchars($faviconHref, ENT_QUOTES, 'UTF-8'); ?>">
     
-    <!-- Cores customizadas para o tema D&Z -->
+    <!-- Cores customizadas para o tema RARE7 -->
     <style>
         :root {
             --color-magenta: #E6007E;
@@ -62,7 +69,7 @@
             background: linear-gradient(135deg, var(--color-magenta-dark) 0%, #a0005a 100%);
         }
         
-        /* ===== NAVBAR PREMIUM D&Z ===== */
+        /* ===== NAVBAR PREMIUM RARE7 ===== */
         .header-loja {
             position: fixed;
             top: 0;
@@ -3286,7 +3293,7 @@
         }
 
         /* =====================================================
-           CARROSSEL DE BANNERS HERO - D&Z PREMIUM
+           CARROSSEL DE BANNERS HERO - RARE7 PREMIUM
            ===================================================== */
 
         /* === SLIDE BASE === */
@@ -3376,7 +3383,7 @@
             text-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
         }
 
-        /* === BOTÃO D&Z ROSA === */
+        /* === BOTÃO RARE7 ROSA === */
         .dz-hero-btn {
             display: inline-flex;
             align-items: center;
@@ -3590,5 +3597,8 @@
             }
         }
     </style>
+    
+    <!-- CSS da Loja -->
+    <link rel="stylesheet" href="<?php echo (strpos($_SERVER['PHP_SELF'], '/pages/') !== false) ? '../' : ''; ?>css/loja.css">
 </head>
 <body>

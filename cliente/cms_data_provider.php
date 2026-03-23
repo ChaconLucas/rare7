@@ -284,9 +284,9 @@ class CMSProvider {
         // Fallback para banners vazios
         if (empty($banners)) {
             $banners = [[
-                'title' => 'Bem-vindo à D&Z',
-                'subtitle' => 'Beleza Premium',
-                'description' => 'Descubra produtos profissionais de qualidade superior',
+                'title' => 'Bem-vindo à RARE7',
+                'subtitle' => 'Camisas de Times e Seleções',
+                'description' => 'Descubra camisas de futebol com curadoria premium',
                 'image_path' => '',
                 'button_text' => 'Ver Produtos',
                 'button_link' => '#catalogo'
@@ -308,15 +308,15 @@ class CMSProvider {
      */
     private function getDefaultHomeSettings() {
         return [
-            'hero_title' => 'Bem-vindo à D&Z',
+            'hero_title' => 'Bem-vindo à RARE7',
             'hero_kicker' => 'RARE EXPERIENCE',
-            'hero_logo_path' => 'assets/images/logo-dz-oficial.svg',
-            'hero_subtitle' => 'Beleza Premium para Você',
-            'hero_description' => 'Descubra produtos profissionais de qualidade superior',
+            'hero_logo_path' => 'assets/images/logo.png',
+            'hero_subtitle' => 'Camisas de Times e Seleções',
+            'hero_description' => 'Vista a paixão pelo futebol com estilo e autenticidade.',
             'hero_button_text' => 'Ver Produtos',
             'hero_button_link' => '#catalogo',
             'launch_title' => 'Lançamentos',
-            'launch_subtitle' => 'Conheça as novidades exclusivas que acabaram de chegar na D&Z',
+            'launch_subtitle' => 'Conheça as novidades exclusivas que acabaram de chegar na RARE7',
             'benefits_title' => 'Beneficios Rare',
             'benefits_subtitle' => 'Acabamento premium e experiencia de compra refinada.',
             'launch_button_text' => 'Ver Todos os Lançamentos',
@@ -463,16 +463,16 @@ class CMSProvider {
      */
     private function getDefaultFooter() {
         return [
-            'marca_titulo' => 'D&Z',
-            'marca_subtitulo' => 'Beauty & Style',
-            'marca_descricao' => 'Produtos premium de beleza com qualidade profissional.',
+            'marca_titulo' => 'RARE7',
+            'marca_subtitulo' => 'Camisas de Futebol',
+            'marca_descricao' => 'Camisas de clubes e seleções com qualidade premium para quem vive futebol.',
             'telefone' => '(11) 98765-4321',
             'whatsapp' => '5511987654321',
-            'email' => 'contato@dz.com.br',
-            'instagram' => 'https://instagram.com/dz_beauty',
-            'tiktok' => 'https://tiktok.com/@dz_beauty',
-            'facebook' => 'https://facebook.com/dzbeauty',
-            'copyright_texto' => '2024 D&Z Beauty & Style. Todos os direitos reservados.'
+            'email' => 'contato@rare7.com.br',
+            'instagram' => 'https://instagram.com/rare7oficial',
+            'tiktok' => 'https://tiktok.com/@rare7oficial',
+            'facebook' => 'https://facebook.com/rare7oficial',
+            'copyright_texto' => '2024 RARE7. Todos os direitos reservados.'
         ];
     }
     
@@ -484,10 +484,10 @@ class CMSProvider {
     private function getDefaultFooterLinks() {
         return [
             'produtos' => [
-                ['titulo' => 'Maquiagem', 'url' => '#maquiagem'],
-                ['titulo' => 'Cuidados com a Pele', 'url' => '#skincare'],
-                ['titulo' => 'Cabelos', 'url' => '#cabelos'],
-                ['titulo' => 'Unhas', 'url' => '#unhas']
+                ['titulo' => 'Camisas de Clubes', 'url' => '#clubes'],
+                ['titulo' => 'Camisas de Seleções', 'url' => '#selecoes'],
+                ['titulo' => 'Coleção Retro', 'url' => '#retro'],
+                ['titulo' => 'Lançamentos', 'url' => '#lancamentos']
             ],
             'atendimento' => [
                 ['titulo' => 'Sobre Nós', 'url' => '#sobre'],

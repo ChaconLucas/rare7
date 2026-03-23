@@ -42,9 +42,9 @@ function atualizarContador() {
 
         // Atualizar título da página se houver mensagens
         if (data.nao_lidas > 0) {
-          document.title = `(${data.nao_lidas}) Dashboard - D&Z`;
+          document.title = `(${data.nao_lidas}) Dashboard - RARE7`;
         } else {
-          document.title = "Dashboard - D&Z";
+          document.title = "Dashboard - RARE7";
         }
       }
     })

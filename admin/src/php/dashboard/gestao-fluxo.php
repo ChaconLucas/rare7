@@ -50,11 +50,11 @@ if ($conexao) {
         $row = mysqli_fetch_assoc($checkRecords);
         if ($row['total'] == 0) {
             $defaultStatuses = [
-                ['nome' => 'Pedido Recebido', 'cor_hex' => '#C6A75E', 'ordem' => 1, 'notificar' => 1, 'mensagem_template' => 'OlÃ¡ {cliente}! Recebemos seu pedido #{id_pedido}. Em breve vocÃª receberÃ¡ mais atualizaÃ§Ãµes. Obrigado por escolher nossa loja!'],
-                ['nome' => 'Pagamento Confirmado', 'cor_hex' => '#41f1b6', 'ordem' => 2, 'notificar' => 1, 'mensagem_template' => 'Ã"tima notÃ­cia, {cliente}! Seu pagamento do pedido #{id_pedido} foi confirmado. Agora vamos preparar seus produtos para envio.'],
-                ['nome' => 'Em PreparaÃ§Ã£o', 'cor_hex' => '#ffbb55', 'ordem' => 3, 'baixa_estoque' => 1, 'bloquear_edicao' => 1, 'mensagem_template' => 'Seu pedido #{id_pedido} estÃ¡ sendo preparado com muito carinho. Em breve serÃ¡ enviado!'],
-                ['nome' => 'Enviado', 'cor_hex' => '#007bff', 'ordem' => 4, 'gerar_logistica' => 1, 'notificar' => 1, 'mensagem_template' => 'Pedido #{id_pedido} enviado! CÃ³digo de rastreamento: {codigo_rastreio}. Acompanhe a entrega pelo link: {link_rastreio}'],
-                ['nome' => 'Entregue', 'cor_hex' => '#28a745', 'ordem' => 5, 'notificar' => 1, 'mensagem_template' => 'ParabÃ©ns {cliente}! Seu pedido #{id_pedido} foi entregue com sucesso. Esperamos que goste de seus produtos!']
+                ['nome' => 'Pedido Recebido', 'cor_hex' => '#C6A75E', 'ordem' => 1, 'notificar' => 1, 'mensagem_template' => 'Olá {nome_cliente}! Recebemos seu pedido #{numero_pedido}. Em breve você receberá novas atualizações.'],
+                ['nome' => 'Pagamento Confirmado', 'cor_hex' => '#41f1b6', 'ordem' => 2, 'notificar' => 1, 'mensagem_template' => 'Ótima notícia, {nome_cliente}! O pagamento do pedido #{numero_pedido} foi confirmado.'],
+                ['nome' => 'Em Preparação', 'cor_hex' => '#ffbb55', 'ordem' => 3, 'baixa_estoque' => 1, 'bloquear_edicao' => 1, 'mensagem_template' => 'Seu pedido #{numero_pedido} está em preparação. Nossa equipe está conferindo os itens.'],
+                ['nome' => 'Enviado', 'cor_hex' => '#007bff', 'ordem' => 4, 'gerar_logistica' => 1, 'notificar' => 1, 'mensagem_template' => 'Pedido #{numero_pedido} enviado! Acompanhe a entrega com seu código de rastreio.'],
+                ['nome' => 'Entregue', 'cor_hex' => '#28a745', 'ordem' => 5, 'notificar' => 1, 'mensagem_template' => 'Pedido #{numero_pedido} entregue. Esperamos que você curta sua nova camisa Rare7!']
             ];
             
             foreach ($defaultStatuses as $status) {
@@ -118,18 +118,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     if (mysqli_stmt_execute($stmt)) {
                         registrar_log($conexao, "Adicionou novo status de fluxo: $nome");
                         // Implementar PRG (Post-Redirect-Get) para evitar resubmissÃ£o
-                        $_SESSION['success_msg'] = "âo. Status '$nome' adicionado com sucesso!";
+                        $_SESSION['success_msg'] = "Status '$nome' adicionado com sucesso!";
                         header('Location: gestao-fluxo.php');
                         exit();
                     } else {
-                        $_SESSION['error_msg'] = "âO Erro ao adicionar status: " . mysqli_error($conexao);
+                        $_SESSION['error_msg'] = "Erro ao adicionar status: " . mysqli_error($conexao);
                         header('Location: gestao-fluxo.php');
                         exit();
                     }
                     mysqli_stmt_close($stmt);
                 }
             } else {
-                $_SESSION['error_msg'] = "âO Nome do status Ã© obrigatÃ³rio!";
+                $_SESSION['error_msg'] = "Nome do status é obrigatório!";
                 header('Location: gestao-fluxo.php');
                 exit();
             }
@@ -157,18 +157,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     if (mysqli_stmt_execute($stmt)) {
                         registrar_log($conexao, "Atualizou status de fluxo: $nome (ID: $id)");
                         // Implementar PRG (Post-Redirect-Get) para evitar resubmissÃ£o
-                        $_SESSION['success_msg'] = "âo. Status '$nome' atualizado com sucesso!";
+                        $_SESSION['success_msg'] = "Status '$nome' atualizado com sucesso!";
                         header('Location: gestao-fluxo.php');
                         exit();
                     } else {
-                        $_SESSION['error_msg'] = "âO Erro ao atualizar status: " . mysqli_error($conexao);
+                        $_SESSION['error_msg'] = "Erro ao atualizar status: " . mysqli_error($conexao);
                         header('Location: gestao-fluxo.php');
                         exit();
                     }
                     mysqli_stmt_close($stmt);
                 }
             } else {
-                $_SESSION['error_msg'] = "âO Dados invÃ¡lidos para atualizaÃ§Ã£o!";
+                $_SESSION['error_msg'] = "Dados inválidos para atualização!";
                 header('Location: gestao-fluxo.php');
                 exit();
             }
@@ -198,11 +198,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     if (mysqli_stmt_execute($stmt)) {
                         registrar_log($conexao, "Removeu status de fluxo: $statusName (ID: $id)");
                         // Implementar PRG (Post-Redirect-Get) para evitar resubmissÃ£o
-                        $_SESSION['success_msg'] = "âo. Status removido com sucesso!";
+                        $_SESSION['success_msg'] = "Status removido com sucesso!";
                         header('Location: gestao-fluxo.php');
                         exit();
                     } else {
-                        $_SESSION['error_msg'] = "âO Erro ao remover status: " . mysqli_error($conexao);
+                        $_SESSION['error_msg'] = "Erro ao remover status: " . mysqli_error($conexao);
                         header('Location: gestao-fluxo.php');
                         exit();
                     }
@@ -225,6 +225,21 @@ try {
 } catch (Exception $e) {
     error_log("Erro ao buscar status: " . $e->getMessage());
 }
+
+function obterTemplatePadraoStatus($nomeStatus) {
+    $nome = strtolower(trim($nomeStatus));
+
+    $templates = [
+        'pedido recebido' => "Olá {nome_cliente}! Recebemos seu pedido #{numero_pedido}. Em breve você receberá novas atualizações.",
+        'pagamento confirmado' => "Ótima notícia, {nome_cliente}! O pagamento do pedido #{numero_pedido} foi confirmado. Já vamos separar sua camisa.",
+        'em preparação' => "Seu pedido #{numero_pedido} está em preparação. Nossa equipe está conferindo tudo para envio.",
+        'em preparacao' => "Seu pedido #{numero_pedido} está em preparação. Nossa equipe está conferindo tudo para envio.",
+        'enviado' => "Pedido #{numero_pedido} enviado! Assim que houver atualização de rastreio, você será notificado.",
+        'entregue' => "Pedido #{numero_pedido} entregue. Aproveite sua nova camisa Rare7!"
+    ];
+
+    return $templates[$nome] ?? '';
+}
 ?>
 <!DOCTYPE html>
 <html lang="pt-br">
@@ -235,7 +250,7 @@ try {
     <link rel="stylesheet" href="../../css/dashboard-sections.css" />
     <link rel="stylesheet" href="../../css/dashboard-cards.css" />
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Sharp" rel="stylesheet" />
-    <title>GestÃ£o de Fluxo - Dashboard</title>
+    <title>Gestão de Fluxo - Dashboard</title>
 </head>
 
 <body>
@@ -269,7 +284,7 @@ try {
 
                 <a href="analytics.php" id="graficos-link">
                     <span class="material-symbols-sharp">Insights</span>
-                    <h3>GrÃ¡ficos</h3>
+                    <h3>Gráficos</h3>
                 </a>
 
                 <a href="menssage.php" id="mensagens-link">
@@ -290,7 +305,7 @@ try {
 
                 <a href="gestao-fluxo.php" id="gestao-fluxo-link" class="active">
                     <span class="material-symbols-sharp">account_tree</span>
-                    <h3>GestÃ£o de Fluxo</h3>
+                    <h3>Gestão de Fluxo</h3>
                 </a>
 
                 <div class="menu-item-container">
@@ -310,11 +325,11 @@ try {
                         </a>
                         <a href="cms/featured.php">
                             <span class="material-symbols-sharp">star</span>
-                            <h3>LanÃ§amentos</h3>
+                            <h3>Lançamentos</h3>
                         </a>
                         <a href="cms/promos.php">
                             <span class="material-symbols-sharp">local_offer</span>
-                            <h3>PromoÃ§Ãµes</h3>
+                            <h3>Promoções</h3>
                         </a>
                         <a href="cms/testimonials.php">
                             <span class="material-symbols-sharp">format_quote</span>
@@ -322,7 +337,7 @@ try {
                         </a>
                         <a href="cms/metrics.php">
                             <span class="material-symbols-sharp">speed</span>
-                            <h3>MÃ©tricas</h3>
+                            <h3>Métricas</h3>
                         </a>
                     </div>
                 </div>
@@ -330,7 +345,7 @@ try {
                 <div class="menu-item-container">
                     <a href="geral.php" id="configuracoes-link" class="menu-item-with-submenu">
                         <span class="material-symbols-sharp">Settings</span>
-                        <h3>ConfiguraÃ§Ãµes</h3>
+                        <h3>Configurações</h3>
                     </a>
                     
                     <div class="submenu">
@@ -348,15 +363,15 @@ try {
                         </a>
                         <a href="automacao.php">
                             <span class="material-symbols-sharp">automation</span>
-                            <h3>AutomaÃ§Ã£o</h3>
+                            <h3>Automação</h3>
                         </a>
                         <a href="metricas.php">
                             <span class="material-symbols-sharp">analytics</span>
-                            <h3>MÃ©tricas</h3>
+                            <h3>Métricas</h3>
                         </a>
                         <a href="settings.php">
                             <span class="material-symbols-sharp">group</span>
-                            <h3>UsuÃ¡rios</h3>
+                            <h3>Usuários</h3>
                         </a>
                     </div>
                 </div>
@@ -375,9 +390,9 @@ try {
 
         <!----------FINAL ASIDE------------>
         <main>
-            <h1>GestÃ£o de Fluxo</h1>
+            <h1>Gestão de Fluxo</h1>
 
-            <!-- Header com botÃ£o adicionar -->
+            <!-- Header com botão adicionar -->
             <div style="display: flex; justify-content: space-between; align-items: center; margin: 1rem 0;">
                 <div class="date">
                     <span style="display: flex; align-items: center; gap: 0.5rem;">
@@ -447,9 +462,9 @@ try {
                             </span>
                         </div>
 
-                        <!-- Regras de NegÃ³cio -->
+                        <!-- Regras de Negócio -->
                         <div style="margin-bottom: 1.5rem;">
-                            <h4 style="margin-bottom: 0.75rem; color: var(--color-dark); font-size: 0.9rem; font-weight: 600;">REGRAS DE NEGÃ"CIO</h4>
+                            <h4 style="margin-bottom: 0.75rem; color: var(--color-dark); font-size: 0.9rem; font-weight: 600;">REGRAS DE NEGÓCIO</h4>
                             <div style="display: grid; gap: 0.5rem;">
                                 <div style="display: flex; align-items: center; gap: 0.5rem;">
                                     <span class="material-symbols-sharp" style="font-size: 1.2rem; color: <?= $status['baixa_estoque'] ? 'var(--color-success)' : 'var(--color-info-dark)' ?>;">
@@ -467,25 +482,25 @@ try {
                                     <span class="material-symbols-sharp" style="font-size: 1.2rem; color: <?= $status['bloquear_edicao'] ? 'var(--color-success)' : 'var(--color-info-dark)' ?>;">
                                         <?= $status['bloquear_edicao'] ? 'check_circle' : 'radio_button_unchecked' ?>
                                     </span>
-                                    <span style="font-size: 0.85rem; color: var(--color-dark);">Bloquear EdiÃ§Ã£o do Pedido</span>
+                                    <span style="font-size: 0.85rem; color: var(--color-dark);">Bloquear Edição do Pedido</span>
                                 </div>
                                 <div style="display: flex; align-items: center; gap: 0.5rem;">
                                     <span class="material-symbols-sharp" style="font-size: 1.2rem; color: <?= $status['gerar_logistica'] ? 'var(--color-success)' : 'var(--color-info-dark)' ?>;">
                                         <?= $status['gerar_logistica'] ? 'check_circle' : 'radio_button_unchecked' ?>
                                     </span>
-                                    <span style="font-size: 0.85rem; color: var(--color-dark);">Gerar LogÃ­stica (Melhor Envio)</span>
+                                    <span style="font-size: 0.85rem; color: var(--color-dark);">Gerar Logística (Melhor Envio)</span>
                                 </div>
                                 <div style="display: flex; align-items: center; gap: 0.5rem;">
                                     <span class="material-symbols-sharp" style="font-size: 1.2rem; color: <?= ($status['gerar_link_cobranca'] ?? 0) ? 'var(--color-success)' : 'var(--color-info-dark)' ?>;">
                                         <?= ($status['gerar_link_cobranca'] ?? 0) ? 'check_circle' : 'radio_button_unchecked' ?>
                                     </span>
-                                    <span style="font-size: 0.85rem; color: var(--color-dark);">Gerar Link de CobranÃ§a</span>
+                                    <span style="font-size: 0.85rem; color: var(--color-dark);">Gerar Link de Cobrança</span>
                                 </div>
                                 <div style="display: flex; align-items: center; gap: 0.5rem;">
                                     <span class="material-symbols-sharp" style="font-size: 1.2rem; color: <?= $status['notificar'] ? 'var(--color-success)' : 'var(--color-info-dark)' ?>;">
                                         <?= $status['notificar'] ? 'check_circle' : 'radio_button_unchecked' ?>
                                     </span>
-                                    <span style="font-size: 0.85rem; color: var(--color-dark);">NotificaÃ§Ã£o AutomÃ¡tica</span>
+                                    <span style="font-size: 0.85rem; color: var(--color-dark);">Notificação Automática</span>
                                 </div>
                                 <?php if (($status['sla_horas'] ?? 0) > 0): ?>
                                     <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.25rem; padding: 0.5rem; background: rgba(255, 193, 7, 0.1); border-radius: var(--border-radius-1); border-left: 3px solid var(--color-warning);">
@@ -499,35 +514,43 @@ try {
                         </div>
 
                         <!-- Mensagens Configuradas -->
-                        <?php if ($status['notificar'] && ($status['mensagem_template'] || $status['mensagem_email'])): ?>
+                        <?php
+                            $mensagemEmailCard = trim((string)($status['mensagem_email'] ?? ''));
+                            $mensagemTemplateCard = trim((string)($status['mensagem_template'] ?? ''));
+                            $templatePadraoCard = obterTemplatePadraoStatus($status['nome']);
+
+                            if ($mensagemEmailCard === '' && $mensagemTemplateCard === '' && $templatePadraoCard !== '') {
+                                $mensagemTemplateCard = $templatePadraoCard;
+                            }
+                        ?>
+                        <?php if ($mensagemTemplateCard || $mensagemEmailCard): ?>
                             <div style="margin-bottom: 1rem; border-top: 1px solid rgba(0,0,0,0.1); padding-top: 1rem;">
-                                
-                                <?php if ($status['mensagem_email']): ?>
+                                <?php if ($mensagemEmailCard): ?>
                                     <div style="margin-bottom: 1rem;">
                                         <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
                                             <span class="material-symbols-sharp" style="font-size: 1rem; color: var(--color-primary);">email</span>
                                             <h4 style="margin: 0; color: var(--color-dark); font-size: 0.85rem; font-weight: 600;">MENSAGEM DE E-MAIL</h4>
                                         </div>
                                         <div style="background: rgba(198, 167, 94, 0.05); padding: 0.75rem; border-radius: var(--border-radius-1); border-left: 4px solid var(--color-primary); font-size: 0.8rem; color: var(--color-dark); line-height: 1.4;">
-                                            <?= nl2br(htmlspecialchars(substr($status['mensagem_email'], 0, 150) . (strlen($status['mensagem_email']) > 150 ? '...' : ''))) ?>
+                                            <?= nl2br(htmlspecialchars(substr($mensagemEmailCard, 0, 150) . (strlen($mensagemEmailCard) > 150 ? '...' : ''))) ?>
                                         </div>
                                     </div>
                                 <?php endif; ?>
 
-                                <?php if ($status['mensagem_template']): ?>
+                                <?php if ($mensagemTemplateCard): ?>
                                     <div style="margin-bottom: 0.5rem;">
                                         <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
                                             <span class="material-symbols-sharp" style="font-size: 1rem; color: var(--color-info);">message</span>
-                                            <h4 style="margin: 0; color: var(--color-dark); font-size: 0.85rem; font-weight: 600;">TEMPLATE GENÃ?RICO</h4>
+                                            <h4 style="margin: 0; color: var(--color-dark); font-size: 0.85rem; font-weight: 600;">TEMPLATE DE MENSAGEM</h4>
                                         </div>
                                         <div style="background: var(--color-background); padding: 0.75rem; border-radius: var(--border-radius-1); border-left: 4px solid <?= $status['cor_hex'] ?>; font-size: 0.8rem; color: var(--color-dark); line-height: 1.4;">
-                                            <?= nl2br(htmlspecialchars(substr($status['mensagem_template'], 0, 150) . (strlen($status['mensagem_template']) > 150 ? '...' : ''))) ?>
+                                            <?= nl2br(htmlspecialchars(substr($mensagemTemplateCard, 0, 150) . (strlen($mensagemTemplateCard) > 150 ? '...' : ''))) ?>
                                         </div>
                                     </div>
                                 <?php endif; ?>
 
                                 <small style="color: var(--color-info-dark); font-size: 0.75rem; display: block; background: rgba(255, 255, 255, 0.7); padding: 0.5rem; border-radius: 4px;">
-                                    <strong>ðY'¡ VariÃ¡veis:</strong> {nome_cliente}, {numero_pedido}, {valor_total}, {data_pedido}, {status_atual}
+                                    <strong>Variáveis:</strong> {nome_cliente}, {numero_pedido}, {valor_total}, {data_pedido}, {status_atual}
                                 </small>
                             </div>
                         <?php endif; ?>
@@ -538,7 +561,7 @@ try {
                     <div style="grid-column: 1 / -1; text-align: center; padding: 3rem; background: var(--color-white); border-radius: var(--card-border-radius); box-shadow: var(--box-shadow);">
                         <span class="material-symbols-sharp" style="font-size: 4rem; color: var(--color-info-dark); margin-bottom: 1rem; display: block;">account_tree</span>
                         <h3 style="color: var(--color-dark); margin-bottom: 0.5rem;">Nenhum Status Configurado</h3>
-                        <p style="color: var(--color-info-dark); margin-bottom: 1.5rem;">Adicione seu primeiro status para comeÃ§ar a gerenciar o fluxo de pedidos.</p>
+                        <p style="color: var(--color-info-dark); margin-bottom: 1.5rem;">Adicione seu primeiro status para começar a gerenciar o fluxo de pedidos.</p>
                         <button onclick="openAddModal()" style="background: var(--color-primary); color: white; border: none; padding: 0.75rem 1.5rem; border-radius: var(--border-radius-2); cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 600;">
                             <span class="material-symbols-sharp">add</span>
                             Adicionar Primeiro Status
@@ -560,7 +583,7 @@ try {
                 </div>
                 <div class="profile">
                     <div class="info">
-                        <p>OlÃ¡, <b><?php echo isset($_SESSION['usuario_nome']) ? $_SESSION['usuario_nome'] : 'UsuÃ¡rio'; ?></b></p>
+                        <p>Olá, <b><?php echo isset($_SESSION['usuario_nome']) ? $_SESSION['usuario_nome'] : 'Usuário'; ?></b></p>
                         <small class="text-muted">Administrador</small>
                     </div>
                     <div class="profile-photo">
@@ -817,11 +840,11 @@ try {
                         </div>
                     </div>
 
-                    <!-- Regras de NegÃ³cio -->
+                    <!-- Regras de Negócio -->
                     <div style="margin-bottom: 2rem;">
                         <label style="display: block; font-weight: 600; color: var(--color-dark); margin-bottom: 1rem; font-size: 1.1rem; border-bottom: 2px solid var(--color-primary); padding-bottom: 0.5rem;">
                             <span class="material-symbols-sharp" style="font-size: 18px; vertical-align: middle; margin-right: 0.5rem; color: var(--color-primary);">settings</span>
-                            Regras de NegÃ³cio
+                            Regras de Negócio
                         </label>
                         <div class="regras-container" style="display: flex; flex-direction: column; gap: 0.75rem; padding: 1rem; background: rgba(198, 167, 94, 0.02); border-radius: var(--border-radius-2); border: 1px solid rgba(198, 167, 94, 0.1);">
                             <!-- Baixar Estoque -->
@@ -842,8 +865,8 @@ try {
                                     <span class="material-symbols-sharp" style="font-size: 16px; color: transparent; transition: all 0.3s ease;">check</span>
                                 </div>
                                 <div style="flex: 1; min-width: 0;">
-                                    <div style="font-weight: 600; color: var(--color-dark); font-size: 0.95rem; margin-bottom: 0.25rem;">Bloquear ediÃ§Ã£o do pedido</div>
-                                    <small style="color: var(--color-info-dark); font-size: 0.8rem; line-height: 1.3;">Impede qualquer modificaÃ§Ã£o no pedido apÃ³s atingir este status</small>
+                                    <div style="font-weight: 600; color: var(--color-dark); font-size: 0.95rem; margin-bottom: 0.25rem;">Bloquear edição do pedido</div>
+                                    <small style="color: var(--color-info-dark); font-size: 0.8rem; line-height: 1.3;">Impede qualquer modificação no pedido após atingir este status</small>
                                 </div>
                                 <input type="checkbox" name="bloquear_edicao" id="bloquearEdicao" style="display: none;">
                             </div>
@@ -854,8 +877,8 @@ try {
                                     <span class="material-symbols-sharp" style="font-size: 16px; color: transparent; transition: all 0.3s ease;">check</span>
                                 </div>
                                 <div style="flex: 1; min-width: 0;">
-                                    <div style="font-weight: 600; color: var(--color-dark); font-size: 0.95rem; margin-bottom: 0.25rem;">Gerar logÃ­stica (Melhor Envio)</div>
-                                    <small style="color: var(--color-info-dark); font-size: 0.8rem; line-height: 1.3;">Habilita botÃµes de rastreio e integraÃ§Ã£o com transportadoras</small>
+                                    <div style="font-weight: 600; color: var(--color-dark); font-size: 0.95rem; margin-bottom: 0.25rem;">Gerar logística (Melhor Envio)</div>
+                                    <small style="color: var(--color-info-dark); font-size: 0.8rem; line-height: 1.3;">Habilita botões de rastreio e integração com transportadoras</small>
                                 </div>
                                 <input type="checkbox" name="gerar_logistica" id="gerarLogistica" style="display: none;">
                             </div>
@@ -866,7 +889,7 @@ try {
                                     <span class="material-symbols-sharp" style="font-size: 16px; color: transparent; transition: all 0.3s ease;">check</span>
                                 </div>
                                 <div style="flex: 1; min-width: 0;">
-                                    <div style="font-weight: 600; color: var(--color-dark); font-size: 0.95rem; margin-bottom: 0.25rem;">Ativar notificaÃ§Ã£o automÃ¡tica</div>
+                                    <div style="font-weight: 600; color: var(--color-dark); font-size: 0.95rem; margin-bottom: 0.25rem;">Ativar notificação automática</div>
                                     <small style="color: var(--color-info-dark); font-size: 0.8rem; line-height: 1.3;">Envia mensagem automaticamente via WhatsApp/E-mail</small>
                                 </div>
                                 <input type="checkbox" name="notificar" id="notificar" style="display: none;">
@@ -879,7 +902,7 @@ try {
                                 </div>
                                 <div style="flex: 1; min-width: 0;">
                                     <div style="font-weight: 600; color: var(--color-dark); font-size: 0.95rem; margin-bottom: 0.25rem;">Estornar Estoque</div>
-                                    <small style="color: var(--color-info-dark); font-size: 0.8rem; line-height: 1.3;">Se ativado, produtos deste status voltam ao inventÃ¡rio (ex: DevoluÃ§Ãµes)</small>
+                                    <small style="color: var(--color-info-dark); font-size: 0.8rem; line-height: 1.3;">Se ativado, produtos deste status voltam ao inventário (ex: devoluções)</small>
                                 </div>
                                 <input type="checkbox" name="estornar_estoque" id="estornarEstoque" style="display: none;">
                             </div>
@@ -892,7 +915,7 @@ try {
                                 <div style="flex: 1; min-width: 0;">
                                     <div style="font-weight: 600; color: var(--color-dark); font-size: 0.95rem; margin-bottom: 0.25rem;">
                                         <span class="material-symbols-sharp" style="font-size: 16px; vertical-align: middle; margin-right: 0.5rem; color: var(--color-success);">credit_card</span>
-                                        Gerar Link de CobranÃ§a
+                                        Gerar Link de Cobrança
                                     </div>
                                     <small style="color: var(--color-info-dark); font-size: 0.8rem; line-height: 1.3;">Se ativado, habilita o shortcode {link_pagamento} no template</small>
                                 </div>
@@ -914,12 +937,12 @@ try {
                     </div>
                 </div>
 
-                <!-- GestÃ£o de Mensagens -->
+                <!-- Gestão de Mensagens -->
                 <div id="mensagemTemplateDiv" style="margin-bottom: 1.5rem; display: none;">
                     <div style="background: linear-gradient(135deg, rgba(198, 167, 94, 0.1), rgba(198, 167, 94, 0.05)); border: 2px solid rgba(198, 167, 94, 0.2); border-radius: var(--border-radius-2); padding: 1.5rem; margin-bottom: 1.5rem;">
                         <h3 style="margin: 0 0 1rem 0; color: var(--color-primary); display: flex; align-items: center; gap: 0.5rem;">
                             <span class="material-symbols-sharp" style="font-size: 20px;">message</span>
-                            GestÃ£o de Mensagens para este Status
+                            Gestão de Mensagens para este Status
                         </h3>
                         
                         <!-- Mensagem de E-mail -->
@@ -928,7 +951,7 @@ try {
                                 <span class="material-symbols-sharp" style="font-size: 16px; vertical-align: middle; margin-right: 0.5rem; color: var(--color-primary);">email</span>
                                 Mensagem de E-mail Personalizada
                             </label>
-                            <textarea name="mensagem_email" id="mensagemEmail" rows="5" style="width: 100%; padding: 0.75rem; border: 1px solid var(--color-info-light); border-radius: var(--border-radius-1); background: var(--color-white); font-size: 0.9rem; resize: vertical;" placeholder="OlÃ¡ {nome_cliente}! Seu pedido #{numero_pedido} no valor de R$ {valor_total} foi atualizado..."></textarea>
+                            <textarea name="mensagem_email" id="mensagemEmail" rows="5" style="width: 100%; padding: 0.75rem; border: 1px solid var(--color-info-light); border-radius: var(--border-radius-1); background: var(--color-white); font-size: 0.9rem; resize: vertical;" placeholder="Olá {nome_cliente}! Seu pedido #{numero_pedido} no valor de R$ {valor_total} foi atualizado..."></textarea>
                             <div style="margin-top: 0.5rem;">
                                 <button type="button" onclick="inserirVariavelEmail('nome_cliente')" style="background: rgba(198, 167, 94, 0.1); border: 1px solid var(--color-primary); color: var(--color-primary); padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; margin: 0.25rem 0.25rem 0.25rem 0; cursor: pointer;">{nome_cliente}</button>
                                 <button type="button" onclick="inserirVariavelEmail('numero_pedido')" style="background: rgba(198, 167, 94, 0.1); border: 1px solid var(--color-primary); color: var(--color-primary); padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; margin: 0.25rem 0.25rem 0.25rem 0; cursor: pointer;">{numero_pedido}</button>
@@ -947,14 +970,14 @@ try {
                             <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                                 <button type="button" onclick="aplicarTemplatePedidoConfirmado()" style="background: var(--color-success); color: white; border: none; padding: 0.5rem 0.75rem; border-radius: var(--border-radius-1); font-size: 0.8rem; cursor: pointer;">Pedido Confirmado</button>
                                 <button type="button" onclick="aplicarTemplatePreparando()" style="background: var(--color-warning); color: white; border: none; padding: 0.5rem 0.75rem; border-radius: var(--border-radius-1); font-size: 0.8rem; cursor: pointer;">Preparando Pedido</button>
-                                <button type="button" onclick="aplicarTemplateEnviado()" style="background: var(--color-info); color: white; border: none; padding: 0.5rem 0.75rem; border-radius: var(--border-radius-1); font-size: 0.8rem; cursor: pointer;">Pedido Enviado</button>
+                                <button type="button" onclick="aplicarTemplateEnviado()" style="background: #007bff; color: white; border: none; padding: 0.5rem 0.75rem; border-radius: var(--border-radius-1); font-size: 0.8rem; cursor: pointer;">Pedido Enviado</button>
                                 <button type="button" onclick="aplicarTemplateEntregue()" style="background: var(--color-primary); color: white; border: none; padding: 0.5rem 0.75rem; border-radius: var(--border-radius-1); font-size: 0.8rem; cursor: pointer;">Pedido Entregue</button>
                             </div>
                         </div>
 
                         <small style="color: var(--color-info-dark); font-size: 0.75rem; margin-top: 0.25rem; display: block; background: rgba(255, 255, 255, 0.7); padding: 0.5rem; border-radius: 4px;">
-                            <strong>ðYs? VariÃ¡veis disponÃ­veis:</strong> {nome_cliente}, {numero_pedido}, {valor_total}, {data_pedido}, {status_atual}<br>
-                            <strong>ðY'¡ Dica:</strong> Clique nos botÃµes das variÃ¡veis para inseri-las automaticamente no texto!
+                            <strong>Variáveis disponíveis:</strong> {nome_cliente}, {numero_pedido}, {valor_total}, {data_pedido}, {status_atual}<br>
+                            <strong>Dica:</strong> Clique nos botões das variáveis para inseri-las automaticamente no texto!
                         </small>
                     </div>
                 </div>
@@ -976,9 +999,9 @@ try {
     </div>
 
     <!-- Scripts -->
-    <script src="../../js/dashboard.js"></script>
+    <script src="../../js/dashboard.js?v=<?php echo filemtime('../../js/dashboard.js'); ?>"></script>
     <script>
-        const __noopLog = (...args) => {};
+        window.__noopLog = window.__noopLog || function() {};
 
         // FunÃ§Ãµes globais - devem estar disponÃ­veis para os botÃµes HTML
         function openAddModal() {
@@ -998,7 +1021,7 @@ try {
 
         function deleteStatus(id, nome) {
             __noopLog(`ðY-'ï¸ Deletar status: ${id} - ${nome}`);
-            if (confirm(`Tem certeza que deseja excluir o status "${nome}"?\n\nEsta aÃ§Ã£o Ã© irreversÃ­vel e pode afetar pedidos existentes.`)) {
+            if (confirm(`Tem certeza que deseja excluir o status "${nome}"?\n\nEsta ação é irreversível e pode afetar pedidos existentes.`)) {
                 document.getElementById('deleteForm').querySelector('[name="id"]').value = id;
                 document.getElementById('deleteForm').submit();
             }
@@ -1103,7 +1126,21 @@ try {
             }
         }
 
-        // FunÃ§Ã£o para editar status
+        function obterTemplatePadraoPorNome(nomeStatus) {
+            const nome = (nomeStatus || '').toLowerCase().trim();
+            const mapa = {
+                'pedido recebido': "Olá {nome_cliente}! Recebemos seu pedido #{numero_pedido}. Em breve você receberá novas atualizações.",
+                'pagamento confirmado': "Ótima notícia, {nome_cliente}! O pagamento do pedido #{numero_pedido} foi confirmado.",
+                'em preparação': "Seu pedido #{numero_pedido} está em preparação. Nossa equipe está conferindo os itens.",
+                'em preparacao': "Seu pedido #{numero_pedido} está em preparação. Nossa equipe está conferindo os itens.",
+                'enviado': "Pedido #{numero_pedido} enviado! Acompanhe a entrega com seu código de rastreio.",
+                'entregue': "Pedido #{numero_pedido} entregue. Esperamos que você curta sua nova camisa Rare7!"
+            };
+
+            return mapa[nome] || '';
+        }
+
+        // Função para editar status
         function editStatus(button) {
             __noopLog('ðY"§ editStatus iniciado', button);
             
@@ -1164,7 +1201,7 @@ try {
                         
                         const emailField = document.getElementById('mensagemEmail');
                         if (emailField) {
-                            emailField.value = statusData.mensagemEmail;
+                            emailField.value = statusData.mensagemEmail || statusData.template || obterTemplatePadraoPorNome(statusData.nome);
                         }
                         
                         // Atualizar preview e toggle
@@ -1332,28 +1369,28 @@ try {
         function aplicarTemplatePedidoConfirmado() {
             const emailField = document.getElementById('mensagemEmail');
             if (emailField) {
-                emailField.value = "Otimas noticias, {nome_cliente}!\n\nSeu pedido #{numero_pedido} no valor de R$ {valor_total} foi confirmado e ja esta sendo processado.\n\nEm breve voce recebera mais atualizacoes sobre o andamento.\n\nObrigado por escolher a Rare7.\n\n#DZNails #UnhasPerfeitas";
+                emailField.value = "Ótima notícia, {nome_cliente}!\n\nSeu pedido #{numero_pedido}, no valor de R$ {valor_total}, teve o pagamento confirmado.\n\nNossa equipe já vai iniciar a preparação da sua camisa.\n\nObrigado por comprar com a Rare7.";
             }
         }
 
         function aplicarTemplatePreparando() {
             const emailField = document.getElementById('mensagemEmail');
             if (emailField) {
-                emailField.value = "{nome_cliente}, estamos preparando sua encomenda.\n\nSeu pedido #{numero_pedido} esta sendo cuidadosamente separado e preparado para envio.\n\nCada item esta sendo verificado para garantir a qualidade Rare7.\n\nLogo voce recebera o codigo de rastreamento.\n\nRare7 - Transformando sonhos em realidade.";
+                emailField.value = "{nome_cliente}, seu pedido #{numero_pedido} está em preparação.\n\nEstamos separando e conferindo os itens para garantir que tudo chegue perfeito até você.\n\nAssim que for enviado, avisaremos com os próximos detalhes.";
             }
         }
 
         function aplicarTemplateEnviado() {
             const emailField = document.getElementById('mensagemEmail');
             if (emailField) {
-                emailField.value = "{nome_cliente}, seu pedido saiu para entrega.\n\nPedido #{numero_pedido} foi postado e esta a caminho.\n\nAcompanhe sua encomenda pelos Correios.\n\nEm breve voce estara com os produtos Rare7 em maos.";
+                emailField.value = "{nome_cliente}, seu pedido #{numero_pedido} foi enviado!\n\nSua camisa já está a caminho.\n\nUse o código de rastreio para acompanhar a entrega em tempo real.";
             }
         }
 
         function aplicarTemplateEntregue() {
             const emailField = document.getElementById('mensagemEmail');
             if (emailField) {
-                emailField.value = "Parabens, {nome_cliente}!\n\nSeu pedido #{numero_pedido} foi entregue com sucesso.\n\nAgora e so arrasar com seus novos produtos Rare7.\n\nNao esqueca de nos marcar nas suas fotos.\n\nSe possivel, deixe sua avaliacao. Isso nos ajuda muito.\n\nRare7 - Sempre com voce.";
+                emailField.value = "Pedido entregue, {nome_cliente}!\n\nSeu pedido #{numero_pedido} chegou com sucesso.\n\nEsperamos que você curta muito sua nova camisa.\n\nConte sempre com a Rare7.";
             }
         }
 
@@ -1369,7 +1406,7 @@ try {
             }
         });
 
-        // Event listener para o checkbox de notificaÃ§Ã£o
+        // Event listener para o checkbox de notificação
         document.addEventListener('DOMContentLoaded', function() {
             const notificarCheckbox = document.getElementById('notificar');
             if (notificarCheckbox) {

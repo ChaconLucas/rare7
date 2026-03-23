@@ -10,7 +10,7 @@ $cms = new CMSProvider($conn);
 $freteGratisValor = getFreteGratisThreshold($pdo);
 $homeSettings = $cms->getHomeSettings();
 $banners = $cms->getActiveBanners();
-$featuredProducts = $cms->getFeaturedProducts(6);
+$featuredProducts = $cms->getFeaturedProducts(48);
 $allProducts = $cms->getAllProducts(12);
 $beneficios = $cms->getHomeBenefits();
 $footerData = $cms->getFooterData();
@@ -18,6 +18,48 @@ $footerLinks = $cms->getFooterLinks();
 $promocoes = $cms->getActivePromotions();
 $metricas = $cms->getActiveMetrics();
 $testimonials = $cms->getTestimonials(3);
+
+$clubesDestaque = [];
+$clubsQuery = "SELECT nome, sigla, imagem_path, ordem FROM cms_home_clubs WHERE ativo = 1 ORDER BY ordem ASC, id ASC";
+$clubsResult = mysqli_query($conn, $clubsQuery);
+if ($clubsResult) {
+    while ($club = mysqli_fetch_assoc($clubsResult)) {
+        $clubesDestaque[] = $club;
+    }
+}
+
+if (empty($clubesDestaque)) {
+    $clubesDestaque = [
+        ['nome' => 'Real Madrid', 'sigla' => 'RMA', 'imagem_path' => '', 'ordem' => 1],
+        ['nome' => 'Barcelona', 'sigla' => 'BAR', 'imagem_path' => '', 'ordem' => 2],
+        ['nome' => 'Manchester City', 'sigla' => 'MCI', 'imagem_path' => '', 'ordem' => 3],
+        ['nome' => 'Bayern', 'sigla' => 'BAY', 'imagem_path' => '', 'ordem' => 4],
+        ['nome' => 'PSG', 'sigla' => 'PSG', 'imagem_path' => '', 'ordem' => 5],
+        ['nome' => 'Milan', 'sigla' => 'MIL', 'imagem_path' => '', 'ordem' => 6],
+        ['nome' => 'Benfica', 'sigla' => 'BEN', 'imagem_path' => '', 'ordem' => 7],
+        ['nome' => 'Inter', 'sigla' => 'INT', 'imagem_path' => '', 'ordem' => 8],
+        ['nome' => 'Liverpool', 'sigla' => 'LIV', 'imagem_path' => '', 'ordem' => 9],
+        ['nome' => 'Juventus', 'sigla' => 'JUV', 'imagem_path' => '', 'ordem' => 10]
+    ];
+}
+
+function resolveClubImageUrl(string $rawPath): string {
+    $path = trim($rawPath);
+    if ($path === '') {
+        return '';
+    }
+
+    if (preg_match('/^https?:\/\//i', $path) || strpos($path, 'data:') === 0 || strpos($path, '//') === 0) {
+        return $path;
+    }
+
+    $normalized = ltrim($path, '/');
+    if (strpos($normalized, '../') === 0) {
+        return $normalized;
+    }
+
+    return '../' . $normalized;
+}
 
 if (empty($banners)) {
     $banners = [
@@ -52,23 +94,88 @@ $usuarioLogado = isset($_SESSION['cliente']);
 $nomeUsuario = $usuarioLogado ? htmlspecialchars($_SESSION['cliente']['nome']) : '';
 $profileLink = $usuarioLogado ? 'pages/minha-conta.php' : 'pages/login.php';
 
-$vitrineProducts = [];
-foreach ($allProducts as $product) {
-    $img = !empty($product['imagem_principal'])
-        ? '../admin/assets/images/produtos/' . ltrim($product['imagem_principal'], '/')
-        : '';
+$productIdsForSizes = [];
+foreach ($allProducts as $pSize) {
+    $id = (int)($pSize['id'] ?? 0);
+    if ($id > 0) {
+        $productIdsForSizes[$id] = true;
+    }
+}
+foreach ($featuredProducts as $pSize) {
+    $id = (int)($pSize['id'] ?? 0);
+    if ($id > 0) {
+        $productIdsForSizes[$id] = true;
+    }
+}
 
-    $vitrineProducts[] = [
+$productSizesMap = [];
+if (!empty($productIdsForSizes)) {
+    $ids = array_keys($productIdsForSizes);
+    $inClause = implode(',', array_map('intval', $ids));
+    $sizesSql = "
+        SELECT produto_id, valor
+        FROM produto_variacoes
+        WHERE ativo = 1
+          AND LOWER(TRIM(tipo)) = 'tamanho'
+          AND produto_id IN ($inClause)
+        ORDER BY produto_id ASC, valor ASC
+    ";
+    $sizesResult = mysqli_query($conn, $sizesSql);
+    if ($sizesResult) {
+        while ($sizeRow = mysqli_fetch_assoc($sizesResult)) {
+            $pid = (int)($sizeRow['produto_id'] ?? 0);
+            $value = trim((string)($sizeRow['valor'] ?? ''));
+            if ($pid <= 0 || $value === '') {
+                continue;
+            }
+            if (!isset($productSizesMap[$pid])) {
+                $productSizesMap[$pid] = [];
+            }
+            $lower = mb_strtolower($value);
+            $exists = false;
+            foreach ($productSizesMap[$pid] as $existing) {
+                if (mb_strtolower((string)$existing) === $lower) {
+                    $exists = true;
+                    break;
+                }
+            }
+            if (!$exists) {
+                $productSizesMap[$pid][] = $value;
+            }
+        }
+    }
+}
+
+$mapToVitrinePayload = static function (array $product): array {
+    $img = '';
+    if (!empty($product['imagem_principal'])) {
+        $imageName = ltrim((string)$product['imagem_principal'], '/');
+        $imageFile = __DIR__ . '/../admin/assets/images/produtos/' . $imageName;
+        if (is_file($imageFile)) {
+            $img = '../admin/assets/images/produtos/' . $imageName;
+        }
+    }
+
+    $productId = (int)($product['id'] ?? 0);
+    global $productSizesMap;
+    $sizes = $productSizesMap[$productId] ?? [];
+
+    return [
         'id' => (int)($product['id'] ?? 0),
         'name' => $product['nome'] ?? 'Produto',
-        'description' => mb_substr($product['descricao'] ?? '', 0, 90),
+        'description' => mb_substr((string)($product['descricao'] ?? ''), 0, 90),
         'category' => $product['categoria'] ?? 'Raras',
         'price' => (float)($product['preco'] ?? 0),
         'sale_price' => (float)($product['preco_promocional'] ?? 0),
         'image' => $img,
-        'is_launch' => ($product['is_lancamento'] ?? '') === 'yes'
+        'is_launch' => ($product['is_lancamento'] ?? '') === 'yes',
+        'sizes' => $sizes,
+        'has_sizes' => !empty($sizes)
     ];
-}
+};
+
+$vitrineProducts = array_map($mapToVitrinePayload, $allProducts);
+$vitrineLaunchProducts = array_map($mapToVitrinePayload, $featuredProducts);
 
 $featuredIds = array_map(static function ($product) {
     return (int)($product['id'] ?? 0);
@@ -124,8 +231,8 @@ $heroButtonLink = array_key_exists('hero_button_link', $homeSettings)
     ? trim((string)$homeSettings['hero_button_link'])
     : '#vitrine';
 
-$defaultHeroLogoPath = 'assets/images/logo-dz-oficial.svg';
-$fallbackHeroLogoPngPath = 'assets/images/logo-dz.png';
+$defaultHeroLogoPath = 'assets/images/logo.png';
+$fallbackHeroLogoPngPath = 'assets/images/logo.png';
 $heroLogoPathRaw = trim($homeSettings['hero_logo_path'] ?? '');
 $heroLogoPath = $heroLogoPathRaw !== '' ? $heroLogoPathRaw : $defaultHeroLogoPath;
 
@@ -174,6 +281,8 @@ $fallbackHeroLogoUrl = $toPublicUrl($fallbackHeroLogoPngPath);
 
 $launchTitle = trim($homeSettings['launch_title'] ?? '') ?: 'Vitrine Interativa';
 $launchSubtitle = trim($homeSettings['launch_subtitle'] ?? '') ?: 'Selecione a categoria e navegue por uma curadoria de produtos.';
+$launchButtonText = trim($homeSettings['launch_button_text'] ?? '') ?: 'Ver Todos os Lançamentos';
+$launchButtonLink = trim($homeSettings['launch_button_link'] ?? '') ?: '#catalogo';
 
 $benefitsTitle = trim($homeSettings['benefits_title'] ?? '') ?: 'Beneficios Rare';
 $benefitsSubtitle = trim($homeSettings['benefits_subtitle'] ?? '') ?: 'Acabamento premium e experiencia de compra refinada.';
@@ -270,9 +379,23 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
                         <span class="material-symbols-sharp">search</span>
                     </button>
                 </form>
+                <?php if ($usuarioLogado): ?>
+                <div class="user-dropdown">
+                    <button class="user-dropdown-btn" onclick="toggleUserDropdown(event)" aria-label="Menu de usuário" aria-expanded="false">
+                        <span class="material-symbols-sharp">person</span>
+                    </button>
+                    <div class="user-dropdown-menu">
+                        <div class="user-greeting">Olá, <?php echo isset($nomeUsuario) ? htmlspecialchars($nomeUsuario) : 'Cliente'; ?></div>
+                        <a href="pages/minha-conta.php">Minha conta</a>
+                        <a href="pages/minha-conta.php?tab=pedidos">Meus pedidos</a>
+                        <a href="pages/logout.php">Sair</a>
+                    </div>
+                </div>
+                <?php else: ?>
                 <a href="<?php echo htmlspecialchars($profileLink); ?>" class="nav-icon-link" aria-label="Perfil">
                     <span class="material-symbols-sharp">person</span>
                 </a>
+                <?php endif; ?>
                 <a href="pages/carrinho.php" class="nav-icon-link" aria-label="Carrinho"><span class="material-symbols-sharp">shopping_bag</span></a>
             </div>
         </div>
@@ -304,16 +427,26 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
                 </div>
                 <div class="teams-marquee">
                     <div class="teams-track" id="teamsTrack">
-                        <div class="team-badge">RMA</div>
-                        <div class="team-badge">BAR</div>
-                        <div class="team-badge">MCI</div>
-                        <div class="team-badge">BAY</div>
-                        <div class="team-badge">PSG</div>
-                        <div class="team-badge">MIL</div>
-                        <div class="team-badge">BEN</div>
-                        <div class="team-badge">INT</div>
-                        <div class="team-badge">LIV</div>
-                        <div class="team-badge">JUV</div>
+                        <?php foreach ($clubesDestaque as $clube): ?>
+                            <?php
+                                $siglaClube = strtoupper(trim((string)($clube['sigla'] ?? 'CLB')));
+                                $nomeClube = trim((string)($clube['nome'] ?? 'Clube'));
+                                $imageUrl = resolveClubImageUrl((string)($clube['imagem_path'] ?? ''));
+                            ?>
+                            <button
+                                type="button"
+                                class="team-badge team-badge-button<?php echo $imageUrl !== '' ? ' has-image' : ''; ?>"
+                                title="Ver camisas do <?php echo htmlspecialchars($nomeClube); ?>"
+                                aria-label="Ver camisas do <?php echo htmlspecialchars($nomeClube); ?>"
+                                data-team-name="<?php echo htmlspecialchars($nomeClube); ?>"
+                                data-team-sigla="<?php echo htmlspecialchars($siglaClube); ?>"
+                            >
+                                <?php if ($imageUrl !== ''): ?>
+                                    <img src="<?php echo htmlspecialchars($imageUrl); ?>" alt="<?php echo htmlspecialchars($nomeClube); ?>" loading="lazy" onerror="this.closest('.team-badge').classList.remove('has-image'); this.remove();">
+                                <?php endif; ?>
+                                <span class="team-badge-text"><?php echo htmlspecialchars($siglaClube); ?></span>
+                            </button>
+                        <?php endforeach; ?>
                     </div>
                 </div>
             </div>
@@ -341,6 +474,12 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
                 </div>
 
                 <div class="vitrine-counter" id="vitrineCounter">Mostrando 0–0 de 0</div>
+
+                <?php if ($launchButtonText !== ''): ?>
+                    <div class="section-cta">
+                        <a href="<?php echo htmlspecialchars($launchButtonLink); ?>" class="btn-outline-gold"><?php echo htmlspecialchars($launchButtonText); ?></a>
+                    </div>
+                <?php endif; ?>
             </div>
         </section>
 
@@ -362,10 +501,9 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
                     <p><?php echo htmlspecialchars($productsSubtitle); ?></p>
                 </div>
 
-                <div class="product-grid">
+                <div class="product-grid" id="catalogCards">
                     <?php foreach ($allProducts as $product): ?>
-                    <article class="product-card reveal">
-                        <a class="product-link" href="produto.php?id=<?php echo (int)$product['id']; ?>">
+                    <article class="product-card reveal" data-product-id="<?php echo (int)$product['id']; ?>" data-product-url="produto.php?id=<?php echo (int)$product['id']; ?>">
                             <div class="product-image-wrap">
                                 <?php if (!empty($product['imagem_principal'])): ?>
                                 <img src="../admin/assets/images/produtos/<?php echo htmlspecialchars($product['imagem_principal']); ?>" alt="<?php echo htmlspecialchars($product['nome']); ?>" loading="lazy">
@@ -384,9 +522,19 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
                                     <span class="gold-price"><?php echo formatPrice($product['preco']); ?></span>
                                     <?php endif; ?>
                                 </div>
-                                <span class="buy-btn">Comprar</span>
+                                <?php $catalogSizes = $productSizesMap[(int)$product['id']] ?? []; ?>
+                                <?php if (!empty($catalogSizes)): ?>
+                                <div class="vitrine-size-selector" data-size-group="<?php echo (int)$product['id']; ?>">
+                                    <?php foreach ($catalogSizes as $size): ?>
+                                        <button type="button" class="vitrine-size-chip" data-vitrine-size="<?php echo htmlspecialchars($size); ?>" data-product-id="<?php echo (int)$product['id']; ?>"><?php echo htmlspecialchars($size); ?></button>
+                                    <?php endforeach; ?>
+                                </div>
+                                <?php endif; ?>
+                                <div class="vitrine-actions">
+                                    <button type="button" class="vitrine-more" data-catalog-action="add" data-product-id="<?php echo (int)$product['id']; ?>">Adicionar</button>
+                                    <button type="button" class="vitrine-buy" data-catalog-action="buy" data-product-id="<?php echo (int)$product['id']; ?>">Comprar</button>
+                                </div>
                             </div>
-                        </a>
                     </article>
                     <?php endforeach; ?>
                 </div>
@@ -483,6 +631,7 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
 
     <script>
     window.__RARE_PRODUCTS__ = <?php echo json_encode($vitrineProducts, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+    window.__RARE_LAUNCH_PRODUCTS__ = <?php echo json_encode($vitrineLaunchProducts, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
     window.__RARE_FEATURED_IDS__ = <?php echo json_encode($featuredIds, JSON_UNESCAPED_UNICODE); ?>;
     window.__RARE_BANNER_SLIDES__ = <?php echo json_encode($bannerSlides, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
     window.__RARE_BANNER_INTERVAL__ = <?php echo json_encode($bannerInterval); ?>;
@@ -554,20 +703,23 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
 
       revealItems.forEach((item) => observer.observe(item));
 
-      const track = document.getElementById('teamsTrack');
+            const track = document.getElementById('teamsTrack');
       if (track) {
         track.innerHTML += track.innerHTML;
       }
 
       const products = Array.isArray(window.__RARE_PRODUCTS__) ? window.__RARE_PRODUCTS__ : [];
+    const launchProducts = Array.isArray(window.__RARE_LAUNCH_PRODUCTS__) ? window.__RARE_LAUNCH_PRODUCTS__ : [];
       const featuredIds = Array.isArray(window.__RARE_FEATURED_IDS__) ? window.__RARE_FEATURED_IDS__ : [];
       const cardsRoot = document.getElementById('vitrineCards');
+    const catalogRoot = document.getElementById('catalogCards');
       const counter = document.getElementById('vitrineCounter');
       const filters = document.getElementById('vitrineFilters');
       const btnPrev = document.getElementById('vitrinePrev');
       const btnNext = document.getElementById('vitrineNext');
+    const selectedSizes = {};
 
-      let activeCategory = 'lancamentos';
+            let activeCategory = 'lancamentos';
       let page = 0;
       const perPage = 4;
 
@@ -577,10 +729,12 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
           return keywords.some((k) => source.includes(k));
         });
 
-        const launches = products.filter((p) => featuredIds.includes(p.id) || p.is_launch);
+                const launches = launchProducts.length
+                    ? launchProducts
+                    : products.filter((p) => featuredIds.includes(p.id) || p.is_launch);
 
         return {
-          lancamentos: launches.length ? launches : products.slice(0, 8),
+                    lancamentos: launches,
           clubes: byKeyword(['clube', 'club', 'fc', 'city', 'madrid', 'barca', 'inter']),
           selecoes: byKeyword(['selec', 'selection', 'brasil', 'argentina', 'franca']),
           retro: byKeyword(['retro', 'retrô', 'classic', 'vintage']),
@@ -595,14 +749,122 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
 
       const categoryMap = buildCategoryMap();
 
-      function getCurrentList() {
-        return ensureFallback(categoryMap[activeCategory]);
-      }
+            function getCurrentList() {
+                return ensureFallback(categoryMap[activeCategory]);
+            }
+
+            function showCartNotice(message) {
+                const text = String(message || 'Produto adicionado ao carrinho.');
+                const el = document.createElement('div');
+                el.className = 'rare-cart-toast';
+                el.textContent = text;
+                document.body.appendChild(el);
+
+                requestAnimationFrame(() => {
+                    el.classList.add('is-visible');
+                });
+
+                setTimeout(() => {
+                    el.classList.remove('is-visible');
+                    setTimeout(() => el.remove(), 220);
+                }, 1700);
+            }
+
+            function getUnitPrice(product) {
+                const sale = Number(product.sale_price || 0);
+                const regular = Number(product.price || 0);
+                return sale > 0 && sale < regular ? sale : regular;
+            }
+
+            function getCart() {
+                try {
+                    return JSON.parse(localStorage.getItem('dz_cart') || '[]');
+                } catch (e) {
+                    return [];
+                }
+            }
+
+            function setCart(cart) {
+                localStorage.setItem('dz_cart', JSON.stringify(cart));
+            }
+
+            function addProductToCart(product, size) {
+                const cart = getCart();
+                const productId = Number(product.id || 0);
+                const unitPrice = getUnitPrice(product);
+                const variantText = `Tamanho: ${size}`;
+                const variantKey = `size::${String(size).toUpperCase()}`;
+
+                const existing = cart.find((item) => String(item.id) === String(productId) && String(item.variantKey || '') === variantKey);
+
+                if (existing) {
+                    existing.qty = Number(existing.qty || 0) + 1;
+                } else {
+                    cart.push({
+                        id: productId,
+                        name: product.name || 'Produto',
+                        price: unitPrice,
+                        qty: 1,
+                        image: product.image || '',
+                        variacao_texto: variantText,
+                        variant: variantText,
+                        variantKey: variantKey,
+                        addedAt: new Date().toISOString()
+                    });
+                }
+
+                setCart(cart);
+            }
+
+            function runVitrineAction(productId, action) {
+                const list = getCurrentList();
+                const product = list.find((item) => Number(item.id) === Number(productId));
+                if (!product) return;
+
+                const selectedSize = selectedSizes[productId] || '';
+                const hasSizes = Array.isArray(product.sizes) && product.sizes.length > 0;
+                if (hasSizes && !selectedSize) {
+                    window.location.href = `produto.php?id=${Number(productId)}`;
+                    return;
+                }
+
+                addProductToCart(product, selectedSize);
+
+                if (action === 'add') {
+                    showCartNotice(`Adicionado: ${product.name} (${selectedSize})`);
+                }
+
+                if (action === 'buy') {
+                    window.location.href = 'pages/carrinho.php';
+                }
+            }
+
+            function runCatalogAction(productId, action) {
+                const catalogProduct = products.find((item) => Number(item.id) === Number(productId));
+                if (!catalogProduct) return;
+
+                const selectedSize = selectedSizes[productId] || '';
+                const hasSizes = Array.isArray(catalogProduct.sizes) && catalogProduct.sizes.length > 0;
+                if (hasSizes && !selectedSize) {
+                    window.location.href = `produto.php?id=${Number(productId)}`;
+                    return;
+                }
+
+                addProductToCart(catalogProduct, selectedSize);
+
+                if (action === 'add') {
+                    showCartNotice(`Adicionado: ${catalogProduct.name} (${selectedSize})`);
+                }
+
+                if (action === 'buy') {
+                    window.location.href = 'pages/carrinho.php';
+                }
+            }
 
       function renderVitrine() {
         const list = getCurrentList();
         const start = page * perPage;
-        const safeStart = Math.min(start, Math.max(0, list.length - 1));
+                const safeStart = Math.min(start, Math.max(0, list.length - 1));
         const current = list.slice(safeStart, safeStart + perPage);
 
         cardsRoot.innerHTML = current.map((p) => {
@@ -616,14 +878,18 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
             : '<div class="product-image-fallback">RARE</div>';
 
           return `
-            <article class="vitrine-card">
-              <div class="vitrine-image">${img}<span class="product-badge">${escapeHtml(p.category || 'Rare')}</span></div>
-              <div class="vitrine-body">
-                <h3>${escapeHtml(p.name)}</h3>
-                <p>${escapeHtml((p.description || '').trim() || 'Produto premium da Rare.')}</p>
-                <div class="price-line">${priceHtml}</div>
-                <a href="produto.php?id=${Number(p.id || 0)}" class="vitrine-more">Ver mais</a>
-              </div>
+                        <article class="vitrine-card" data-product-id="${Number(p.id || 0)}" data-product-url="produto.php?id=${Number(p.id || 0)}">
+                                <div class="vitrine-image">${img}<span class="product-badge">${escapeHtml(p.category || 'Rare')}</span></div>
+                                <div class="vitrine-body">
+                                    <h3>${escapeHtml(p.name)}</h3>
+                                    <p>${escapeHtml((p.description || '').trim() || 'Produto premium da Rare.')}</p>
+                                    <div class="price-line">${priceHtml}</div>
+                                    ${Array.isArray(p.sizes) && p.sizes.length ? `<div class="vitrine-size-selector" data-size-group="${Number(p.id || 0)}">${p.sizes.map((size) => `<button type="button" class="vitrine-size-chip" data-vitrine-size="${escapeHtml(size)}" data-product-id="${Number(p.id || 0)}">${escapeHtml(size)}</button>`).join('')}</div>` : ''}
+                                    <div class="vitrine-actions">
+                                        <button type="button" class="vitrine-more" data-vitrine-action="add" data-product-id="${Number(p.id || 0)}">Adicionar</button>
+                                        <button type="button" class="vitrine-buy" data-vitrine-action="buy" data-product-id="${Number(p.id || 0)}">Comprar</button>
+                                    </div>
+                                </div>
             </article>`;
         }).join('');
 
@@ -644,6 +910,109 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
           .replace(/"/g, '&quot;')
           .replace(/'/g, '&#039;');
       }
+
+            cardsRoot.addEventListener('click', (event) => {
+                const sizeBtn = event.target.closest('[data-vitrine-size]');
+                if (sizeBtn) {
+                    event.preventDefault();
+                    event.stopPropagation();
+
+                    const productId = Number(sizeBtn.dataset.productId || 0);
+                    const size = String(sizeBtn.dataset.vitrineSize || '').toUpperCase();
+                    if (!productId || !size) return;
+
+                    selectedSizes[productId] = size;
+
+                    const group = cardsRoot.querySelector(`[data-size-group="${productId}"]`);
+                    if (group) {
+                        group.querySelectorAll('.vitrine-size-chip').forEach((chip) => {
+                            chip.classList.toggle('is-active', chip === sizeBtn);
+                        });
+                    }
+                    return;
+                }
+
+                const actionBtn = event.target.closest('[data-vitrine-action]');
+                if (actionBtn) {
+                    event.preventDefault();
+                    event.stopPropagation();
+
+                    const productId = Number(actionBtn.dataset.productId || 0);
+                    const action = String(actionBtn.dataset.vitrineAction || '');
+                    if (!productId) return;
+
+                    runVitrineAction(productId, action);
+                    return;
+                }
+
+                const card = event.target.closest('.vitrine-card');
+                if (!card) return;
+
+                const url = card.dataset.productUrl || '';
+                if (url) {
+                    window.location.href = url;
+                }
+            });
+
+            if (catalogRoot) {
+                catalogRoot.addEventListener('click', (event) => {
+                    const sizeBtn = event.target.closest('[data-vitrine-size]');
+                    if (sizeBtn) {
+                        event.preventDefault();
+                        event.stopPropagation();
+
+                        const productId = Number(sizeBtn.dataset.productId || 0);
+                        const size = String(sizeBtn.dataset.vitrineSize || '').toUpperCase();
+                        if (!productId || !size) return;
+
+                        selectedSizes[productId] = size;
+
+                        const group = catalogRoot.querySelector(`[data-size-group="${productId}"]`);
+                        if (group) {
+                            group.querySelectorAll('.vitrine-size-chip').forEach((chip) => {
+                                chip.classList.toggle('is-active', chip === sizeBtn);
+                            });
+                        }
+                        return;
+                    }
+
+                    const actionBtn = event.target.closest('[data-catalog-action]');
+                    if (actionBtn) {
+                        event.preventDefault();
+                        event.stopPropagation();
+
+                        const productId = Number(actionBtn.dataset.productId || 0);
+                        const action = String(actionBtn.dataset.catalogAction || '');
+                        if (!productId) return;
+
+                        runCatalogAction(productId, action);
+                        return;
+                    }
+
+                    const card = event.target.closest('.product-card');
+                    if (!card) return;
+
+                    const url = card.dataset.productUrl || '';
+                    if (url) {
+                        window.location.href = url;
+                    }
+                });
+            }
+
+            if (track) {
+                track.addEventListener('click', (event) => {
+                    const badge = event.target.closest('.team-badge[data-team-name][data-team-sigla]');
+                    if (!badge) return;
+
+                    event.preventDefault();
+
+                    const teamName = badge.getAttribute('data-team-name') || '';
+                    const menuValue = teamName.trim() || (badge.getAttribute('data-team-sigla') || '').trim();
+                    if (!menuValue) return;
+
+                    window.location.href = `produtos.php?menu=${encodeURIComponent(menuValue.toLowerCase())}`;
+                });
+            }
 
       filters.addEventListener('click', (event) => {
         const btn = event.target.closest('button[data-category]');
@@ -755,6 +1124,35 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
       document.getElementById('newsletterForm').addEventListener('submit', (event) => {
         event.preventDefault();
       });
+
+      // ===== DROPDOWN DO USUÁRIO =====
+      window.toggleUserDropdown = function(event) {
+        if (event) {
+          event.stopPropagation();
+          event.preventDefault();
+        }
+
+        const dropdown = document.querySelector('.user-dropdown');
+        if (dropdown) {
+          dropdown.classList.toggle('active');
+          const btn = dropdown.querySelector('.user-dropdown-btn');
+          if (btn) {
+            btn.setAttribute('aria-expanded', dropdown.classList.contains('active'));
+          }
+        }
+      }
+
+      // Fechar dropdown ao clicar fora
+      document.addEventListener('click', function(e) {
+        const dropdown = document.querySelector('.user-dropdown');
+        if (dropdown && !dropdown.contains(e.target)) {
+          dropdown.classList.remove('active');
+          const btn = dropdown.querySelector('.user-dropdown-btn');
+          if (btn) {
+            btn.setAttribute('aria-expanded', 'false');
+          }
+        }
+      }, true);
     })();
     </script>
 </body>

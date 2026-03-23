@@ -117,6 +117,49 @@ if (!isset($nao_lidas)) {
 // AJAX para atualizar produtos
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     header('Content-Type: application/json');
+
+    if ($_POST['action'] === 'set_main_product_highlight') {
+        $id = (int)($_POST['id'] ?? 0);
+
+        if ($id <= 0) {
+            echo json_encode(['success' => false, 'message' => 'Produto inválido']);
+            exit;
+        }
+
+        mysqli_begin_transaction($conexao);
+
+        try {
+            $checkStmt = mysqli_prepare($conexao, "SELECT id, nome FROM produtos WHERE id = ? LIMIT 1");
+            mysqli_stmt_bind_param($checkStmt, "i", $id);
+            mysqli_stmt_execute($checkStmt);
+            $checkResult = mysqli_stmt_get_result($checkStmt);
+            $produto = mysqli_fetch_assoc($checkResult);
+            mysqli_stmt_close($checkStmt);
+
+            if (!$produto) {
+                throw new Exception('Produto não encontrado');
+            }
+
+            mysqli_query($conexao, "UPDATE produtos SET destaque = 0 WHERE destaque = 1");
+
+            $updateStmt = mysqli_prepare($conexao, "UPDATE produtos SET destaque = 1 WHERE id = ?");
+            mysqli_stmt_bind_param($updateStmt, "i", $id);
+            mysqli_stmt_execute($updateStmt);
+            mysqli_stmt_close($updateStmt);
+
+            if (function_exists('registrar_log_alteracao')) {
+                registrar_log_alteracao($conexao, 'destaque_produto', $produto['nome'] ?? ('ID: ' . $id), 'destaque', 0, 1);
+            }
+
+            mysqli_commit($conexao);
+            echo json_encode(['success' => true, 'message' => 'Produto definido como destaque principal']);
+        } catch (Exception $e) {
+            mysqli_rollback($conexao);
+            echo json_encode(['success' => false, 'message' => 'Erro ao definir destaque: ' . $e->getMessage()]);
+        }
+
+        exit;
+    }
     
     if ($_POST['action'] === 'update_product') {
         $id = (int)$_POST['id'];
@@ -1719,6 +1762,37 @@ $total_products = mysqli_num_rows($products);
             color: #ef4444;
         }
 
+        .highlight-btn:hover {
+            color: #f4bc34;
+            background: rgba(244, 188, 52, 0.2);
+        }
+
+        .highlight-btn.active {
+            color: #f4bc34;
+            opacity: 1;
+            background: rgba(244, 188, 52, 0.24);
+        }
+
+        .showcase-pill {
+            margin-top: 0.25rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.12rem 0.45rem;
+            border-radius: 999px;
+            font-size: 0.66rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            color: #b38a17;
+            background: rgba(244, 188, 52, 0.16);
+            border: 1px solid rgba(244, 188, 52, 0.35);
+        }
+
+        .showcase-pill .material-symbols-sharp {
+            font-size: 0.85rem;
+        }
+
         .action-btn .material-symbols-sharp {
             font-size: 16px;
         }
@@ -1747,6 +1821,12 @@ $total_products = mysqli_num_rows($products);
         body.dark-theme-variables .delete-btn:hover {
             background: #0F1C2E;
             color: white;
+        }
+
+        body.dark-theme-variables .highlight-btn:hover,
+        body.dark-theme-variables .highlight-btn.active {
+            color: #f4bc34;
+            background: rgba(244, 188, 52, 0.2);
         }
 
         /* Bordas de card de produto no modo escuro */
@@ -2198,6 +2278,12 @@ $total_products = mysqli_num_rows($products);
                                     <?php if ($product['sku']): ?>
                                         <small style="color: #666;">SKU: <?php echo htmlspecialchars($product['sku']); ?></small>
                                     <?php endif; ?>
+                                    <?php if (!empty($product['destaque'])): ?>
+                                        <div class="showcase-pill">
+                                            <span class="material-symbols-sharp">star</span>
+                                            Destaque da Vitrine
+                                        </div>
+                                    <?php endif; ?>
                                 </div>
 
                         <!-- Preços -->
@@ -2272,6 +2358,12 @@ $total_products = mysqli_num_rows($products);
 
                         <!-- Botões de ação -->
                         <div class="product-actions">
+                            <button class="action-btn highlight-btn <?php echo !empty($product['destaque']) ? 'active' : ''; ?>"
+                                    onclick="setProductAsShowcase(<?php echo $product['id']; ?>, '<?php echo addslashes($product['nome']); ?>')"
+                                    title="Definir como produto em destaque na vitrine">
+                                <span class="material-symbols-sharp">star</span>
+                            </button>
+
                             <button class="action-btn edit-btn" onclick="editProduct(<?php echo $product['id']; ?>)" title="Editar produto">
                                 <span class="material-symbols-sharp">edit</span>
                             </button>
@@ -4127,6 +4219,36 @@ $total_products = mysqli_num_rows($products);
         // Função para editar produto
         function editProduct(productId) {
             window.location.href = `addproducts.php?edit=${productId}`;
+        }
+
+        // Definir produto em destaque para a vitrine de produtos
+        function setProductAsShowcase(productId, productName) {
+            if (!confirm(`Definir "${productName}" como produto em destaque na tela de produtos?`)) {
+                return;
+            }
+
+            const params = new URLSearchParams();
+            params.append('action', 'set_main_product_highlight');
+            params.append('id', productId);
+
+            fetch('', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: params.toString()
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    location.reload();
+                } else {
+                    alert(result.message || 'Não foi possível definir destaque');
+                }
+            })
+            .catch(() => {
+                alert('Erro ao definir produto em destaque');
+            });
         }
         
         // === MODAL DE EXCLUSÃO CUSTOMIZADO ===

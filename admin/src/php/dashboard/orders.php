@@ -702,12 +702,27 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
 // Endpoint para listar status disponíveis
 if (isset($_GET['action']) && $_GET['action'] === 'listar_status') {
     try {
-        $query = "SELECT nome, cor_hex as cor FROM status_fluxo ORDER BY ordem, id";
+        $query = "SELECT nome, cor_hex as cor, mensagem_template, mensagem_email, notificar FROM status_fluxo ORDER BY ordem, id";
         $result = mysqli_query($conexao, $query);
+
+        if (!$result) {
+            $query = "SELECT nome, cor_hex as cor FROM status_fluxo ORDER BY ordem, id";
+            $result = mysqli_query($conexao, $query);
+        }
+
         $status = [];
         
         if ($result) {
             while ($row = mysqli_fetch_assoc($result)) {
+                if (!array_key_exists('mensagem_template', $row)) {
+                    $row['mensagem_template'] = '';
+                }
+                if (!array_key_exists('mensagem_email', $row)) {
+                    $row['mensagem_email'] = '';
+                }
+                if (!array_key_exists('notificar', $row)) {
+                    $row['notificar'] = 0;
+                }
                 $status[] = $row;
             }
         }
@@ -2533,6 +2548,12 @@ try {
                                     <option value="">Selecione novo status...</option>
                                 </select>
                             </div>
+                            <div class="info-row" style="align-items: flex-start;">
+                                <strong>Mensagem do Fluxo:</strong>
+                                <div id="mensagem-fluxo-preview" style="flex: 1; background: rgba(255,255,255,0.08); border: 1px solid var(--color-light); border-radius: 0.6rem; padding: 0.75rem; min-height: 60px; font-size: 0.85rem; line-height: 1.5; color: var(--color-dark-variant);">
+                                    Sem mensagem configurada para este status.
+                                </div>
+                            </div>
                             <div class="info-row">
                                 <strong>Observações:</strong>
                                 <span id="pedido-observacoes">-</span>
@@ -2655,6 +2676,7 @@ try {
 <script>
 // Carregar status e cores no início
 window.statusOptions = '';
+window.statusMensagens = {};
 window.coresStatus = {
     // Cores padrão para garantir funcionamento
     'EM PREPARAÇÃO': '#7dd87d',
@@ -2703,6 +2725,35 @@ function getStatusColor(status) {
     return '#6c757d';
 }
 
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text || '';
+    return div.innerHTML;
+}
+
+function atualizarPreviewMensagemFluxo(status) {
+    const preview = document.getElementById('mensagem-fluxo-preview');
+    if (!preview) return;
+
+    const fluxo = window.statusMensagens ? window.statusMensagens[status] : null;
+    if (!fluxo || String(fluxo.notificar) !== '1') {
+        preview.innerHTML = 'Sem mensagem configurada para este status.';
+        return;
+    }
+
+    const mensagem = (fluxo.mensagem_template || fluxo.mensagem_email || '').trim();
+    if (!mensagem) {
+        preview.innerHTML = 'Notificação ativa, mas sem texto configurado.';
+        return;
+    }
+
+    const canal = fluxo.mensagem_template ? 'Template de Chat' : 'Mensagem de E-mail';
+    preview.innerHTML = `
+        <div style="font-weight: 600; margin-bottom: 0.35rem; color: var(--color-primary);">${canal}</div>
+        <div style="white-space: pre-wrap;">${escapeHtml(mensagem)}</div>
+    `;
+}
+
 // Função para carregar status da gestão de fluxo
 async function carregarStatus() {
     try {
@@ -2714,10 +2765,17 @@ async function carregarStatus() {
             window.statusOptions = data.status.map(status => 
                 `<option value="${status.nome}">${status.nome}</option>`
             ).join('');
+
+            window.statusMensagens = {};
             
             // Atualizar cores (mantém fallback e adiciona da base)
             data.status.forEach(status => {
                 window.coresStatus[status.nome] = status.cor;
+                window.statusMensagens[status.nome] = {
+                    mensagem_template: status.mensagem_template || '',
+                    mensagem_email: status.mensagem_email || '',
+                    notificar: status.notificar || 0
+                };
             });
             
             __noopLog('✅ Status sincronizados:', window.coresStatus);
@@ -3446,6 +3504,8 @@ function preencherDetalhesPedido(pedido) {
     // Preencher select de status
     const selectStatus = document.getElementById('novo-status');
     selectStatus.innerHTML = '<option value="">Selecione novo status...</option>' + window.statusOptions;
+    window.statusAtualModal = pedido.status;
+    atualizarPreviewMensagemFluxo(pedido.status);
     
     document.getElementById('pedido-observacoes').textContent = pedido.observacoes || 'Nenhuma observação específica';
     
@@ -3540,8 +3600,14 @@ function carregarHistoricoStatus(pedido) {
 function alterarStatusAutomatico() {
     const select = document.getElementById('novo-status');
     const novoStatus = select.value;
+    const statusAnterior = window.statusAtualModal || '';
     
-    if (!novoStatus) return;
+    if (!novoStatus) {
+        atualizarPreviewMensagemFluxo(statusAnterior);
+        return;
+    }
+
+    atualizarPreviewMensagemFluxo(novoStatus);
     
     const pedidoId = window.pedidoAtualId;
     if (!pedidoId) {
@@ -3553,6 +3619,7 @@ function alterarStatusAutomatico() {
     if (!confirm(`Confirma a alteração do status para "${novoStatus}"?`)) {
         // Resetar select se cancelou
         select.selectedIndex = 0;
+        atualizarPreviewMensagemFluxo(statusAnterior);
         return;
     }
     
@@ -3613,6 +3680,8 @@ function alterarStatusAutomatico() {
                 
                 // Atualizar a linha específica na tabela principal
                 atualizarLinhaTabela(pedidoId, novoStatus, cor);
+                window.statusAtualModal = novoStatus;
+                atualizarPreviewMensagemFluxo(novoStatus);
                 
                 // Recarregar a tabela completa após um tempo (backup)
                 setTimeout(() => {
@@ -3622,6 +3691,7 @@ function alterarStatusAutomatico() {
             } else {
                 console.error('❌ Erro na resposta:', data.message);
                 statusAtual.innerHTML = statusOriginal;
+                atualizarPreviewMensagemFluxo(statusAnterior);
                 mostrarNotificacao(data.message || 'Erro ao atualizar status', 'error');
             }
             
@@ -3629,12 +3699,14 @@ function alterarStatusAutomatico() {
             console.error('❌ Erro ao fazer parse JSON:', parseError);
             console.error('🔍 Resposta completa:', responseText);
             statusAtual.innerHTML = statusOriginal;
+            atualizarPreviewMensagemFluxo(statusAnterior);
             mostrarNotificacao('Erro de resposta do servidor', 'error');
         }
     })
     .catch(error => {
         console.error('❌ Erro:', error);
         statusAtual.innerHTML = statusOriginal;
+        atualizarPreviewMensagemFluxo(statusAnterior);
         mostrarNotificacao('Erro de conexão: ' + error.message, 'error');
     })
     .finally(() => {

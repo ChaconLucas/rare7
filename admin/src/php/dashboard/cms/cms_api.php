@@ -294,7 +294,7 @@ if ($action === 'update_home_settings') {
 
     $checkHeroLogoPath = mysqli_query($conexao, "SHOW COLUMNS FROM home_settings LIKE 'hero_logo_path'");
     if ($checkHeroLogoPath && mysqli_num_rows($checkHeroLogoPath) === 0) {
-        mysqli_query($conexao, "ALTER TABLE home_settings ADD COLUMN hero_logo_path VARCHAR(255) DEFAULT 'assets/images/logo-dz-oficial.svg' AFTER hero_kicker");
+        mysqli_query($conexao, "ALTER TABLE home_settings ADD COLUMN hero_logo_path VARCHAR(255) DEFAULT 'assets/images/logo.png' AFTER hero_kicker");
     }
 
     $checkBenefitsTitle = mysqli_query($conexao, "SHOW COLUMNS FROM home_settings LIKE 'benefits_title'");
@@ -335,7 +335,7 @@ if ($action === 'update_home_settings') {
         
         $hero_title = $_POST['hero_title'] ?? '';
         $hero_kicker = $_POST['hero_kicker'] ?? 'RARE EXPERIENCE';
-        $hero_logo_path = $_POST['hero_logo_path'] ?? 'assets/images/logo-dz-oficial.svg';
+        $hero_logo_path = $_POST['hero_logo_path'] ?? 'assets/images/logo.png';
         $hero_subtitle = $_POST['hero_subtitle'] ?? '';
         $hero_description = $_POST['hero_description'] ?? '';
         $hero_button_text = $_POST['hero_button_text'] ?? '';
@@ -420,7 +420,7 @@ if ($action === 'update_home_settings') {
         
         $hero_title = $_POST['hero_title'] ?? '';
         $hero_kicker = $_POST['hero_kicker'] ?? 'RARE EXPERIENCE';
-        $hero_logo_path = $_POST['hero_logo_path'] ?? 'assets/images/logo-dz-oficial.svg';
+        $hero_logo_path = $_POST['hero_logo_path'] ?? 'assets/images/logo.png';
         $hero_subtitle = $_POST['hero_subtitle'] ?? '';
         $hero_description = $_POST['hero_description'] ?? '';
         $hero_button_text = $_POST['hero_button_text'] ?? '';
@@ -677,6 +677,75 @@ if ($action === 'move_featured_product') {
     exit();
 }
 
+if ($action === 'set_featured_product') {
+    $id = (int)($_POST['id'] ?? 0);
+
+    if ($id <= 0) {
+        echo json_encode(['success' => false, 'message' => 'ID inválido']);
+        exit();
+    }
+
+    $stmt = mysqli_prepare($conexao, "SELECT id, section_key FROM home_featured_products WHERE id = ? LIMIT 1");
+    mysqli_stmt_bind_param($stmt, 'i', $id);
+    mysqli_stmt_execute($stmt);
+    $result = mysqli_stmt_get_result($stmt);
+    $target = mysqli_fetch_assoc($result);
+    mysqli_stmt_close($stmt);
+
+    if (!$target) {
+        echo json_encode(['success' => false, 'message' => 'Produto selecionado não encontrado']);
+        exit();
+    }
+
+    $section = $target['section_key'];
+
+    $stmtList = mysqli_prepare($conexao, "SELECT id FROM home_featured_products WHERE section_key = ? ORDER BY position ASC, id ASC");
+    mysqli_stmt_bind_param($stmtList, 's', $section);
+    mysqli_stmt_execute($stmtList);
+    $resultList = mysqli_stmt_get_result($stmtList);
+
+    $orderedIds = [];
+    while ($row = mysqli_fetch_assoc($resultList)) {
+        $orderedIds[] = (int)$row['id'];
+    }
+    mysqli_stmt_close($stmtList);
+
+    if (empty($orderedIds)) {
+        echo json_encode(['success' => false, 'message' => 'Não há produtos para reordenar']);
+        exit();
+    }
+
+    $targetId = (int)$target['id'];
+    $newOrder = [$targetId];
+    foreach ($orderedIds as $currentId) {
+        if ($currentId !== $targetId) {
+            $newOrder[] = $currentId;
+        }
+    }
+
+    mysqli_begin_transaction($conexao);
+
+    try {
+        $stmtUpdate = mysqli_prepare($conexao, "UPDATE home_featured_products SET position = ? WHERE id = ?");
+
+        foreach ($newOrder as $index => $itemId) {
+            $newPosition = $index + 1;
+            mysqli_stmt_bind_param($stmtUpdate, 'ii', $newPosition, $itemId);
+            mysqli_stmt_execute($stmtUpdate);
+        }
+
+        mysqli_stmt_close($stmtUpdate);
+        mysqli_commit($conexao);
+
+        echo json_encode(['success' => true, 'message' => 'Produto definido como destaque principal']);
+    } catch (Exception $e) {
+        mysqli_rollback($conexao);
+        echo json_encode(['success' => false, 'message' => 'Erro ao definir destaque principal']);
+    }
+
+    exit();
+}
+
 // ====================================================================
 // FUNÇÃO DE UPLOAD SEGURO - VERSÃO MELHORADA COM DEBUG
 // ====================================================================
@@ -868,6 +937,93 @@ if ($action === 'add_benefit') {
     mysqli_stmt_close($stmt);
     exit();
 }
+
+    // ====================================================================
+    // CLUBES EM DESTAQUE - AÇÕES
+    // ====================================================================
+
+    if ($action === 'update_home_clubs') {
+        // Garantir tabela em ambientes antigos
+        $createTableSql = "
+            CREATE TABLE IF NOT EXISTS cms_home_clubs (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                nome VARCHAR(120) NOT NULL,
+                sigla VARCHAR(20) NOT NULL,
+                imagem_path VARCHAR(255) NULL,
+                ordem INT NOT NULL DEFAULT 1,
+                ativo TINYINT(1) NOT NULL DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_cms_home_clubs_ordem_ativo (ativo, ordem)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ";
+        mysqli_query($conexao, $createTableSql);
+
+        $clubes = $_POST['clubes'] ?? [];
+
+        if (empty($clubes) || !is_array($clubes)) {
+            echo json_encode(['success' => false, 'message' => 'Nenhum clube recebido']);
+            exit();
+        }
+
+        $updated = 0;
+        $errors = [];
+
+        foreach ($clubes as $id => $data) {
+            $id = (int)$id;
+            if ($id <= 0) {
+                $errors[] = "ID inválido: {$id}";
+                continue;
+            }
+
+            $nome = trim((string)($data['nome'] ?? ''));
+            $sigla = strtoupper(trim((string)($data['sigla'] ?? '')));
+            $imagemPath = trim((string)($data['imagem_path'] ?? ''));
+            $ordem = max(1, (int)($data['ordem'] ?? 1));
+            $ativo = (isset($data['ativo']) && (string)$data['ativo'] === '1') ? 1 : 0;
+
+            if ($nome === '' || $sigla === '') {
+                $errors[] = "Clube ID {$id}: nome e sigla são obrigatórios";
+                continue;
+            }
+
+            $stmt = mysqli_prepare(
+                $conexao,
+                "UPDATE cms_home_clubs SET nome = ?, sigla = ?, imagem_path = ?, ordem = ?, ativo = ?, updated_at = NOW() WHERE id = ?"
+            );
+
+            if (!$stmt) {
+                $errors[] = "Clube ID {$id}: erro ao preparar query";
+                continue;
+            }
+
+            mysqli_stmt_bind_param($stmt, 'sssiii', $nome, $sigla, $imagemPath, $ordem, $ativo, $id);
+
+            if (mysqli_stmt_execute($stmt)) {
+                $updated++;
+            } else {
+                $errors[] = "Clube ID {$id}: " . mysqli_stmt_error($stmt);
+            }
+
+            mysqli_stmt_close($stmt);
+        }
+
+        if (!empty($errors)) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Alguns clubes não foram atualizados',
+                'updated' => $updated,
+                'errors' => $errors
+            ]);
+        } else {
+            echo json_encode([
+                'success' => true,
+                'message' => "{$updated} clube(s) atualizado(s) com sucesso"
+            ]);
+        }
+
+        exit();
+    }
 
 // ====================================================================
 // PROMOÇÕES - AÇÕES

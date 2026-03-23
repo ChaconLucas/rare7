@@ -85,6 +85,64 @@ while ($row = mysqli_fetch_assoc($beneficios_result)) {
     $beneficios[] = $row;
 }
 
+// Garantir tabela de clubes em destaque
+$createClubsTableSql = "
+    CREATE TABLE IF NOT EXISTS cms_home_clubs (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        nome VARCHAR(120) NOT NULL,
+        sigla VARCHAR(20) NOT NULL,
+        imagem_path VARCHAR(255) NULL,
+        ordem INT NOT NULL DEFAULT 1,
+        ativo TINYINT(1) NOT NULL DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_cms_home_clubs_ordem_ativo (ativo, ordem)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+";
+mysqli_query($conexao, $createClubsTableSql);
+
+// Seed inicial de clubes se tabela estiver vazia
+$clubsCountResult = mysqli_query($conexao, "SELECT COUNT(*) AS total FROM cms_home_clubs");
+$clubsCountData = $clubsCountResult ? mysqli_fetch_assoc($clubsCountResult) : ['total' => 0];
+$clubsTotal = (int)($clubsCountData['total'] ?? 0);
+
+if ($clubsTotal === 0) {
+    $clubesPadrao = [
+        ['Real Madrid', 'RMA', '', 1, 1],
+        ['Barcelona', 'BAR', '', 2, 1],
+        ['Manchester City', 'MCI', '', 3, 1],
+        ['Bayern', 'BAY', '', 4, 1],
+        ['PSG', 'PSG', '', 5, 1],
+        ['Milan', 'MIL', '', 6, 1],
+        ['Benfica', 'BEN', '', 7, 1],
+        ['Inter', 'INT', '', 8, 1],
+        ['Liverpool', 'LIV', '', 9, 1],
+        ['Juventus', 'JUV', '', 10, 1]
+    ];
+
+    $insertClubStmt = mysqli_prepare(
+        $conexao,
+        "INSERT INTO cms_home_clubs (nome, sigla, imagem_path, ordem, ativo) VALUES (?, ?, ?, ?, ?)"
+    );
+
+    if ($insertClubStmt) {
+        foreach ($clubesPadrao as $club) {
+            mysqli_stmt_bind_param($insertClubStmt, 'sssii', $club[0], $club[1], $club[2], $club[3], $club[4]);
+            mysqli_stmt_execute($insertClubStmt);
+        }
+        mysqli_stmt_close($insertClubStmt);
+    }
+}
+
+// Buscar clubes para edição
+$clubes = [];
+$clubesResult = mysqli_query($conexao, "SELECT * FROM cms_home_clubs ORDER BY ordem ASC, id ASC");
+if ($clubesResult) {
+    while ($row = mysqli_fetch_assoc($clubesResult)) {
+        $clubes[] = $row;
+    }
+}
+
 // Buscar dados do footer
 $footer_sql = "SELECT * FROM cms_footer WHERE id = 1";
 $footer_result = mysqli_query($conexao, $footer_sql);
@@ -168,6 +226,23 @@ while ($row = mysqli_fetch_assoc($footer_links_result)) {
             display: block;
             margin-top: 0.3rem;
             color: var(--color-dark-variant);
+        }
+        .cms-checkbox-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            cursor: pointer;
+            user-select: none;
+        }
+        .cms-checkbox {
+            appearance: auto !important;
+            -webkit-appearance: checkbox !important;
+            width: 16px;
+            height: 16px;
+            margin: 0;
+            border: initial !important;
+            accent-color: var(--color-primary);
+            cursor: pointer;
         }
         .btn-save {
             background: var(--color-primary);
@@ -381,8 +456,8 @@ while ($row = mysqli_fetch_assoc($footer_links_result)) {
 
                     <div class="form-group">
                         <label>Caminho da Logo do Hero</label>
-                        <input type="text" name="hero_logo_path" value="<?php echo htmlspecialchars($settings['hero_logo_path'] ?? 'assets/images/logo-dz-oficial.svg'); ?>">
-                        <small>Caminho relativo da imagem exibida acima do título (ex: assets/images/logo-dz-oficial.svg)</small>
+                        <input type="text" name="hero_logo_path" value="<?php echo htmlspecialchars($settings['hero_logo_path'] ?? 'assets/images/logo.png'); ?>">
+                        <small>Caminho relativo da imagem exibida acima do título (ex: assets/images/logo.png)</small>
                     </div>
                     
                     <div class="form-group">
@@ -529,8 +604,8 @@ while ($row = mysqli_fetch_assoc($footer_links_result)) {
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                                     <strong style="color: var(--color-dark);">Card #<?php echo $b['ordem']; ?></strong>
                                     <div style="display: flex; gap: 0.5rem; align-items: center;">
-                                        <label style="display: flex; align-items: center; gap: 0.3rem; margin: 0;">
-                                            <input type="checkbox" name="beneficios[<?php echo $b['id']; ?>][ativo]" value="1" <?php echo $b['ativo'] ? 'checked' : ''; ?>>
+                                        <label class="cms-checkbox-label" style="margin: 0;">
+                                            <input class="cms-checkbox" type="checkbox" name="beneficios[<?php echo $b['id']; ?>][ativo]" value="1" <?php echo $b['ativo'] ? 'checked' : ''; ?>>
                                             <span style="font-size: 0.875rem;">Ativo</span>
                                         </label>
                                         <input type="hidden" name="beneficios[<?php echo $b['id']; ?>][id]" value="<?php echo $b['id']; ?>">
@@ -573,6 +648,60 @@ while ($row = mysqli_fetch_assoc($footer_links_result)) {
                         <button type="button" onclick="salvarBeneficios()" class="btn-primary" style="margin-top: 1rem;">
                             <span class="material-symbols-sharp">save</span>
                             Salvar Alterações nos Cards
+                        </button>
+                    </form>
+                </div>
+
+                <!-- CLUBES EM DESTAQUE -->
+                <div class="settings-card">
+                    <h3>
+                        <span class="material-symbols-sharp">sports_soccer</span>
+                        Clubes em Destaque (Escudos)
+                    </h3>
+                    <p style="margin-bottom: 1.5rem; color: var(--color-dark-variant);">
+                        Cadastre os clubes que aparecem na faixa da home. Para mostrar escudo, informe o caminho da imagem.
+                    </p>
+
+                    <form id="formClubes" style="margin-bottom: 1rem;">
+                        <div id="clubes-container">
+                            <?php foreach ($clubes as $clube): ?>
+                            <div style="background: var(--color-light); padding: 1rem; border-radius: var(--border-radius-1); margin-bottom: 0.8rem;">
+                                <div style="display: grid; grid-template-columns: 1.4fr 0.7fr 2fr 0.5fr 0.7fr; gap: 0.8rem; align-items: end;">
+                                    <div class="form-group" style="margin: 0;">
+                                        <label style="font-size: 0.82rem; margin-bottom: 0.3rem;">Nome</label>
+                                        <input type="text" name="clubes[<?php echo $clube['id']; ?>][nome]" value="<?php echo htmlspecialchars($clube['nome']); ?>" required>
+                                    </div>
+
+                                    <div class="form-group" style="margin: 0;">
+                                        <label style="font-size: 0.82rem; margin-bottom: 0.3rem;">Sigla</label>
+                                        <input type="text" name="clubes[<?php echo $clube['id']; ?>][sigla]" value="<?php echo htmlspecialchars($clube['sigla']); ?>" maxlength="20" required>
+                                    </div>
+
+                                    <div class="form-group" style="margin: 0;">
+                                        <label style="font-size: 0.82rem; margin-bottom: 0.3rem;">Imagem do escudo</label>
+                                        <input type="text" name="clubes[<?php echo $clube['id']; ?>][imagem_path]" value="<?php echo htmlspecialchars($clube['imagem_path'] ?? ''); ?>" placeholder="Ex: assets/images/escudos/real-madrid.png">
+                                    </div>
+
+                                    <div class="form-group" style="margin: 0;">
+                                        <label style="font-size: 0.82rem; margin-bottom: 0.3rem;">Ordem</label>
+                                        <input type="number" name="clubes[<?php echo $clube['id']; ?>][ordem]" value="<?php echo (int)$clube['ordem']; ?>" min="1" required>
+                                    </div>
+
+                                    <div class="form-group" style="margin: 0;">
+                                        <label style="font-size: 0.82rem; margin-bottom: 0.3rem;">Ativo</label>
+                                        <label class="cms-checkbox-label">
+                                            <input class="cms-checkbox" type="checkbox" name="clubes[<?php echo $clube['id']; ?>][ativo]" value="1" <?php echo ((int)$clube['ativo'] === 1) ? 'checked' : ''; ?>>
+                                            <span style="font-size: 0.85rem;">Sim</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
+
+                        <button type="button" onclick="salvarClubes()" class="btn-primary" style="margin-top: 1rem;">
+                            <span class="material-symbols-sharp">save</span>
+                            Salvar Clubes em Destaque
                         </button>
                     </form>
                 </div>
@@ -626,6 +755,37 @@ while ($row = mysqli_fetch_assoc($footer_links_result)) {
                     .catch(error => {
                         console.error('Erro na requisição:', error);
                         alert('�O Erro na comunicação: ' + error.message);
+                    });
+                }
+
+                function salvarClubes() {
+                    const form = document.getElementById('formClubes');
+                    const formData = new FormData(form);
+                    formData.append('action', 'update_home_clubs');
+
+                    const checkboxes = form.querySelectorAll('input[type="checkbox"][name*="[ativo]"]');
+                    checkboxes.forEach(cb => {
+                        if (!cb.checked) {
+                            formData.set(cb.name, '0');
+                        }
+                    });
+
+                    fetch('cms_api.php', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert('Clubes salvos com sucesso!');
+                            location.reload();
+                        } else {
+                            alert('Erro: ' + (data.message || 'Não foi possível salvar os clubes.'));
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Erro ao salvar clubes:', error);
+                        alert('Erro na comunicação ao salvar clubes.');
                     });
                 }
                 

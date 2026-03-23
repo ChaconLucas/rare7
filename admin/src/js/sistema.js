@@ -1,5 +1,5 @@
 /**
- * D&Z Chat System - JavaScript Consolidado
+ * RARE7 Chat System - JavaScript Consolidado
  * Todas as funcionalidades em um arquivo organizado
  */
 
@@ -149,14 +149,14 @@ class ChatClient {
         {
           method: "POST",
           body: JSON.stringify(data),
-        }
+        },
       );
 
       if (result.success) {
         this.conversaId = result.conversa_id;
         this.showChat();
         this.addMessage("user", data.mensagem, data.nome);
-        this.addMessage("assistant", result.resposta_ia, "Atendente D&Z");
+        this.addMessage("assistant", result.resposta_ia, "Atendente RARE7");
         Utils.scrollToBottom(this.chatMessages);
       } else {
         throw new Error(result.error || "Erro desconhecido");
@@ -164,7 +164,7 @@ class ChatClient {
     } catch (error) {
       Utils.showAlert(
         "error-message",
-        "Erro ao conectar. Tente novamente em alguns momentos."
+        "Erro ao conectar. Tente novamente em alguns momentos.",
       );
     } finally {
       this.setLoadingState(false);
@@ -207,13 +207,13 @@ class ChatClient {
             conversa_id: this.conversaId,
             mensagem: message,
           }),
-        }
+        },
       );
 
       this.hideTypingIndicator();
 
       if (result.success) {
-        this.addMessage("assistant", result.resposta, "Atendente D&Z");
+        this.addMessage("assistant", result.resposta, "Atendente RARE7");
       } else {
         throw new Error(result.error || "Erro ao enviar mensagem");
       }
@@ -222,7 +222,7 @@ class ChatClient {
       this.addMessage(
         "assistant",
         "Desculpe, estamos com dificuldades técnicas. Tente novamente em alguns instantes.",
-        "Sistema"
+        "Sistema",
       );
     } finally {
       this.setInputState(true);
@@ -312,7 +312,7 @@ class ChatAdmin {
   attachEventListeners() {
     if (this.sendAdminBtn) {
       this.sendAdminBtn.addEventListener("click", () =>
-        this.enviarMensagemAdmin()
+        this.enviarMensagemAdmin(),
       );
     }
 
@@ -337,7 +337,7 @@ class ChatAdmin {
   async carregarConversas() {
     try {
       const conversas = await Utils.fetchAPI(
-        CONFIG.API_BASE + CONFIG.ENDPOINTS.ADMIN + "&action=get_conversations"
+        CONFIG.API_BASE + CONFIG.ENDPOINTS.ADMIN + "&action=get_conversations",
       );
 
       this.renderConversas(conversas);
@@ -364,7 +364,7 @@ class ChatAdmin {
                       conversa.usuario_nome
                     }</span>
                     <span class="conversation-time">${Utils.formatTime(
-                      conversa.created_at
+                      conversa.created_at,
                     )}</span>
                     ${
                       conversa.nao_lidas > 0
@@ -402,7 +402,7 @@ class ChatAdmin {
       const mensagens = await Utils.fetchAPI(
         CONFIG.API_BASE +
           CONFIG.ENDPOINTS.ADMIN +
-          `&action=get_messages&conversa_id=${conversaId}`
+          `&action=get_messages&conversa_id=${conversaId}`,
       );
 
       this.renderMensagens(mensagens);
@@ -464,7 +464,7 @@ class ChatAdmin {
             conversa_id: this.conversaAtiva,
             mensagem: mensagem,
           }),
-        }
+        },
       );
 
       if (result.success) {
@@ -488,7 +488,7 @@ class ChatAdmin {
             body: JSON.stringify({
               conversa_id: this.conversaAtiva,
             }),
-          }
+          },
         );
 
         if (result.success) {
@@ -515,7 +515,7 @@ class ChatAdmin {
             body: JSON.stringify({
               conversa_id: this.conversaAtiva,
             }),
-          }
+          },
         );
 
         if (result.success) {
@@ -531,7 +531,7 @@ class ChatAdmin {
   async carregarEstatisticas() {
     try {
       const stats = await Utils.fetchAPI(
-        CONFIG.API_BASE + CONFIG.ENDPOINTS.ADMIN + "&action=get_stats"
+        CONFIG.API_BASE + CONFIG.ENDPOINTS.ADMIN + "&action=get_stats",
       );
 
       this.renderEstatisticas(stats);
@@ -591,7 +591,7 @@ class AuthManager {
         {
           method: "POST",
           body: JSON.stringify({ email, senha }),
-        }
+        },
       );
 
       return result;
@@ -604,7 +604,7 @@ class AuthManager {
     try {
       await Utils.fetchAPI(
         CONFIG.API_BASE + CONFIG.ENDPOINTS.AUTH + "&action=logout",
-        { method: "POST" }
+        { method: "POST" },
       );
 
       window.location.href = "login.html";
@@ -616,7 +616,7 @@ class AuthManager {
   static async verify() {
     try {
       const result = await Utils.fetchAPI(
-        CONFIG.API_BASE + CONFIG.ENDPOINTS.AUTH + "&action=verify"
+        CONFIG.API_BASE + CONFIG.ENDPOINTS.AUTH + "&action=verify",
       );
 
       return result.logado;

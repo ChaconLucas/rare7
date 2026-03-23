@@ -253,7 +253,7 @@ if ($editing || $adding_variation) {
     }
     
     // Carregar variações do produto
-    $sql_vars = "SELECT * FROM produto_variacoes WHERE produto_id = ? ORDER BY id";
+    $sql_vars = "SELECT * FROM produto_variacoes WHERE produto_id = ? AND LOWER(TRIM(tipo)) = 'tamanho' ORDER BY id";
     $stmt_vars = mysqli_prepare($conexao, $sql_vars);
     mysqli_stmt_bind_param($stmt_vars, "i", $produto_id);
     mysqli_stmt_execute($stmt_vars);
@@ -273,6 +273,8 @@ if (mysqli_num_rows($categories_table_exists) == 0) {
     CREATE TABLE categorias (
         id INT PRIMARY KEY AUTO_INCREMENT,
         nome VARCHAR(255) NOT NULL UNIQUE,
+    menu_group VARCHAR(100) DEFAULT 'outros',
+    parent_id INT NULL,
         descricao TEXT NULL,
         ativo TINYINT(1) DEFAULT 1,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -299,6 +301,20 @@ if (mysqli_num_rows($categories_table_exists) == 0) {
     $updated_exists = mysqli_query($conexao, $check_updated);
     if (mysqli_num_rows($updated_exists) == 0) {
         mysqli_query($conexao, "ALTER TABLE categorias ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");
+    }
+
+    // Adicionar coluna menu_group se não existir
+    $check_menu_group = "SHOW COLUMNS FROM categorias LIKE 'menu_group'";
+    $menu_group_exists = mysqli_query($conexao, $check_menu_group);
+    if (mysqli_num_rows($menu_group_exists) == 0) {
+      mysqli_query($conexao, "ALTER TABLE categorias ADD COLUMN menu_group VARCHAR(100) DEFAULT 'outros'");
+    }
+
+    // Adicionar coluna parent_id se não existir
+    $check_parent_id = "SHOW COLUMNS FROM categorias LIKE 'parent_id'";
+    $parent_id_exists = mysqli_query($conexao, $check_parent_id);
+    if (mysqli_num_rows($parent_id_exists) == 0) {
+      mysqli_query($conexao, "ALTER TABLE categorias ADD COLUMN parent_id INT NULL");
     }
 }
 
@@ -619,7 +635,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 foreach ($_POST['variations'] as $key => $variation) {
                     // Verificar se é um índice numérico válido
                     if (is_numeric($key) && is_array($variation)) {
-                        $tipo = trim($variation['tipo'] ?? '');
+                        // Regra do projeto: trabalhar apenas com variações de tamanho
+                        $tipo = 'tamanho';
                         $valor = trim($variation['valor'] ?? '');
                         $sku_var = trim($variation['sku'] ?? '');
                         $preco_adicional = floatval($variation['preco_adicional'] ?? 0);
@@ -695,13 +712,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
-// Buscar categorias ativas da tabela
-$categorias_sql = "SELECT id, nome FROM categorias WHERE ativo = 1 ORDER BY nome";
+// Buscar categorias principais ativas (sem parent) para o seletor de categoria
+$categorias_sql = "SELECT id, nome FROM categorias WHERE ativo = 1 AND (parent_id IS NULL OR parent_id = 0) ORDER BY nome";
 $categorias_result = mysqli_query($conexao, $categorias_sql);
 
 // Se não há categorias na tabela, criar algumas padrão
 if (mysqli_num_rows($categorias_result) == 0) {
-    $default_categories = ['Eletrônicos', 'Roupas', 'Casa e Jardim', 'Livros', 'Esportes'];
+  $default_categories = ['Times', 'Selecoes', 'Retro', 'Treino', 'Casual'];
     foreach ($default_categories as $cat) {
         $insert_default = "INSERT IGNORE INTO categorias (nome, ativo) VALUES (?, 1)";
         $stmt_default = mysqli_prepare($conexao, $insert_default);
@@ -711,6 +728,67 @@ if (mysqli_num_rows($categorias_result) == 0) {
     // Buscar novamente após inserir
     $categorias_result = mysqli_query($conexao, $categorias_sql);
 }
+
+  // Mapa de categorias para uso no front (subcategorias dinâmicas)
+  $categoriasPorId = [];
+  if ($categorias_result) {
+    mysqli_data_seek($categorias_result, 0);
+    while ($catMap = mysqli_fetch_assoc($categorias_result)) {
+      $categoriasPorId[(int)$catMap['id']] = (string)$catMap['nome'];
+    }
+    mysqli_data_seek($categorias_result, 0);
+  }
+
+  $subcategoriasPorCategoria = [];
+
+  $adicionarSubcategoria = static function (array &$mapa, int $categoriaId, string $subcategoria): void {
+    $nome = trim($subcategoria);
+    if ($categoriaId <= 0 || $nome === '') {
+      return;
+    }
+
+    if (!isset($mapa[$categoriaId])) {
+      $mapa[$categoriaId] = [];
+    }
+
+    foreach ($mapa[$categoriaId] as $existente) {
+      if (mb_strtolower((string)$existente) === mb_strtolower($nome)) {
+        return;
+      }
+    }
+
+    $mapa[$categoriaId][] = $nome;
+  };
+
+  // 1) Subcategorias vindas de categorias filhas (parent_id)
+  $subcatsCategoriasSql = "SELECT parent_id, nome FROM categorias WHERE ativo = 1 AND parent_id IS NOT NULL AND parent_id > 0 ORDER BY nome";
+  $subcatsCategoriasResult = mysqli_query($conexao, $subcatsCategoriasSql);
+  if ($subcatsCategoriasResult) {
+    while ($row = mysqli_fetch_assoc($subcatsCategoriasResult)) {
+      $adicionarSubcategoria($subcategoriasPorCategoria, (int)$row['parent_id'], (string)$row['nome']);
+    }
+  }
+
+  // 2) Subcategorias já usadas em anúncios/produtos
+  $subcatsProdutosSql = "
+    SELECT categoria_id, subcategoria
+    FROM produtos
+    WHERE categoria_id IS NOT NULL
+      AND TRIM(COALESCE(subcategoria, '')) <> ''
+    GROUP BY categoria_id, subcategoria
+    ORDER BY subcategoria
+  ";
+  $subcatsProdutosResult = mysqli_query($conexao, $subcatsProdutosSql);
+  if ($subcatsProdutosResult) {
+    while ($row = mysqli_fetch_assoc($subcatsProdutosResult)) {
+      $adicionarSubcategoria($subcategoriasPorCategoria, (int)$row['categoria_id'], (string)$row['subcategoria']);
+    }
+  }
+
+  foreach ($subcategoriasPorCategoria as $categoriaId => $listaSubcategorias) {
+    natcasesort($listaSubcategorias);
+    $subcategoriasPorCategoria[$categoriaId] = array_values($listaSubcategorias);
+  }
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -2282,12 +2360,11 @@ if (mysqli_num_rows($categorias_result) == 0) {
                           <div class="form-group" style="margin: 0;">
                             <label class="form-label" style="font-size: 0.9rem; margin-bottom: 5px;">Menu da Navbar</label>
                             <select id="nova-categoria-menu-group" class="form-input">
-                              <option value="unhas">�Y"� UNHAS</option>
-                              <option value="cilios">�Y'�️ CÍLIOS</option>
-                              <option value="eletronicos">�s� ELETR�"NICOS</option>
-                              <option value="ferramentas">�Y>�️ FERRAMENTAS</option>
-                              <option value="marcas">⭐ MARCAS</option>
-                              <option value="outros" selected>�Y"� OUTROS</option>
+                              <option value="clubes">Clubes</option>
+                              <option value="selecoes">Selecoes</option>
+                              <option value="retro">Retro</option>
+                              <option value="raras">Raras</option>
+                              <option value="outros" selected>Outros</option>
                             </select>
                           </div>
                           
@@ -2314,9 +2391,21 @@ if (mysqli_num_rows($categorias_result) == 0) {
                         <span class="material-symbols-sharp">subdirectory_arrow_right</span>
                         Subcategoria
                       </label>
-                      <input type="text" name="subcategoria" class="form-input" 
-                             value="<?php echo htmlspecialchars(($produto['subcategoria'] ?? '')); ?>" 
-                             placeholder="Ex: Smartphones">
+                      <select id="subcategoria-select" class="form-input">
+                        <option value="">Selecione uma subcategoria</option>
+                        <option value="__nova__">+ Criar nova subcategoria</option>
+                      </select>
+                      <input type="hidden" name="subcategoria" id="subcategoria-hidden" value="<?php echo htmlspecialchars(($produto['subcategoria'] ?? '')); ?>">
+
+                      <div id="nova-subcategoria-container" style="display: none; margin-top: 10px;">
+                        <input type="text"
+                               id="nova-subcategoria-input"
+                               class="form-input"
+                               placeholder="Digite o nome da nova subcategoria"
+                               maxlength="100">
+                      </div>
+
+                      <div class="form-help">Escolha uma subcategoria existente da categoria selecionada ou crie uma nova.</div>
                     </div>
                   </div>
 
@@ -2678,6 +2767,95 @@ window.BASE_URL = '<?php echo BASE_URL; ?>';
 
 // Gerenciar variações
 let variationCounter = 0;
+const subcategoriasPorCategoria = <?php echo json_encode($subcategoriasPorCategoria, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+const subcategoriaAtualInicial = <?php echo json_encode(($produto['subcategoria'] ?? ''), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+
+function normalizeSubcategoria(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function setupSubcategoriaControl() {
+  const selectSubcategoria = document.getElementById('subcategoria-select');
+  const hiddenSubcategoria = document.getElementById('subcategoria-hidden');
+  const novaSubcategoriaContainer = document.getElementById('nova-subcategoria-container');
+  const novaSubcategoriaInput = document.getElementById('nova-subcategoria-input');
+
+  if (!selectSubcategoria || !hiddenSubcategoria || !novaSubcategoriaContainer || !novaSubcategoriaInput) {
+    return;
+  }
+
+  const optionPadrao = '<option value="">Selecione uma subcategoria</option>';
+  const optionNova = '<option value="__nova__">+ Criar nova subcategoria</option>';
+
+  const syncNovaSubcategoria = () => {
+    if (selectSubcategoria.value === '__nova__') {
+      hiddenSubcategoria.value = novaSubcategoriaInput.value.trim();
+    }
+  };
+
+  const preencherSubcategorias = (categoriaId, preferredValue = '') => {
+    const chaveCategoria = String(categoriaId || '');
+    const lista = Array.isArray(subcategoriasPorCategoria[chaveCategoria])
+      ? subcategoriasPorCategoria[chaveCategoria]
+      : [];
+
+    selectSubcategoria.innerHTML = optionPadrao;
+
+    lista.forEach((subcat) => {
+      const option = document.createElement('option');
+      option.value = subcat;
+      option.textContent = subcat;
+      selectSubcategoria.appendChild(option);
+    });
+
+    const valorPreferido = String(preferredValue || hiddenSubcategoria.value || '').trim();
+
+    if (valorPreferido !== '') {
+      const existeNaLista = lista.some((subcat) => normalizeSubcategoria(subcat) === normalizeSubcategoria(valorPreferido));
+      if (existeNaLista) {
+        selectSubcategoria.value = lista.find((subcat) => normalizeSubcategoria(subcat) === normalizeSubcategoria(valorPreferido));
+        hiddenSubcategoria.value = selectSubcategoria.value;
+        novaSubcategoriaContainer.style.display = 'none';
+        novaSubcategoriaInput.value = '';
+      } else {
+        selectSubcategoria.innerHTML += optionNova;
+        selectSubcategoria.value = '__nova__';
+        novaSubcategoriaContainer.style.display = 'block';
+        novaSubcategoriaInput.value = valorPreferido;
+        hiddenSubcategoria.value = valorPreferido;
+      }
+    } else {
+      selectSubcategoria.innerHTML += optionNova;
+      selectSubcategoria.value = '';
+      hiddenSubcategoria.value = '';
+      novaSubcategoriaContainer.style.display = 'none';
+      novaSubcategoriaInput.value = '';
+    }
+  };
+
+  selectSubcategoria.addEventListener('change', function() {
+    if (this.value === '__nova__') {
+      novaSubcategoriaContainer.style.display = 'block';
+      novaSubcategoriaInput.focus();
+      hiddenSubcategoria.value = novaSubcategoriaInput.value.trim();
+      return;
+    }
+
+    novaSubcategoriaContainer.style.display = 'none';
+    novaSubcategoriaInput.value = '';
+    hiddenSubcategoria.value = this.value;
+  });
+
+  novaSubcategoriaInput.addEventListener('input', syncNovaSubcategoria);
+
+  window.refreshSubcategoriasByCategoria = function(categoriaId, preferredValue = '') {
+    preencherSubcategorias(categoriaId, preferredValue);
+  };
+
+  const categoriaSelect = document.getElementById('categoria-select');
+  const categoriaInicial = categoriaSelect ? categoriaSelect.value : '';
+  preencherSubcategorias(categoriaInicial, subcategoriaAtualInicial);
+}
 
 function addVariation() {
   variationCounter++;
@@ -2703,16 +2881,8 @@ function addVariation() {
     <div class="variation-fields">
       <div class="form-group">
         <label class="form-label">Tipo</label>
-        <select name="variations[${variationCounter}][tipo]" class="form-input" required>
-          <option value="">Selecione o tipo</option>
-          <option value="cor">Cor</option>
-          <option value="tamanho">Tamanho</option>
-          <option value="modelo">Modelo</option>
-          <option value="material">Material</option>
-          <option value="voltagem">Voltagem</option>
-          <option value="capacidade">Capacidade</option>
-          <option value="outro">Outro</option>
-        </select>
+        <input type="hidden" name="variations[${variationCounter}][tipo]" value="tamanho">
+        <input type="text" class="form-input" value="Tamanho" readonly>
       </div>
       
       <div class="form-group">
@@ -2776,7 +2946,7 @@ function removeVariation(id) {
 // Auto-complete para campos
 function setupAutocomplete() {
   // Categorias populares
-  const categorias = ['Eletrônicos', 'Roupas', 'Casa e Jardim', 'Esportes', 'Livros', 'Beleza', 'Automóveis', 'Brinquedos'];
+  const categorias = ['Times', 'Selecoes', 'Retro', 'Treino', 'Casual'];
   
   // Marcas populares 
   const marcas = ['Samsung', 'Apple', 'Nike', 'Adidas', 'Sony', 'LG', 'Microsoft', 'Dell', 'HP'];
@@ -2890,6 +3060,10 @@ function setupCategoriaControl() {
         // Remover seleção anterior
         categoriaItems.forEach(i => i.classList.remove('selected'));
         this.classList.add('selected');
+
+        if (typeof window.refreshSubcategoriasByCategoria === 'function') {
+          window.refreshSubcategoriasByCategoria('', '');
+        }
       } else {
         // Selecionar categoria existente
         selectedCategoria.querySelector('.selected-text').textContent = categoriaNome;
@@ -2902,6 +3076,10 @@ function setupCategoriaControl() {
         // Marcar como selecionado
         categoriaItems.forEach(i => i.classList.remove('selected'));
         this.classList.add('selected');
+
+        if (typeof window.refreshSubcategoriasByCategoria === 'function') {
+          window.refreshSubcategoriasByCategoria(categoriaId, '');
+        }
       }
       
       // Fechar dropdown
@@ -3021,6 +3199,10 @@ function setupCategoriaControl() {
           item.classList.add('selected');
         }
       });
+
+      if (typeof window.refreshSubcategoriasByCategoria === 'function') {
+        window.refreshSubcategoriasByCategoria(hiddenSelect.value, subcategoriaAtualInicial);
+      }
     }
   }
 }
@@ -3207,6 +3389,7 @@ async function confirmarExclusaoCategoria() {
 document.addEventListener('DOMContentLoaded', function() {
   setupAutocomplete();
   setupValidation();
+  setupSubcategoriaControl();
   setupCategoriaControl();
   
   const form = document.getElementById('productForm');
@@ -3269,16 +3452,8 @@ function loadExistingVariation(tipo, valor, sku, precoAdicional, estoque, imagem
     <div class="variation-fields">
       <div class="form-group">
         <label class="form-label">Tipo</label>
-        <select name="variations[${variationCounter}][tipo]" class="form-input" required>
-          <option value="">Selecione o tipo</option>
-          <option value="cor" ${tipo === 'cor' ? 'selected' : ''}>Cor</option>
-          <option value="tamanho" ${tipo === 'tamanho' ? 'selected' : ''}>Tamanho</option>
-          <option value="modelo" ${tipo === 'modelo' ? 'selected' : ''}>Modelo</option>
-          <option value="material" ${tipo === 'material' ? 'selected' : ''}>Material</option>
-          <option value="voltagem" ${tipo === 'voltagem' ? 'selected' : ''}>Voltagem</option>
-          <option value="capacidade" ${tipo === 'capacidade' ? 'selected' : ''}>Capacidade</option>
-          <option value="outro" ${tipo === 'outro' ? 'selected' : ''}>Outro</option>
-        </select>
+        <input type="hidden" name="variations[${variationCounter}][tipo]" value="tamanho">
+        <input type="text" class="form-input" value="Tamanho" readonly>
       </div>
       
       <div class="form-group">
