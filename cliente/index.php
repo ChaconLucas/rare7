@@ -118,7 +118,7 @@ if (!empty($productIdsForSizes)) {
         WHERE ativo = 1
           AND LOWER(TRIM(tipo)) = 'tamanho'
           AND produto_id IN ($inClause)
-        ORDER BY produto_id ASC, valor ASC
+                ORDER BY produto_id ASC, id ASC
     ";
     $sizesResult = mysqli_query($conn, $sizesSql);
     if ($sizesResult) {

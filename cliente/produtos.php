@@ -85,7 +85,7 @@ if ($isMenuLancamentos) {
             c.nome AS categoria,
             fp.position,
                         (SELECT COUNT(*) FROM produto_variacoes pv WHERE pv.produto_id = p.id AND pv.ativo = 1) AS tem_variacoes,
-                        (SELECT GROUP_CONCAT(DISTINCT TRIM(pv.valor) ORDER BY pv.valor SEPARATOR '||')
+                        (SELECT GROUP_CONCAT(TRIM(pv.valor) ORDER BY pv.id ASC SEPARATOR '||')
                          FROM produto_variacoes pv
                          WHERE pv.produto_id = p.id
                              AND pv.ativo = 1
@@ -214,7 +214,7 @@ $query = "
         c.nome AS categoria,
         CASE WHEN fp.product_id IS NOT NULL THEN 'yes' ELSE NULL END AS is_lancamento,
                 (SELECT COUNT(*) FROM produto_variacoes pv WHERE pv.produto_id = p.id AND pv.ativo = 1) AS tem_variacoes,
-                (SELECT GROUP_CONCAT(DISTINCT TRIM(pv.valor) ORDER BY pv.valor SEPARATOR '||')
+                (SELECT GROUP_CONCAT(TRIM(pv.valor) ORDER BY pv.id ASC SEPARATOR '||')
                  FROM produto_variacoes pv
                  WHERE pv.produto_id = p.id
                      AND pv.ativo = 1

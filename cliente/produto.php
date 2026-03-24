@@ -91,7 +91,7 @@ $checkTableVariacoes = mysqli_query($conn, "SHOW TABLES LIKE 'produto_variacoes'
 if ($checkTableVariacoes && mysqli_num_rows($checkTableVariacoes) > 0) {
     $queryVariacoes = "SELECT * FROM produto_variacoes
                        WHERE produto_id = ? AND ativo = 1
-                       ORDER BY tipo, valor";
+                       ORDER BY tipo, id ASC";
     $stmtVar = mysqli_prepare($conn, $queryVariacoes);
     mysqli_stmt_bind_param($stmtVar, 'i', $produtoId);
     mysqli_stmt_execute($stmtVar);
