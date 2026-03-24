@@ -728,7 +728,19 @@ a {
   border-radius: 999px;
   padding: 0.35rem 0.65rem;
   font-size: 0.72rem;
+  font-weight: 700;
   letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #f7f0db;
+  z-index: 2;
+}
+
+.rare-product-row-media .product-badge,
+.rare-product-hero-media .product-badge {
+  top: 0.5rem;
+  left: 0.5rem;
+  padding: 0.22rem 0.48rem;
+  font-size: 0.59rem;
 }
 
 .vitrine-body,
@@ -2913,6 +2925,10 @@ body.register-page {
   font-weight: 600;
 }
 
+.req {
+  color: #e53935;
+}
+
 .register-field input,
 .register-field select {
   width: 100%;
@@ -2939,6 +2955,29 @@ body.register-page {
   border-color: var(--gold);
   box-shadow: 0 0 0 3px rgba(198, 167, 94, 0.16);
   background: rgba(255, 255, 255, 0.065);
+}
+
+.senha-hints {
+  list-style: none;
+  padding: 0;
+  margin-top: 0.4rem;
+}
+.senha-hints li {
+  font-size: 0.75rem;
+  color: #e53935;
+  padding-left: 1rem;
+  position: relative;
+}
+.senha-hints li::before {
+  content: "✗";
+  position: absolute;
+  left: 0;
+}
+.senha-hints li.ok {
+  color: #4caf50;
+}
+.senha-hints li.ok::before {
+  content: "✓";
 }
 
 .register-terms {
@@ -4311,4 +4350,116 @@ body.cart-page {
   .rare-related-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* ===================================
+   TAGS/CHIPS DE PRODUTOS
+   =================================== */
+
+.rare-product-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.rare-product-tags-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.rare-tag {
+  display: inline-block;
+  padding: 0.35rem 0.75rem;
+  border-radius: 0.3rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.rare-tag-rara {
+  background: linear-gradient(
+    135deg,
+    rgba(198, 167, 94, 0.25),
+    rgba(198, 167, 94, 0.15)
+  );
+  color: var(--gold);
+  border: 1px solid rgba(198, 167, 94, 0.4);
+}
+
+.rare-tag-lancamento {
+  background: linear-gradient(
+    135deg,
+    rgba(233, 30, 99, 0.25),
+    rgba(233, 30, 99, 0.15)
+  );
+  color: #e91e63;
+  border: 1px solid rgba(233, 30, 99, 0.4);
+}
+
+.rare-tag-custom {
+  background: linear-gradient(
+    135deg,
+    rgba(100, 150, 200, 0.25),
+    rgba(100, 150, 200, 0.15)
+  );
+  color: #6496c8;
+  border: 1px solid rgba(100, 150, 200, 0.4);
+}
+
+.rare-tag-promocao {
+  background: linear-gradient(
+    135deg,
+    rgba(76, 175, 80, 0.25),
+    rgba(76, 175, 80, 0.15)
+  );
+  color: #4caf50;
+  border: 1px solid rgba(76, 175, 80, 0.4);
+}
+
+.rare-tag-novo {
+  background: linear-gradient(
+    135deg,
+    rgba(198, 167, 94, 0.25),
+    rgba(198, 167, 94, 0.15)
+  );
+  color: var(--gold);
+  border: 1px solid rgba(198, 167, 94, 0.4);
+}
+
+.vitrine-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.35rem;
+}
+
+.vitrine-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #0f1c2e;
+  border: 1px solid rgba(15, 28, 46, 0.16);
+  background: rgba(198, 167, 94, 0.2);
+}
+
+.rare-tag-small {
+  padding: 0.25rem 0.55rem;
+  font-size: 0.56rem;
+}
+
+.rare-tag:hover {
+  transform: translateY(-1px);
+  opacity: 0.9;
 }

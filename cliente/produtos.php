@@ -28,6 +28,8 @@ $freteGratisValor = getFreteGratisThreshold($pdo);
 // ===== PROCESSAMENTO DE FILTROS =====
 $categoria = isset($_GET['categoria']) ? trim($_GET['categoria']) : '';
 $busca = isset($_GET['busca']) ? trim($_GET['busca']) : '';
+$tag = isset($_GET['tag']) ? trim($_GET['tag']) : '';
+$tagNormalizada = mb_strtoupper($tag);
 $menu = isset($_GET['menu']) ? mb_strtolower(trim($_GET['menu'])) : '';
 $menuGroupsPadrao = ['clubes', 'selecoes', 'retro', 'raras'];
 $isMenuLancamentos = ($menu === 'lancamentos');
@@ -39,6 +41,38 @@ $preco_min = isset($_GET['preco_min']) && is_numeric($_GET['preco_min']) ? (floa
 $preco_max = isset($_GET['preco_max']) && is_numeric($_GET['preco_max']) ? (float)$_GET['preco_max'] : null;
 $apenas_promocao = isset($_GET['promo']) && $_GET['promo'] == '1';
 $ordenar = isset($_GET['ordenar']) ? trim($_GET['ordenar']) : 'recentes';
+
+$buildProdutosUrl = static function (array $overrides = []) use ($ordenar) {
+    $params = [];
+
+    if ($ordenar !== 'recentes') {
+        $params['ordenar'] = $ordenar;
+    }
+
+    foreach ($overrides as $key => $value) {
+        if ($value === null || $value === '') {
+            unset($params[$key]);
+            continue;
+        }
+
+        $params[$key] = $value;
+    }
+
+    $queryString = http_build_query($params);
+
+    return 'produtos.php' . ($queryString !== '' ? '?' . $queryString : '');
+};
+
+$formatFiltroLabel = static function (string $label): string {
+    $texto = trim($label);
+    if ($texto === '') {
+        return $texto;
+    }
+
+    $texto = str_replace(['_', '-'], ' ', $texto);
+
+    return mb_convert_case(mb_strtolower($texto), MB_CASE_TITLE, 'UTF-8');
+};
 
 // PaginaÃ§Ã£o
 $produtosPorPagina = 13; // hero (1) + grid (12 = 3 linhas × 4 colunas)
@@ -79,10 +113,12 @@ if ($isMenuLancamentos) {
             p.descricao,
             p.preco,
             p.preco_promocional,
+            p.tags,
             p.estoque,
             p.imagem_principal,
             p.created_at,
             c.nome AS categoria,
+            c.menu_group AS category_menu_group,
             fp.position,
                         (SELECT COUNT(*) FROM produto_variacoes pv WHERE pv.produto_id = p.id AND pv.ativo = 1) AS tem_variacoes,
                         (SELECT GROUP_CONCAT(TRIM(pv.valor) ORDER BY pv.id ASC SEPARATOR '||')
@@ -120,6 +156,7 @@ if ($isMenuLancamentos) {
         SELECT COUNT(*) as total
         FROM produtos p
         LEFT JOIN categorias c ON p.categoria_id = c.id
+        LEFT JOIN home_featured_products fp ON p.id = fp.product_id AND fp.section_key = 'launches'
         WHERE p.status = 'ativo'
     ";
 
@@ -162,11 +199,22 @@ if ($secao_marcas && empty($marca)) {
 
 // Filtro por busca
 if (!empty($busca)) {
-    $queryCount .= " AND (p.nome LIKE ? OR p.descricao LIKE ?)";
+    $queryCount .= " AND (p.nome LIKE ? OR p.descricao LIKE ? OR p.tags LIKE ?)";
     $buscaParam = '%' . $busca . '%';
     $params[] = $buscaParam;
     $params[] = $buscaParam;
-    $types .= 'ss';
+    $params[] = $buscaParam;
+    $types .= 'sss';
+}
+
+if (!$isMenuLancamentos && $tagNormalizada !== '') {
+    if ($tagNormalizada === 'NOVO') {
+        $queryCount .= " AND fp.product_id IS NULL AND TRIM(COALESCE(p.tags, '')) = '' AND p.created_at >= DATE_SUB(NOW(), INTERVAL 15 DAY)";
+    } else {
+        $queryCount .= " AND fp.product_id IS NULL AND UPPER(TRIM(COALESCE(p.tags, ''))) = ?";
+        $params[] = $tagNormalizada;
+        $types .= 's';
+    }
 }
 
 // Filtro por faixa de preÃ§o
@@ -207,11 +255,13 @@ $query = "
         p.descricao,
         p.preco,
         p.preco_promocional,
+        p.tags,
         p.destaque,
         p.estoque,
         p.imagem_principal,
         p.created_at,
         c.nome AS categoria,
+        c.menu_group AS category_menu_group,
         CASE WHEN fp.product_id IS NOT NULL THEN 'yes' ELSE NULL END AS is_lancamento,
                 (SELECT COUNT(*) FROM produto_variacoes pv WHERE pv.produto_id = p.id AND pv.ativo = 1) AS tem_variacoes,
                 (SELECT GROUP_CONCAT(TRIM(pv.valor) ORDER BY pv.id ASC SEPARATOR '||')
@@ -264,11 +314,22 @@ if ($secao_marcas && empty($marca)) {
 }
 
 if (!empty($busca)) {
-    $query .= " AND (p.nome LIKE ? OR p.descricao LIKE ?)";
+    $query .= " AND (p.nome LIKE ? OR p.descricao LIKE ? OR p.tags LIKE ?)";
     $buscaParam = '%' . $busca . '%';
     $params[] = $buscaParam;
     $params[] = $buscaParam;
-    $types .= 'ss';
+    $params[] = $buscaParam;
+    $types .= 'sss';
+}
+
+if ($tagNormalizada !== '') {
+    if ($tagNormalizada === 'NOVO') {
+        $query .= " AND fp.product_id IS NULL AND TRIM(COALESCE(p.tags, '')) = '' AND p.created_at >= DATE_SUB(NOW(), INTERVAL 15 DAY)";
+    } else {
+        $query .= " AND fp.product_id IS NULL AND UPPER(TRIM(COALESCE(p.tags, ''))) = ?";
+        $params[] = $tagNormalizada;
+        $types .= 's';
+    }
 }
 
 if ($preco_min !== null) {
@@ -358,9 +419,40 @@ foreach ($produtos as &$produtoLinha) {
 }
 unset($produtoLinha);
 
+$queryTagsDisponiveis = "
+    SELECT
+        p.tags,
+        p.created_at,
+        CASE WHEN fp.product_id IS NOT NULL THEN 'yes' ELSE NULL END AS is_lancamento
+    FROM produtos p
+    LEFT JOIN home_featured_products fp ON p.id = fp.product_id AND fp.section_key = 'launches'
+    WHERE p.status = 'ativo'
+";
+
+$resultTagsDisponiveis = mysqli_query($conn, $queryTagsDisponiveis);
+$tagsDisponiveis = [];
+
+while ($tagRow = mysqli_fetch_assoc($resultTagsDisponiveis)) {
+    $labels = getProductTags($tagRow);
+    if (empty($labels)) {
+        continue;
+    }
+
+    $tagLabel = mb_strtoupper((string) ($labels[0]['label'] ?? ''));
+    if ($tagLabel === '' || $tagLabel === 'LANCAMENTO') {
+        continue;
+    }
+
+    $tagsDisponiveis[$tagLabel] = $tagLabel;
+}
+
+ksort($tagsDisponiveis, SORT_NATURAL | SORT_FLAG_CASE);
+
 // Definir título da página
 $pageTitle = 'Todos os Produtos';
-if (!empty($categoria)) {
+if ($tagNormalizada !== '') {
+    $pageTitle = 'Tag: ' . $tagNormalizada;
+} elseif (!empty($categoria)) {
     $pageTitle = 'Categoria: ' . ucfirst($categoria);
 } elseif (!empty($busca)) {
     $pageTitle = 'Resultados para: ' . htmlspecialchars($busca);
@@ -378,43 +470,51 @@ if (!empty($categoria)) {
     $pageTitle = 'Produtos com Marca';
 }
 
-$pageKicker = $isMenuLancamentos ? 'LANCAMENTOS' : ($isMenuTime ? 'TIME' : 'CATALOGO');
-$pageSubtitle = $isMenuLancamentos
+$pageKicker = $tagNormalizada !== ''
+    ? 'TAG'
+    : ($isMenuLancamentos ? 'LANCAMENTOS' : ($isMenuTime ? 'TIME' : 'CATALOGO'));
+$pageSubtitle = $tagNormalizada !== ''
+    ? 'Produtos exibidos com a tag visual selecionada.'
+    : ($isMenuLancamentos
     ? 'Somente produtos selecionados como lancamentos no CMS.'
     : ($isMenuTime
         ? 'Produtos filtrados pelo time selecionado na home.'
-        : 'Um novo layout para explorar a colecao completa da RARE.');
+        : 'Um novo layout para explorar a colecao completa da RARE.'));
 
-$produtoDestaque = $produtos[0] ?? null;
-$produtosLista = $produtoDestaque ? array_slice($produtos, 1) : [];
+$mostrarHero = $paginaAtual === 1
+    && $tagNormalizada === ''
+    && empty($categoria)
+    && empty($marca)
+    && empty($busca)
+    && !$secao_marcas
+    && !$apenas_promocao
+    && $preco_min === null
+    && $preco_max === null
+    && ($menu === '' || $isMenuLancamentos);
+
+$produtoDestaque = $mostrarHero ? ($produtos[0] ?? null) : null;
+$produtosLista = $produtoDestaque ? array_slice($produtos, 1) : $produtos;
 
 $filtroBotoes = [
     [
         'label' => 'Todos',
-        'url' => 'produtos.php',
-        'active' => empty($menu) && empty($categoria) && !$apenas_promocao && empty($marca) && !$secao_marcas && empty($busca)
+        'url' => $buildProdutosUrl(),
+        'active' => empty($menu) && $tagNormalizada === '' && empty($categoria) && !$apenas_promocao && empty($marca) && !$secao_marcas && empty($busca) && $preco_min === null && $preco_max === null
     ],
     [
-        'label' => 'Lancamentos',
-        'url' => 'produtos.php?menu=lancamentos',
+        'label' => 'Lançamentos',
+        'url' => $buildProdutosUrl(['menu' => 'lancamentos']),
         'active' => $menu === 'lancamentos'
-    ],
-    [
-        'label' => 'Clubes',
-        'url' => 'produtos.php?menu=clubes',
-        'active' => $menu === 'clubes' || $isMenuTime
-    ],
-    [
-        'label' => 'Selecoes',
-        'url' => 'produtos.php?menu=selecoes',
-        'active' => $menu === 'selecoes'
-    ],
-    [
-        'label' => 'Retro',
-        'url' => 'produtos.php?menu=retro',
-        'active' => $menu === 'retro'
     ]
 ];
+
+foreach ($tagsDisponiveis as $tagDisponivel) {
+    $filtroBotoes[] = [
+        'label' => $formatFiltroLabel($tagDisponivel),
+        'url' => $buildProdutosUrl(['tag' => $tagDisponivel]),
+        'active' => $tagNormalizada === $tagDisponivel,
+    ];
+}
 
 // Usa a variante de navbar flutuante premium do include para manter a mesma aparencia da tela principal.
 $currentPage = 'cart';
@@ -492,7 +592,7 @@ $currentPage = 'cart';
                     <a href="produtos.php?menu=<?php echo urlencode($menu); ?>" class="rare-filter-pill is-active">Time: <?php echo htmlspecialchars(ucwords($menu)); ?></a>
                 <?php endif; ?>
             </div>
-            <?php if (!empty($marca) || !empty($categoria) || !empty($busca) || !empty($menu) || $apenas_promocao || $secao_marcas || $preco_min !== null || $preco_max !== null): ?>
+            <?php if (!empty($marca) || !empty($categoria) || !empty($busca) || !empty($menu) || !empty($tagNormalizada) || $apenas_promocao || $secao_marcas || $preco_min !== null || $preco_max !== null): ?>
                 <a href="produtos.php" class="rare-clear-link">Limpar filtros</a>
             <?php endif; ?>
         </div>
@@ -503,7 +603,8 @@ $currentPage = 'cart';
                 Produto em Destaque
             </div>
             <?php
-                $heroBadge = getProductBadge($produtoDestaque);
+                $heroTags = getProductTags($produtoDestaque);
+                $heroBadge = !empty($heroTags) ? (string) ($heroTags[0]['label'] ?? '') : '';
                 $heroPrice = isOnSale($produtoDestaque) ? ($produtoDestaque['preco_promocional'] ?? $produtoDestaque['preco']) : ($produtoDestaque['preco'] ?? 0);
                 $heroDescription = trim((string) ($produtoDestaque['descricao'] ?? ''));
                 $heroExcerpt = $heroDescription !== '' ? mb_substr($heroDescription, 0, 220) . (mb_strlen($heroDescription) > 220 ? '...' : '') : 'Peca selecionada para abrir a vitrine da RARE com presenca forte, acabamento premium e proposta editorial.';
@@ -514,17 +615,15 @@ $currentPage = 'cart';
                     <?php if ($heroImage !== ''): ?>
                         <img src="<?php echo htmlspecialchars($heroImage); ?>" alt="<?php echo htmlspecialchars($produtoDestaque['nome']); ?>" loading="lazy" onerror="this.parentElement.classList.add('is-fallback'); this.remove();">
                     <?php endif; ?>
+                    <?php if (!empty($heroBadge)): ?>
+                        <span class="product-badge"><?php echo strtoupper(htmlspecialchars($heroBadge)); ?></span>
+                    <?php endif; ?>
                     <div class="rare-product-hero-fallback">
                         <span class="material-symbols-sharp">stadium</span>
                     </div>
                 </a>
                 <div class="rare-product-hero-copy">
                     <div class="rare-product-hero-copy-inner">
-                        <?php if (!empty($heroBadge)): ?>
-                            <span class="rare-badge"><?php echo strtoupper(htmlspecialchars($heroBadge)); ?></span>
-                        <?php else: ?>
-                            <span class="rare-badge">PREMIUM</span>
-                        <?php endif; ?>
                         <span class="rare-product-category"><?php echo htmlspecialchars($produtoDestaque['categoria'] ?? 'Colecao Rare'); ?></span>
                         <h2><?php echo htmlspecialchars($produtoDestaque['nome']); ?></h2>
                         <p class="rare-product-description"><?php echo htmlspecialchars($heroExcerpt); ?></p>
@@ -590,7 +689,8 @@ $currentPage = 'cart';
             <div class="rare-products-editorial-list">
                 <?php foreach ($produtosLista as $product): ?>
                     <?php
-                        $badge = getProductBadge($product);
+                        $productTags = getProductTags($product);
+                        $badge = !empty($productTags) ? (string) ($productTags[0]['label'] ?? '') : '';
                         $productImage = !empty($product['imagem_principal']) ? '../admin/assets/images/produtos/' . rawurlencode($product['imagem_principal']) : '';
                         $priceValue = isOnSale($product) ? ($product['preco_promocional'] ?? $product['preco']) : ($product['preco'] ?? 0);
                         $description = trim((string) ($product['descricao'] ?? ''));
@@ -605,7 +705,7 @@ $currentPage = 'cart';
                                 <span class="material-symbols-sharp">sports_soccer</span>
                             </div>
                             <?php if (!empty($badge)): ?>
-                                <span class="rare-inline-badge"><?php echo strtoupper(htmlspecialchars($badge)); ?></span>
+                                <span class="product-badge"><?php echo strtoupper(htmlspecialchars($badge)); ?></span>
                             <?php endif; ?>
                         </a>
                         <div class="rare-product-row-content">
@@ -650,6 +750,7 @@ $currentPage = 'cart';
                     if (!empty($marca)) $queryString .= '&marca=' . urlencode($marca);
                     if (!empty($busca)) $queryString .= '&busca=' . urlencode($busca);
                     if (!empty($menu)) $queryString .= '&menu=' . urlencode($menu);
+                    if (!empty($tagNormalizada)) $queryString .= '&tag=' . urlencode($tagNormalizada);
                     if ($preco_min !== null) $queryString .= '&preco_min=' . $preco_min;
                     if ($preco_max !== null) $queryString .= '&preco_max=' . $preco_max;
                     if ($apenas_promocao) $queryString .= '&promo=1';

@@ -40,8 +40,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $erro = 'Por favor, preencha todos os campos obrigatórios.';
     } elseif ($senha !== $confirmarSenha) {
         $erro = 'As senhas não conferem.';
-    } elseif (strlen($senha) < 6) {
-        $erro = 'A senha deve ter pelo menos 6 caracteres.';
+    } elseif (strlen($senha) < 8) {
+        $erro = 'A senha deve ter pelo menos 8 caracteres.';
+    } elseif (!preg_match('/[A-Z]/', $senha)) {
+        $erro = 'A senha deve conter pelo menos uma letra maiúscula.';
+    } elseif (!preg_match('/[^a-zA-Z0-9]/', $senha)) {
+        $erro = 'A senha deve conter pelo menos um caractere especial.';
+    } elseif (!preg_match('/[0-9]/', $senha)) {
+        $erro = 'A senha deve conter pelo menos um número.';
     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $erro = 'E-mail inválido.';
     } else {
@@ -149,22 +155,22 @@ include '../includes/header.php';
             <form method="POST" action="" class="register-form" novalidate>
                 <div class="register-grid">
                     <div class="register-field register-full">
-                        <label for="nome">Nome completo</label>
+                        <label for="nome">Nome completo <span class="req">*</span></label>
                         <input type="text" id="nome" name="nome" required value="<?php echo htmlspecialchars($_POST['nome'] ?? ''); ?>">
                     </div>
 
                     <div class="register-field">
-                        <label for="email">E-mail</label>
+                        <label for="email">E-mail <span class="req">*</span></label>
                         <input type="email" id="email" name="email" required value="<?php echo htmlspecialchars($_POST['email'] ?? ''); ?>">
                     </div>
 
                     <div class="register-field">
-                        <label for="cpf_cnpj">CPF/CNPJ</label>
+                        <label for="cpf_cnpj">CPF/CNPJ <span class="req">*</span></label>
                         <input type="text" id="cpf_cnpj" name="cpf_cnpj" required maxlength="18" value="<?php echo htmlspecialchars($_POST['cpf_cnpj'] ?? ''); ?>">
                     </div>
 
                     <div class="register-field">
-                        <label for="telefone">Telefone</label>
+                        <label for="telefone">Telefone <span class="req">*</span></label>
                         <input type="text" id="telefone" name="telefone" required maxlength="15" value="<?php echo htmlspecialchars($_POST['telefone'] ?? ''); ?>">
                     </div>
 
@@ -179,27 +185,33 @@ include '../includes/header.php';
                     </div>
 
                     <div class="register-field">
-                        <label for="senha">Senha</label>
-                        <input type="password" id="senha" name="senha" required minlength="6">
+                        <label for="senha">Senha <span class="req">*</span></label>
+                        <input type="password" id="senha" name="senha" required minlength="8">
+                        <ul class="senha-hints">
+                            <li id="hint-len">Mínimo 8 caracteres</li>
+                            <li id="hint-upper">Pelo menos 1 letra maiúscula</li>
+                            <li id="hint-special">Pelo menos 1 caractere especial</li>
+                            <li id="hint-number">Pelo menos 1 número</li>
+                        </ul>
                     </div>
 
                     <div class="register-field">
-                        <label for="confirmar_senha">Confirmar senha</label>
-                        <input type="password" id="confirmar_senha" name="confirmar_senha" required minlength="6">
+                        <label for="confirmar_senha">Confirmar senha <span class="req">*</span></label>
+                        <input type="password" id="confirmar_senha" name="confirmar_senha" required minlength="8">
                     </div>
 
                     <div class="register-field">
-                        <label for="cep">CEP</label>
+                        <label for="cep">CEP <span class="req">*</span></label>
                         <input type="text" id="cep" name="cep" required maxlength="9" value="<?php echo htmlspecialchars($_POST['cep'] ?? ''); ?>">
                     </div>
 
                     <div class="register-field register-full">
-                        <label for="rua">Rua</label>
+                        <label for="rua">Rua <span class="req">*</span></label>
                         <input type="text" id="rua" name="rua" required value="<?php echo htmlspecialchars($_POST['rua'] ?? ''); ?>">
                     </div>
 
                     <div class="register-field">
-                        <label for="numero">Numero</label>
+                        <label for="numero">Numero <span class="req">*</span></label>
                         <input type="text" id="numero" name="numero" required value="<?php echo htmlspecialchars($_POST['numero'] ?? ''); ?>">
                     </div>
 
@@ -209,17 +221,17 @@ include '../includes/header.php';
                     </div>
 
                     <div class="register-field">
-                        <label for="bairro">Bairro</label>
+                        <label for="bairro">Bairro <span class="req">*</span></label>
                         <input type="text" id="bairro" name="bairro" required value="<?php echo htmlspecialchars($_POST['bairro'] ?? ''); ?>">
                     </div>
 
                     <div class="register-field">
-                        <label for="cidade">Cidade</label>
+                        <label for="cidade">Cidade <span class="req">*</span></label>
                         <input type="text" id="cidade" name="cidade" required value="<?php echo htmlspecialchars($_POST['cidade'] ?? ''); ?>">
                     </div>
 
                     <div class="register-field register-full">
-                        <label for="uf">UF</label>
+                        <label for="uf">UF <span class="req">*</span></label>
                         <select id="uf" name="uf" required>
                             <option value="">Selecione</option>
                             <?php
@@ -307,6 +319,17 @@ include '../includes/header.php';
     }
 
     if (cep) {
+        const senha = document.getElementById('senha');
+        if (senha) {
+            senha.addEventListener('input', function () {
+                const v = this.value;
+                document.getElementById('hint-len').classList.toggle('ok', v.length >= 8);
+                document.getElementById('hint-upper').classList.toggle('ok', /[A-Z]/.test(v));
+                document.getElementById('hint-special').classList.toggle('ok', /[^a-zA-Z0-9]/.test(v));
+                document.getElementById('hint-number').classList.toggle('ok', /[0-9]/.test(v));
+            });
+        }
+
         cep.addEventListener('input', function (e) {
             e.target.value = maskCEP(e.target.value);
         });

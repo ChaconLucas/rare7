@@ -160,14 +160,18 @@ class CMSProvider {
                 p.descricao,
                 p.preco,
                 p.preco_promocional,
+                p.tags,
                 p.imagem_principal,
                 p.slug,
                 p.created_at,
+                c.nome AS categoria,
+                c.menu_group AS category_menu_group,
                 fp.position,
                 'yes' AS is_lancamento,
                 (SELECT COUNT(*) FROM produto_variacoes pv WHERE pv.produto_id = p.id AND pv.ativo = 1) AS tem_variacoes
             FROM home_featured_products fp
             INNER JOIN produtos p ON fp.product_id = p.id
+            LEFT JOIN categorias c ON p.categoria_id = c.id
             WHERE fp.section_key = 'launches'
               AND p.status = 'ativo'
               AND p.estoque > 0
@@ -223,13 +227,17 @@ class CMSProvider {
                 p.descricao,
                 p.preco,
                 p.preco_promocional,
+                p.tags,
                 p.imagem_principal,
                 p.slug,
                 p.estoque,
                 p.created_at,
+                c.nome AS categoria,
+                c.menu_group AS category_menu_group,
                 CASE WHEN fp.product_id IS NOT NULL THEN 'yes' ELSE NULL END AS is_lancamento,
                 (SELECT COUNT(*) FROM produto_variacoes pv WHERE pv.produto_id = p.id AND pv.ativo = 1) AS tem_variacoes
             FROM produtos p
+            LEFT JOIN categorias c ON p.categoria_id = c.id
             LEFT JOIN home_featured_products fp ON p.id = fp.product_id AND fp.section_key = 'launches'
             WHERE p.status = 'ativo'
             ORDER BY p.created_at DESC, p.id DESC
@@ -671,34 +679,73 @@ function isOnSale($product) {
  * Helper: Determinar qual badge/selo deve ser exibido no card
  * 
  * @param array $product Array do produto
- * @return string Classe CSS do badge ('promocao', 'lancamento', 'novo', ou '' para nenhum)
+ * @return string Classe CSS do badge ('lancamento', 'novo', ou '' para nenhum)
  */
 function getProductBadge($product) {
-    // Prioridade 1: Verificar se está em promoção
-    if (isOnSale($product)) {
-        return 'promocao';
-    }
-    
-    // Prioridade 2: Verificar se é lançamento (produto selecionado no CMS)
+    // Prioridade 1: Verificar se é lançamento (produto selecionado no CMS)
     if (isset($product['is_lancamento']) && $product['is_lancamento'] === 'yes') {
         return 'lancamento';
     }
     
-    // Prioridade 3: Verificar se é novo (últimos 30 dias)
+    // Prioridade 2: Verificar se é novo (últimos 15 dias)
     if (isset($product['created_at']) && !empty($product['created_at'])) {
         $createdDate = new DateTime($product['created_at']);
         $now = new DateTime();
         $diff = $now->diff($createdDate);
         $daysDiff = $diff->days;
         
-        // Se foi criado há menos de 30 dias
-        if ($daysDiff <= 30) {
+        // Se foi criado há menos de 15 dias
+        if ($daysDiff <= 15) {
             return 'novo';
         }
     }
     
     // Sem badge
     return '';
+}
+
+/**
+ * Obter tags de produto (chips visuais) - customizadas e automáticas
+ * 
+ * @param array $product Dados do produto
+ * @return array Array com tags para renderização
+ */
+function getProductTags($product) {
+    // Regra 1: se estiver marcado como lançamento no painel CMS, usa tag automática
+    if (isset($product['is_lancamento']) && (string) $product['is_lancamento'] === 'yes') {
+        return [[
+            'type' => 'lancamento',
+            'label' => 'LANCAMENTO',
+        ]];
+    }
+
+    // Regra 2: fora lançamentos, usa a única tag configurada no produto (se existir)
+    if (isset($product['tags']) && trim((string) $product['tags']) !== '') {
+        $rawTags = explode(',', (string) $product['tags']);
+        $firstTag = trim((string) ($rawTags[0] ?? ''));
+        if ($firstTag !== '') {
+            return [[
+                'type' => 'custom',
+                'label' => mb_strtoupper($firstTag),
+            ]];
+        }
+    }
+
+    // Regra 3: se não tem tag manual e foi criado nos últimos 15 dias, usa NOVO
+    if (isset($product['created_at']) && !empty($product['created_at'])) {
+        $createdDate = new DateTime($product['created_at']);
+        $now = new DateTime();
+        $daysDiff = $now->diff($createdDate)->days;
+
+        if ($daysDiff <= 15) {
+            return [[
+                'type' => 'novo',
+                'label' => 'NOVO',
+            ]];
+        }
+    }
+
+    return [];
 }
 
 /**

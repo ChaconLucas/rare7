@@ -11,11 +11,103 @@ require_once '../../../config/base.php';
 require_once 'helper-contador.php';
 require_once '../../../PHP/conexao.php';
 
+function normalizeTagName($tag) {
+  $tag = trim((string) $tag);
+  if ($tag === '') {
+    return '';
+  }
+
+  $tag = preg_replace('/\s+/', ' ', $tag);
+
+  return mb_strtolower($tag, 'UTF-8');
+}
+
+function ensureProdutoTagsTable($conexao) {
+  $checkTable = mysqli_query($conexao, "SHOW TABLES LIKE 'produto_tags'");
+  if ($checkTable && mysqli_num_rows($checkTable) > 0) {
+    return;
+  }
+
+  $createTable = "
+    CREATE TABLE produto_tags (
+      id INT PRIMARY KEY AUTO_INCREMENT,
+      nome VARCHAR(120) NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uniq_produto_tags_nome (nome)
+    )
+  ";
+
+  mysqli_query($conexao, $createTable);
+}
+
+function syncProdutoTagsFromProducts($conexao) {
+  $checkProdutos = mysqli_query($conexao, "SHOW TABLES LIKE 'produtos'");
+  if (!$checkProdutos || mysqli_num_rows($checkProdutos) === 0) {
+    return;
+  }
+
+  $result = mysqli_query($conexao, "SELECT DISTINCT tags FROM produtos WHERE tags IS NOT NULL AND TRIM(tags) != ''");
+  if (!$result) {
+    return;
+  }
+
+  while ($row = mysqli_fetch_assoc($result)) {
+    $tag = normalizeTagName($row['tags'] ?? '');
+    if ($tag === '') {
+      continue;
+    }
+
+    $checkExisting = mysqli_prepare($conexao, "SELECT id FROM produto_tags WHERE LOWER(nome) = LOWER(?) LIMIT 1");
+    mysqli_stmt_bind_param($checkExisting, 's', $tag);
+    mysqli_stmt_execute($checkExisting);
+    $existingResult = mysqli_stmt_get_result($checkExisting);
+
+    if (!$existingResult || mysqli_num_rows($existingResult) === 0) {
+      $insertTag = mysqli_prepare($conexao, "INSERT INTO produto_tags (nome) VALUES (?)");
+      mysqli_stmt_bind_param($insertTag, 's', $tag);
+      mysqli_stmt_execute($insertTag);
+      mysqli_stmt_close($insertTag);
+    }
+
+    mysqli_stmt_close($checkExisting);
+  }
+}
+
+function ensureProdutoTagExists($conexao, $tag) {
+  $tag = normalizeTagName($tag);
+  if ($tag === '') {
+    return null;
+  }
+
+  $check = mysqli_prepare($conexao, "SELECT id, nome FROM produto_tags WHERE LOWER(nome) = LOWER(?) LIMIT 1");
+  mysqli_stmt_bind_param($check, 's', $tag);
+  mysqli_stmt_execute($check);
+  $result = mysqli_stmt_get_result($check);
+
+  if ($result && $row = mysqli_fetch_assoc($result)) {
+    mysqli_stmt_close($check);
+    return $row;
+  }
+
+  mysqli_stmt_close($check);
+
+  $insert = mysqli_prepare($conexao, "INSERT INTO produto_tags (nome) VALUES (?)");
+  mysqli_stmt_bind_param($insert, 's', $tag);
+  mysqli_stmt_execute($insert);
+  $id = mysqli_insert_id($conexao);
+  mysqli_stmt_close($insert);
+
+  return ['id' => $id, 'nome' => $tag];
+}
+
+ensureProdutoTagsTable($conexao);
+
 // Endpoint AJAX para buscar categorias
 if (isset($_GET['action']) && $_GET['action'] == 'get_categories') {
     header('Content-Type: application/json');
     $search = $_GET['search'] ?? '';
-    
+
     if ($search) {
         $sql = "SELECT nome FROM categorias WHERE nome LIKE ? ORDER BY nome LIMIT 10";
         $stmt = mysqli_prepare($conexao, $sql);
@@ -25,15 +117,15 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_categories') {
         $sql = "SELECT nome FROM categorias ORDER BY nome LIMIT 10";
         $stmt = mysqli_prepare($conexao, $sql);
     }
-    
+
     mysqli_stmt_execute($stmt);
     $result = mysqli_stmt_get_result($stmt);
-    
+
     $categories = [];
     while ($row = mysqli_fetch_assoc($result)) {
         $categories[] = $row['nome'];
     }
-    
+
     echo json_encode($categories);
     exit;
 }
@@ -41,32 +133,30 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_categories') {
 // Endpoint AJAX para editar categoria
 if (isset($_POST['action']) && $_POST['action'] == 'edit_categoria') {
     header('Content-Type: application/json');
-    
+
     $id = intval($_POST['id']);
     $nome = trim($_POST['nome']);
-    
+
     if (empty($nome)) {
         echo json_encode(['success' => false, 'message' => 'Nome da categoria não pode estar vazio']);
         exit;
     }
-    
-    // Verificar se já existe outra categoria com o mesmo nome (case-insensitive)
+
     $check = "SELECT id FROM categorias WHERE LOWER(nome) = LOWER(?) AND id != ?";
     $stmt_check = mysqli_prepare($conexao, $check);
     mysqli_stmt_bind_param($stmt_check, "si", $nome, $id);
     mysqli_stmt_execute($stmt_check);
     $result_check = mysqli_stmt_get_result($stmt_check);
-    
+
     if (mysqli_num_rows($result_check) > 0) {
         echo json_encode(['success' => false, 'message' => 'Já existe uma categoria com este nome']);
         exit;
     }
-    
-    // Atualizar categoria
+
     $update = "UPDATE categorias SET nome = ?, updated_at = NOW() WHERE id = ?";
     $stmt = mysqli_prepare($conexao, $update);
     mysqli_stmt_bind_param($stmt, "si", $nome, $id);
-    
+
     if (mysqli_stmt_execute($stmt)) {
         echo json_encode(['success' => true, 'message' => 'Categoria atualizada com sucesso']);
     } else {
@@ -78,32 +168,190 @@ if (isset($_POST['action']) && $_POST['action'] == 'edit_categoria') {
 // Endpoint AJAX para excluir categoria
 if (isset($_POST['action']) && $_POST['action'] == 'delete_categoria') {
     header('Content-Type: application/json');
-    
+
     $id = intval($_POST['id']);
-    
-    // Verificar se há produtos usando esta categoria
-    $check_produtos = "SELECT COUNT(*) as total FROM produtos WHERE categoria_id = ?";
+
+    $cat_nome = '';
+    $stmt_cat = mysqli_prepare($conexao, "SELECT nome FROM categorias WHERE id = ? LIMIT 1");
+    mysqli_stmt_bind_param($stmt_cat, "i", $id);
+    mysqli_stmt_execute($stmt_cat);
+    $result_cat = mysqli_stmt_get_result($stmt_cat);
+    if ($result_cat && $cat_row = mysqli_fetch_assoc($result_cat)) {
+        $cat_nome = trim((string) ($cat_row['nome'] ?? ''));
+    }
+
+    if ($cat_nome === '') {
+        echo json_encode(['success' => false, 'message' => 'Categoria não encontrada.']);
+        exit;
+    }
+
+    $check_produtos = "
+        SELECT COUNT(*) as total
+        FROM produtos
+        WHERE categoria_id = ?
+           OR LOWER(TRIM(COALESCE(categoria, ''))) = LOWER(TRIM(?))
+    ";
     $stmt_check = mysqli_prepare($conexao, $check_produtos);
-    mysqli_stmt_bind_param($stmt_check, "i", $id);
+    mysqli_stmt_bind_param($stmt_check, "is", $id, $cat_nome);
     mysqli_stmt_execute($stmt_check);
     $result_check = mysqli_stmt_get_result($stmt_check);
     $row = mysqli_fetch_assoc($result_check);
-    
-    if ($row['total'] > 0) {
+
+    if (($row['total'] ?? 0) > 0) {
         echo json_encode(['success' => false, 'message' => "Não é possível excluir esta categoria. Existem {$row['total']} produto(s) vinculado(s) a ela."]);
         exit;
     }
-    
-    // Excluir categoria
+
     $delete = "DELETE FROM categorias WHERE id = ?";
     $stmt = mysqli_prepare($conexao, $delete);
     mysqli_stmt_bind_param($stmt, "i", $id);
-    
+
     if (mysqli_stmt_execute($stmt)) {
         echo json_encode(['success' => true, 'message' => 'Categoria excluída com sucesso']);
     } else {
         echo json_encode(['success' => false, 'message' => 'Erro ao excluir categoria: ' . mysqli_error($conexao)]);
     }
+    exit;
+}
+
+// Endpoint AJAX para buscar tags existentes
+if (isset($_GET['action']) && $_GET['action'] == 'get_tags') {
+    header('Content-Type: application/json');
+    syncProdutoTagsFromProducts($conexao);
+
+    $tags = [];
+    $result = mysqli_query($conexao, "SELECT id, nome FROM produto_tags ORDER BY nome ASC");
+    while ($row = mysqli_fetch_assoc($result)) {
+        $tags[] = [
+            'id' => (int) ($row['id'] ?? 0),
+            'nome' => (string) ($row['nome'] ?? ''),
+        ];
+    }
+
+    echo json_encode($tags);
+    exit;
+}
+
+if (isset($_POST['action']) && $_POST['action'] == 'create_tag') {
+    header('Content-Type: application/json');
+
+    $nome = normalizeTagName($_POST['nome'] ?? '');
+    if ($nome === '') {
+        echo json_encode(['success' => false, 'message' => 'Nome da tag não pode estar vazio']);
+        exit;
+    }
+
+    $tag = ensureProdutoTagExists($conexao, $nome);
+    echo json_encode(['success' => true, 'message' => 'Tag criada com sucesso', 'tag' => $tag]);
+    exit;
+}
+
+if (isset($_POST['action']) && $_POST['action'] == 'edit_tag') {
+    header('Content-Type: application/json');
+
+    $id = (int) ($_POST['id'] ?? 0);
+    $nome = normalizeTagName($_POST['nome'] ?? '');
+
+    if ($id <= 0 || $nome === '') {
+        echo json_encode(['success' => false, 'message' => 'Dados inválidos para editar a tag']);
+        exit;
+    }
+
+    $stmtCurrent = mysqli_prepare($conexao, "SELECT nome FROM produto_tags WHERE id = ? LIMIT 1");
+    mysqli_stmt_bind_param($stmtCurrent, 'i', $id);
+    mysqli_stmt_execute($stmtCurrent);
+    $currentResult = mysqli_stmt_get_result($stmtCurrent);
+    $currentRow = $currentResult ? mysqli_fetch_assoc($currentResult) : null;
+    mysqli_stmt_close($stmtCurrent);
+
+    if (!$currentRow) {
+        echo json_encode(['success' => false, 'message' => 'Tag não encontrada']);
+        exit;
+    }
+
+    $nomeAnterior = normalizeTagName($currentRow['nome'] ?? '');
+
+    $checkDuplicate = mysqli_prepare($conexao, "SELECT id FROM produto_tags WHERE LOWER(nome) = LOWER(?) AND id != ? LIMIT 1");
+    mysqli_stmt_bind_param($checkDuplicate, 'si', $nome, $id);
+    mysqli_stmt_execute($checkDuplicate);
+    $duplicateResult = mysqli_stmt_get_result($checkDuplicate);
+    $hasDuplicate = $duplicateResult && mysqli_num_rows($duplicateResult) > 0;
+    mysqli_stmt_close($checkDuplicate);
+
+    if ($hasDuplicate) {
+        echo json_encode(['success' => false, 'message' => 'Já existe uma tag com este nome']);
+        exit;
+    }
+
+    $stmtUpdateTag = mysqli_prepare($conexao, "UPDATE produto_tags SET nome = ?, updated_at = NOW() WHERE id = ?");
+    mysqli_stmt_bind_param($stmtUpdateTag, 'si', $nome, $id);
+    $updatedTag = mysqli_stmt_execute($stmtUpdateTag);
+    mysqli_stmt_close($stmtUpdateTag);
+
+    if (!$updatedTag) {
+        echo json_encode(['success' => false, 'message' => 'Erro ao atualizar a tag']);
+        exit;
+    }
+
+    $stmtUpdateProdutos = mysqli_prepare($conexao, "UPDATE produtos SET tags = ? WHERE LOWER(TRIM(COALESCE(tags, ''))) = LOWER(?)");
+    mysqli_stmt_bind_param($stmtUpdateProdutos, 'ss', $nome, $nomeAnterior);
+    mysqli_stmt_execute($stmtUpdateProdutos);
+    mysqli_stmt_close($stmtUpdateProdutos);
+
+    echo json_encode([
+        'success' => true,
+        'message' => 'Tag atualizada com sucesso',
+        'tag' => ['id' => $id, 'nome' => $nome],
+        'old_nome' => $nomeAnterior,
+    ]);
+    exit;
+}
+
+if (isset($_POST['action']) && $_POST['action'] == 'delete_tag') {
+    header('Content-Type: application/json');
+
+    $id = (int) ($_POST['id'] ?? 0);
+    if ($id <= 0) {
+        echo json_encode(['success' => false, 'message' => 'Tag inválida']);
+        exit;
+    }
+
+    $stmtCurrent = mysqli_prepare($conexao, "SELECT nome FROM produto_tags WHERE id = ? LIMIT 1");
+    mysqli_stmt_bind_param($stmtCurrent, 'i', $id);
+    mysqli_stmt_execute($stmtCurrent);
+    $currentResult = mysqli_stmt_get_result($stmtCurrent);
+    $currentRow = $currentResult ? mysqli_fetch_assoc($currentResult) : null;
+    mysqli_stmt_close($stmtCurrent);
+
+    if (!$currentRow) {
+        echo json_encode(['success' => false, 'message' => 'Tag não encontrada']);
+        exit;
+    }
+
+    $nomeAnterior = normalizeTagName($currentRow['nome'] ?? '');
+
+    $stmtClearProdutos = mysqli_prepare($conexao, "UPDATE produtos SET tags = NULL WHERE LOWER(TRIM(COALESCE(tags, ''))) = LOWER(?)");
+    mysqli_stmt_bind_param($stmtClearProdutos, 's', $nomeAnterior);
+    mysqli_stmt_execute($stmtClearProdutos);
+    $produtosAfetados = mysqli_stmt_affected_rows($stmtClearProdutos);
+    mysqli_stmt_close($stmtClearProdutos);
+
+    $stmtDeleteTag = mysqli_prepare($conexao, "DELETE FROM produto_tags WHERE id = ?");
+    mysqli_stmt_bind_param($stmtDeleteTag, 'i', $id);
+    $deleted = mysqli_stmt_execute($stmtDeleteTag);
+    mysqli_stmt_close($stmtDeleteTag);
+
+    if (!$deleted) {
+        echo json_encode(['success' => false, 'message' => 'Erro ao excluir a tag']);
+        exit;
+    }
+
+    echo json_encode([
+        'success' => true,
+        'message' => 'Tag excluída com sucesso',
+        'deleted_nome' => $nomeAnterior,
+        'produtos_afetados' => $produtosAfetados,
+    ]);
     exit;
 }
 
@@ -168,6 +416,8 @@ if (mysqli_num_rows($table_exists) == 0) {
         }
     }
 }
+
+  syncProdutoTagsFromProducts($conexao);
 
 // Criar tabela de variações
 $check_variations = "SHOW TABLES LIKE 'produto_variacoes'";
@@ -361,7 +611,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $dimensoes = trim($_POST['dimensoes']);
     $status = $_POST['status'];
     $destaque = isset($_POST['destaque']) ? 1 : 0;
-    $tags = trim($_POST['tags']);
+    $tagsInput = trim((string) ($_POST['tags'] ?? ''));
+    if ($tagsInput !== '') {
+      $parts = preg_split('/\s*,\s*/', $tagsInput);
+      $firstTag = trim((string) ($parts[0] ?? ''));
+      $tags = normalizeTagName($firstTag);
+      if ($tags !== '') {
+          ensureProdutoTagExists($conexao, $tags);
+      }
+    } else {
+      $tags = '';
+    }
     $seo_title = trim($_POST['seo_title']);
     $seo_description = trim($_POST['seo_description']);
     $video_url = trim($_POST['video_url'] ?? '');
@@ -1493,6 +1753,12 @@ if (mysqli_num_rows($categorias_result) == 0) {
         align-items: center;
         gap: 0.5rem;
       }
+
+      .checkbox-group input[type="checkbox"] {
+        position: absolute;
+        opacity: 0;
+        pointer-events: none;
+      }
       
       .custom-checkbox {
         width: 18px;
@@ -1511,7 +1777,7 @@ if (mysqli_num_rows($categorias_result) == 0) {
       }
       
       .custom-checkbox.checked::after {
-        content: '�o"';
+        content: "\2713";
         position: absolute;
         top: 50%;
         left: 50%;
@@ -1565,7 +1831,7 @@ if (mysqli_num_rows($categorias_result) == 0) {
       }
       
       .miniatura-option.selected::after {
-        content: '�~.';
+        content: "\2713";
         background: var(--color-danger);
         color: white;
         display: flex;
@@ -1732,6 +1998,17 @@ if (mysqli_num_rows($categorias_result) == 0) {
 
       body.dark-theme-variables .form-section {
         background: var(--color-white);
+      }
+
+      body.dark-theme-variables .selected-tags,
+      body.dark-theme-variables .tags-dropdown,
+      body.dark-theme-variables .tags-search-input {
+        background: var(--color-white);
+        color: var(--color-dark);
+      }
+
+      body.dark-theme-variables .selected-tag {
+        color: var(--color-dark);
       }
 
       /* === MODERN TOAST NOTIFICATIONS === */
@@ -1964,6 +2241,216 @@ if (mysqli_num_rows($categorias_result) == 0) {
 
       .btn-icon-small.btn-delete .material-symbols-sharp {
         color: #f44336;
+      }
+
+      /* Componente customizado de tags */
+      .custom-tags-select {
+        position: relative;
+        width: 100%;
+      }
+
+      .selected-tags {
+        min-height: 48px;
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        padding: 0.55rem 0.85rem;
+        background: var(--color-white);
+        border: 2px solid var(--color-info-light);
+        border-radius: 10px;
+        cursor: pointer;
+        transition: all 0.25s ease;
+      }
+
+      .selected-tags:hover {
+        border-color: var(--color-primary);
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+      }
+
+      .selected-tags .selected-text {
+        color: var(--color-dark-variant);
+        font-size: 0.94rem;
+      }
+
+      .selected-tags .dropdown-icon {
+        margin-left: auto;
+        color: var(--color-dark-variant);
+        font-size: 20px;
+        transition: transform 0.2s ease;
+      }
+
+      .selected-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.28rem;
+        padding: 0.28rem 0.55rem;
+        border-radius: 999px;
+        background: rgba(198, 167, 94, 0.14);
+        border: 1px solid rgba(198, 167, 94, 0.35);
+        color: #0f1c2e;
+        font-size: 0.74rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+      }
+
+      .remove-tag {
+        font-size: 15px;
+        cursor: pointer;
+        border-radius: 50%;
+        padding: 1px;
+        transition: background 0.2s ease;
+      }
+
+      .remove-tag:hover {
+        background: rgba(15, 28, 46, 0.12);
+      }
+
+      .tags-dropdown {
+        position: absolute;
+        top: calc(100% + 6px);
+        left: 0;
+        right: 0;
+        background: var(--color-white);
+        border: 2px solid var(--color-info-light);
+        border-radius: 10px;
+        box-shadow: 0 14px 28px rgba(0, 0, 0, 0.12);
+        z-index: 1200;
+        display: none;
+        overflow: hidden;
+      }
+
+      .tags-search-container {
+        padding: 0.65rem;
+        border-bottom: 1px solid var(--color-info-light);
+        background: rgba(15, 28, 46, 0.02);
+      }
+
+      .tags-search-input {
+        width: 100%;
+        border: 1px solid var(--color-info-light);
+        border-radius: 8px;
+        padding: 0.55rem 0.7rem;
+        font-size: 0.9rem;
+      }
+
+      .tags-search-input:focus {
+        outline: none;
+        border-color: var(--color-primary);
+        box-shadow: 0 0 0 3px rgba(198, 167, 94, 0.14);
+      }
+
+      .tags-list {
+        max-height: 220px;
+        overflow-y: auto;
+      }
+
+      .tag-option {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        border: none;
+        background: transparent;
+        padding: 0.65rem 0.9rem;
+        font-size: 0.9rem;
+        text-align: left;
+        cursor: pointer;
+        color: var(--color-dark);
+        transition: background 0.2s ease;
+      }
+
+      .tag-option:hover {
+        background: rgba(198, 167, 94, 0.09);
+      }
+
+      .tag-option-row {
+        display: flex;
+        align-items: center;
+        border-bottom: 1px solid rgba(15, 28, 46, 0.06);
+      }
+
+      .tag-option-row:last-child {
+        border-bottom: none;
+      }
+
+      .tag-option-label {
+        flex: 1;
+      }
+
+      .tag-option-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.2rem;
+        padding-right: 0.45rem;
+      }
+
+      .tag-option-action {
+        border: none;
+        background: transparent;
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: background 0.2s ease;
+      }
+
+      .tag-option-action:hover {
+        background: rgba(198, 167, 94, 0.12);
+      }
+
+      .tag-option-action.is-danger:hover {
+        background: rgba(244, 67, 54, 0.12);
+      }
+
+      .tag-option-action .material-symbols-sharp {
+        font-size: 18px;
+        color: var(--color-dark-variant);
+      }
+
+      .tag-option-action.is-danger .material-symbols-sharp {
+        color: #f44336;
+      }
+
+      .tags-empty {
+        padding: 0.9rem;
+        color: var(--color-info-dark);
+        font-size: 0.86rem;
+      }
+
+      .tags-create {
+        border-top: 1px solid var(--color-info-light);
+      }
+
+      .tags-create-btn {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        border: none;
+        background: rgba(198, 167, 94, 0.06);
+        color: #0f1c2e;
+        font-weight: 600;
+        cursor: pointer;
+        padding: 0.65rem 0.9rem;
+        transition: background 0.2s ease;
+      }
+
+      .tags-create-btn:hover {
+        background: rgba(198, 167, 94, 0.15);
+      }
+
+      .status-select {
+        font-weight: 600;
+      }
+
+      .status-help {
+        margin-top: 0.45rem;
+        color: var(--color-info-dark);
+        font-size: 0.83rem;
       }
 
       /* Modal para editar/excluir categoria */
@@ -2650,17 +3137,18 @@ if (mysqli_num_rows($categorias_result) == 0) {
 
                   <div class="form-group">
                     <label class="form-label">Status</label>
-                    <select name="status" class="form-select">
+                    <select name="status" class="form-select status-select">
                       <option value="ativo" <?php echo ($produto['status'] ?? 'ativo') == 'ativo' ? 'selected' : ''; ?>>
-                        �o. Ativo (visível na loja)
+                        Ativo (visivel na loja)
                       </option>
                       <option value="inativo" <?php echo ($produto['status'] ?? '') == 'inativo' ? 'selected' : ''; ?>>
-                        �O Inativo (oculto na loja)
+                        Inativo (oculto na loja)
                       </option>
                       <option value="rascunho" <?php echo ($produto['status'] ?? '') == 'rascunho' ? 'selected' : ''; ?>>
-                        �Y"� Rascunho (em edição)
+                        Rascunho (em edicao)
                       </option>
                     </select>
+                    <div class="status-help">Defina se o produto fica publico, oculto ou em preparo.</div>
                   </div>
 
                   <div class="form-group">
@@ -2684,9 +3172,28 @@ if (mysqli_num_rows($categorias_result) == 0) {
                   </h2>
 
                   <div class="form-group">
-                    <textarea name="tags" class="form-textarea" 
-                              placeholder="smartphone, android, samsung, celular"><?php echo htmlspecialchars($produto['tags'] ?? ''); ?></textarea>
-                    <div class="form-help">Separe as tags por vírgulas</div>
+                    <label class="form-label">Selecione ou crie 1 tag</label>
+                    <div class="custom-tags-select" id="custom-tags-select">
+                      <div class="selected-tags" id="selected-tags">
+                        <span class="selected-text">Nenhuma tag selecionada</span>
+                        <span class="material-symbols-sharp dropdown-icon">expand_more</span>
+                      </div>
+                      <div class="tags-dropdown" id="tags-dropdown">
+                        <div class="tags-search-container">
+                          <input type="text" class="tags-search-input" id="tags-search-input" 
+                                 placeholder="Buscar ou criar nova tag..." autocomplete="off">
+                        </div>
+                        <div class="tags-list" id="tags-list"></div>
+                        <div class="tags-create" id="tags-create" style="display:none;">
+                          <button type="button" class="tags-create-btn" id="tags-create-btn">
+                            <span class="material-symbols-sharp">add</span>
+                            Criar nova tag
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    <input type="hidden" name="tags" id="tags-hidden" value="<?php echo htmlspecialchars($produto['tags'] ?? ''); ?>">
+                    <div class="form-help">Apenas uma tag por produto. Você pode criar, editar e excluir tags aqui, e elas ficam salvas para reutilizar em outros produtos.</div>
                   </div>
                 </div>
 
@@ -3332,56 +3839,325 @@ function fecharModalDeleteCategoria() {
 
 async function confirmarExclusaoCategoria() {
   if (!currentCategoriaDeleteId) return;
-  
-  // REMOVER DO DOM IMEDIATAMENTE (UI otimista)
-  const item = document.querySelector(`.categoria-item[data-id="${currentCategoriaDeleteId}"]`);
-  
-  if (item) {
-    // Se estava selecionada, limpar seleção
-    if (item.classList.contains('selected')) {
-      document.getElementById('selected-categoria').querySelector('.selected-text').textContent = 'Selecione uma categoria';
-      document.getElementById('categoria-select').value = '';
-      document.getElementById('categoria-hidden').value = '';
-    }
-    
-    // Remover do DOM com animação IMEDIATAMENTE
-    item.style.opacity = '0';
-    item.style.transform = 'translateX(-20px)';
-    item.style.transition = 'all 0.3s ease';
-    
-    setTimeout(() => item.remove(), 300);
-  }
-  
-  // Remover também do select oculto
-  const hiddenSelect = document.getElementById('categoria-select');
-  const option = hiddenSelect?.querySelector(`option[value="${currentCategoriaDeleteId}"]`);
-  if (option) option.remove();
-  
-  // Fechar modal IMEDIATAMENTE
-  fecharModalDeleteCategoria();
-  
-  // Fazer requisição ao servidor em background
+
+  const categoriaId = currentCategoriaDeleteId;
+
   try {
     const formData = new FormData();
     formData.append('action', 'delete_categoria');
-    formData.append('id', currentCategoriaDeleteId);
-    
+    formData.append('id', categoriaId);
+
     const response = await fetch(window.location.href, {
       method: 'POST',
       body: formData
     });
-    
+
     const result = await response.json();
-    
-    if (result.success) {
-      showToast('Categoria excluída com sucesso!', 'success');
-    } else {
+
+    if (!result.success) {
       showToast(result.message || 'Erro ao excluir categoria', 'error');
-      setTimeout(() => location.reload(), 2000);
+      return;
     }
+
+    // Só remove da UI depois de sucesso no backend
+    const item = document.querySelector(`.categoria-item[data-id="${categoriaId}"]`);
+    if (item) {
+      if (item.classList.contains('selected')) {
+        document.getElementById('selected-categoria').querySelector('.selected-text').textContent = 'Selecione uma categoria';
+        document.getElementById('categoria-select').value = '';
+        document.getElementById('categoria-hidden').value = '';
+      }
+
+      item.style.opacity = '0';
+      item.style.transform = 'translateX(-20px)';
+      item.style.transition = 'all 0.2s ease';
+      setTimeout(() => item.remove(), 200);
+    }
+
+    const hiddenSelect = document.getElementById('categoria-select');
+    const option = hiddenSelect?.querySelector(`option[value="${categoriaId}"]`);
+    if (option) option.remove();
+
+    showToast('Categoria excluída com sucesso!', 'success');
+    fecharModalDeleteCategoria();
   } catch (error) {
     showToast('Erro ao comunicar com o servidor', 'error');
-    setTimeout(() => location.reload(), 2000);
+  }
+}
+
+// ===== FUNÇÕES DE GERENCIAMENTO DE TAGS =====
+let allTagsList = [];
+let selectedTag = '';
+let currentTagsDropdownOpen = false;
+
+function escapeTagHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function escapeTagJs(value) {
+  return String(value)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'");
+}
+
+function normalizeTagValue(value) {
+  return String(value || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+}
+
+function sortTagsList() {
+  allTagsList.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }));
+}
+
+function renderTagOption(tag) {
+  return `
+    <div class="tag-option-row">
+      <button type="button" class="tag-option tag-option-label" onclick="selectTagByName('${escapeTagJs(tag.nome)}')">${escapeTagHtml(tag.nome)}</button>
+      <div class="tag-option-actions">
+        <button type="button" class="tag-option-action" onclick="editTag(${tag.id}, '${escapeTagJs(tag.nome)}', event)" title="Editar tag">
+          <span class="material-symbols-sharp">edit</span>
+        </button>
+        <button type="button" class="tag-option-action is-danger" onclick="deleteTag(${tag.id}, '${escapeTagJs(tag.nome)}', event)" title="Excluir tag">
+          <span class="material-symbols-sharp">delete</span>
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+async function initializeTags() {
+  try {
+    const response = await fetch('?action=get_tags');
+    allTagsList = await response.json();
+  } catch (error) {
+    console.error('Erro ao buscar tags:', error);
+    allTagsList = [];
+  }
+
+  const tagsInput = document.getElementById('tags-hidden');
+  if (tagsInput && tagsInput.value) {
+    selectedTag = normalizeTagValue(tagsInput.value);
+  }
+
+  sortTagsList();
+  renderTagsUI();
+}
+
+function renderTagsUI() {
+  const selectedTagsContainer = document.getElementById('selected-tags');
+  if (selectedTagsContainer) {
+    if (!selectedTag) {
+      selectedTagsContainer.innerHTML = '<span class="selected-text">Nenhuma tag selecionada</span><span class="material-symbols-sharp dropdown-icon">expand_more</span>';
+    } else {
+      selectedTagsContainer.innerHTML = `<span class="selected-tag">${escapeTagHtml(selectedTag)} <span class="material-symbols-sharp remove-tag" onclick="removeTag(event)">close</span></span><span class="material-symbols-sharp dropdown-icon">expand_more</span>`;
+    }
+  }
+
+  const tagsList = document.getElementById('tags-list');
+  if (tagsList) {
+    const availableTags = allTagsList.filter(tag => tag.nome !== selectedTag);
+    if (availableTags.length === 0) {
+      tagsList.innerHTML = '<div class="tags-empty">Nenhuma tag disponível</div>';
+    } else {
+      tagsList.innerHTML = availableTags.map(renderTagOption).join('');
+    }
+  }
+
+  const tagsHiddenInput = document.getElementById('tags-hidden');
+  if (tagsHiddenInput) {
+    tagsHiddenInput.value = selectedTag;
+  }
+}
+
+function selectTagByName(tag) {
+  const normalized = normalizeTagValue(tag);
+  if (!normalized) return;
+
+  selectedTag = normalized;
+  document.getElementById('tags-search-input').value = '';
+  document.getElementById('tags-create').style.display = 'none';
+  renderTagsUI();
+}
+
+function removeTag(event) {
+  if (event) {
+    event.stopPropagation();
+  }
+
+  selectedTag = '';
+  renderTagsUI();
+}
+
+function toggleTagsDropdown() {
+  const dropdown = document.getElementById('tags-dropdown');
+  currentTagsDropdownOpen = !currentTagsDropdownOpen;
+  dropdown.style.display = currentTagsDropdownOpen ? 'block' : 'none';
+
+  if (currentTagsDropdownOpen) {
+    document.getElementById('tags-search-input').focus();
+  }
+}
+
+function setupTagsControl() {
+  const selectedTagsElement = document.getElementById('selected-tags');
+  if (selectedTagsElement) {
+    selectedTagsElement.addEventListener('click', toggleTagsDropdown);
+  }
+
+  const searchInput = document.getElementById('tags-search-input');
+  if (searchInput) {
+    searchInput.addEventListener('input', function() {
+      const searchTerm = normalizeTagValue(this.value);
+      const tagsList = document.getElementById('tags-list');
+      const createContainer = document.getElementById('tags-create');
+      const createButton = document.getElementById('tags-create-btn');
+
+      if (searchTerm === '') {
+        createContainer.style.display = 'none';
+        renderTagsUI();
+        return;
+      }
+
+      const availableTags = allTagsList.filter(tag => tag.nome.includes(searchTerm) && tag.nome !== selectedTag);
+      const exactExists = allTagsList.some(tag => tag.nome === searchTerm);
+
+      if (availableTags.length === 0) {
+        tagsList.innerHTML = '<div class="tags-empty">Nenhuma tag encontrada</div>';
+      } else {
+        tagsList.innerHTML = availableTags.map(renderTagOption).join('');
+      }
+
+      if (!exactExists) {
+        createContainer.style.display = 'block';
+        createButton.innerHTML = `<span class="material-symbols-sharp">add</span>Criar "${escapeTagHtml(searchTerm)}"`;
+        createButton.onclick = () => createTag(searchTerm);
+      } else {
+        createContainer.style.display = 'none';
+      }
+    });
+  }
+
+  document.addEventListener('click', function(event) {
+    const tagsSelect = document.getElementById('custom-tags-select');
+    if (tagsSelect && !tagsSelect.contains(event.target)) {
+      document.getElementById('tags-dropdown').style.display = 'none';
+      currentTagsDropdownOpen = false;
+    }
+  });
+}
+
+async function submitTagAction(payload) {
+  const response = await fetch('', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+    },
+    body: new URLSearchParams(payload).toString()
+  });
+
+  return response.json();
+}
+
+async function createTag(tagName) {
+  const tag = normalizeTagValue(tagName);
+  if (!tag) {
+    return;
+  }
+
+  try {
+    const result = await submitTagAction({ action: 'create_tag', nome: tag });
+    if (!result.success) {
+      showToast(result.message || 'Não foi possível criar a tag', 'error');
+      return;
+    }
+
+    const exists = allTagsList.some(item => item.id === result.tag.id || item.nome === result.tag.nome);
+    if (!exists) {
+      allTagsList.push(result.tag);
+    }
+
+    sortTagsList();
+    selectedTag = result.tag.nome;
+    document.getElementById('tags-search-input').value = '';
+    document.getElementById('tags-create').style.display = 'none';
+    renderTagsUI();
+    showToast('Tag criada com sucesso!', 'success');
+  } catch (error) {
+    showToast('Erro ao criar a tag', 'error');
+  }
+}
+
+async function editTag(id, nomeAtual, event) {
+  if (event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
+
+  const novoNome = window.prompt('Editar tag', nomeAtual);
+  if (novoNome === null) {
+    return;
+  }
+
+  const nomeNormalizado = normalizeTagValue(novoNome);
+  if (!nomeNormalizado) {
+    showToast('Digite um nome válido para a tag', 'warning');
+    return;
+  }
+
+  try {
+    const result = await submitTagAction({ action: 'edit_tag', id: String(id), nome: nomeNormalizado });
+    if (!result.success) {
+      showToast(result.message || 'Não foi possível editar a tag', 'error');
+      return;
+    }
+
+    allTagsList = allTagsList.map(tag => tag.id === id ? result.tag : tag);
+    sortTagsList();
+
+    if (selectedTag === normalizeTagValue(result.old_nome || nomeAtual)) {
+      selectedTag = result.tag.nome;
+    }
+
+    renderTagsUI();
+    showToast('Tag atualizada com sucesso!', 'success');
+  } catch (error) {
+    showToast('Erro ao editar a tag', 'error');
+  }
+}
+
+async function deleteTag(id, nomeAtual, event) {
+  if (event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
+
+  if (!window.confirm(`Excluir a tag "${nomeAtual}"? Ela será removida dos produtos que estiverem usando essa tag.`)) {
+    return;
+  }
+
+  try {
+    const result = await submitTagAction({ action: 'delete_tag', id: String(id) });
+    if (!result.success) {
+      showToast(result.message || 'Não foi possível excluir a tag', 'error');
+      return;
+    }
+
+    allTagsList = allTagsList.filter(tag => tag.id !== id);
+    if (selectedTag === normalizeTagValue(nomeAtual)) {
+      selectedTag = '';
+    }
+
+    renderTagsUI();
+    showToast('Tag excluída com sucesso!', 'success');
+  } catch (error) {
+    showToast('Erro ao excluir a tag', 'error');
   }
 }
 
@@ -3391,6 +4167,8 @@ document.addEventListener('DOMContentLoaded', function() {
   setupValidation();
   setupSubcategoriaControl();
   setupCategoriaControl();
+  setupTagsControl();
+  initializeTags();
   
   const form = document.getElementById('productForm');
   if (form) {

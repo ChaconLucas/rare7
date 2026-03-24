@@ -20,9 +20,11 @@ if ($produtoId <= 0) {
     exit;
 }
 
-$query = "SELECT p.*, c.nome AS categoria, c.id AS categoria_id
+$query = "SELECT p.*, c.nome AS categoria, c.id AS categoria_id, c.menu_group AS category_menu_group,
+                 CASE WHEN fp.product_id IS NOT NULL THEN 'yes' ELSE NULL END AS is_lancamento
           FROM produtos p
           LEFT JOIN categorias c ON p.categoria_id = c.id
+          LEFT JOIN home_featured_products fp ON p.id = fp.product_id AND fp.section_key = 'launches'
           WHERE p.id = ? AND p.status = 'ativo'";
 $stmt = mysqli_prepare($conn, $query);
 mysqli_stmt_bind_param($stmt, 'i', $produtoId);
@@ -55,8 +57,12 @@ function productImageUrl(?string $fileName): string
 
 $produtosRelacionados = [];
 if ($produto['categoria_id']) {
-    $queryRelacionados = "SELECT * FROM produtos
-                          WHERE categoria_id = ? AND id != ? AND status = 'ativo'
+    $queryRelacionados = "SELECT p.*, c.menu_group AS category_menu_group,
+                          CASE WHEN fp.product_id IS NOT NULL THEN 'yes' ELSE NULL END AS is_lancamento
+                          FROM produtos p
+                          LEFT JOIN categorias c ON p.categoria_id = c.id
+                          LEFT JOIN home_featured_products fp ON p.id = fp.product_id AND fp.section_key = 'launches'
+                          WHERE p.categoria_id = ? AND p.id != ? AND p.status = 'ativo'
                           ORDER BY RAND()
                           LIMIT 6";
     $stmtRel = mysqli_prepare($conn, $queryRelacionados);
@@ -71,8 +77,12 @@ if ($produto['categoria_id']) {
 
 $produtosCombos = [];
 if (!empty($produto['marca'])) {
-    $queryCombos = "SELECT * FROM produtos
-                    WHERE marca = ? AND id != ? AND status = 'ativo'
+    $queryCombos = "SELECT p.*, c.menu_group AS category_menu_group,
+                    CASE WHEN fp.product_id IS NOT NULL THEN 'yes' ELSE NULL END AS is_lancamento
+                    FROM produtos p
+                    LEFT JOIN categorias c ON p.categoria_id = c.id
+                    LEFT JOIN home_featured_products fp ON p.id = fp.product_id AND fp.section_key = 'launches'
+                    WHERE p.marca = ? AND p.id != ? AND p.status = 'ativo'
                     ORDER BY RAND()
                     LIMIT 6";
     $stmtCombos = mysqli_prepare($conn, $queryCombos);
@@ -201,10 +211,8 @@ if (mb_strlen($descricaoCurta) > 180) {
     $descricaoCurta = mb_substr($descricaoCurta, 0, 180) . '...';
 }
 
-$badgeProduto = getProductBadge($produto);
-if ($badgeProduto === '') {
-    $badgeProduto = 'Mais vendido';
-}
+$tagsProduto = getProductTags($produto);
+$badgeProduto = !empty($tagsProduto) ? (string) ($tagsProduto[0]['label'] ?? '') : '';
 
 $relacionadosFinal = array_slice($produtosRelacionados, 0, 3);
 if (count($relacionadosFinal) < 3) {
@@ -248,7 +256,9 @@ $pageTitle = htmlspecialchars($produto['nome']) . ' | RARE7';
                 <h2><?php echo htmlspecialchars($produto['nome']); ?></h2>
             </div>
             <div class="rare-product-topbar-meta">
-                <span><?php echo htmlspecialchars($badgeProduto); ?></span>
+                <?php if ($badgeProduto !== ''): ?>
+                    <span><?php echo htmlspecialchars($badgeProduto); ?></span>
+                <?php endif; ?>
                 <span>Estoque: <?php echo (int) ($produto['estoque'] ?? 0); ?></span>
             </div>
         </header>
@@ -264,7 +274,9 @@ $pageTitle = htmlspecialchars($produto['nome']) . ' | RARE7';
         <div class="rare-product-main">
             <div class="rare-gallery-card">
                 <figure class="rare-gallery-main">
-                    <span class="rare-gallery-badge"><?php echo strtoupper(htmlspecialchars($badgeProduto)); ?></span>
+                    <?php if ($badgeProduto !== ''): ?>
+                        <span class="rare-gallery-badge"><?php echo strtoupper(htmlspecialchars($badgeProduto)); ?></span>
+                    <?php endif; ?>
                     <?php if ($imagemPrincipal !== ''): ?>
                         <img
                             id="rareMainImage"
@@ -298,6 +310,15 @@ $pageTitle = htmlspecialchars($produto['nome']) . ' | RARE7';
             <div class="rare-buy-card">
                 <p class="rare-buy-category"><?php echo htmlspecialchars($categoriaTexto); ?></p>
                 <h1><?php echo htmlspecialchars($produto['nome']); ?></h1>
+                <?php if (!empty($tagsProduto)): ?>
+                    <div class="rare-product-tags">
+                        <?php foreach ($tagsProduto as $tag): ?>
+                            <span class="rare-tag rare-tag-<?php echo htmlspecialchars((string) ($tag['type'] ?? 'custom')); ?>">
+                                <?php echo htmlspecialchars((string) ($tag['label'] ?? '')); ?>
+                            </span>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
                 <p class="rare-buy-description"><?php echo htmlspecialchars($descricaoCurta); ?></p>
 
                 <div class="rare-price-box" id="rarePriceBox">
@@ -431,6 +452,7 @@ $pageTitle = htmlspecialchars($produto['nome']) . ' | RARE7';
                             $precoRel = isOnSale($rel)
                                 ? (float) ($rel['preco_promocional'] ?? $rel['preco'])
                                 : (float) ($rel['preco'] ?? 0);
+                            $relTags = getProductTags($rel);
                         ?>
                         <article class="rare-related-card">
                             <a href="produto.php?id=<?php echo (int) $rel['id']; ?>" class="rare-related-media">
@@ -443,6 +465,15 @@ $pageTitle = htmlspecialchars($produto['nome']) . ' | RARE7';
                             </a>
                             <div class="rare-related-copy">
                                 <h3><?php echo htmlspecialchars($rel['nome']); ?></h3>
+                                <?php if (!empty($relTags)): ?>
+                                    <div class="rare-product-tags-inline">
+                                        <?php foreach ($relTags as $tag): ?>
+                                            <span class="rare-tag rare-tag-small rare-tag-<?php echo htmlspecialchars((string) ($tag['type'] ?? 'custom')); ?>">
+                                                <?php echo htmlspecialchars((string) ($tag['label'] ?? '')); ?>
+                                            </span>
+                                        <?php endforeach; ?>
+                                    </div>
+                                <?php endif; ?>
                                 <p><?php echo formatPrice($precoRel); ?></p>
                                 <a href="produto.php?id=<?php echo (int) $rel['id']; ?>" class="rare-related-link">Ver produto</a>
                             </div>

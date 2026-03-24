@@ -159,6 +159,10 @@ $mapToVitrinePayload = static function (array $product): array {
     $productId = (int)($product['id'] ?? 0);
     global $productSizesMap;
     $sizes = $productSizesMap[$productId] ?? [];
+    $productTags = getProductTags($product);
+    $tagLabels = array_values(array_map(static function ($tag) {
+        return (string) ($tag['label'] ?? '');
+    }, $productTags));
 
     return [
         'id' => (int)($product['id'] ?? 0),
@@ -169,6 +173,7 @@ $mapToVitrinePayload = static function (array $product): array {
         'sale_price' => (float)($product['preco_promocional'] ?? 0),
         'image' => $img,
         'is_launch' => ($product['is_lancamento'] ?? '') === 'yes',
+        'tags' => $tagLabels,
         'sizes' => $sizes,
         'has_sizes' => !empty($sizes)
     ];
@@ -287,8 +292,10 @@ $launchButtonLink = trim($homeSettings['launch_button_link'] ?? '') ?: '#catalog
 $benefitsTitle = trim($homeSettings['benefits_title'] ?? '') ?: 'Beneficios Rare';
 $benefitsSubtitle = trim($homeSettings['benefits_subtitle'] ?? '') ?: 'Acabamento premium e experiencia de compra refinada.';
 
-$productsTitle = trim($homeSettings['products_title'] ?? '') ?: 'Produtos Reais da Loja';
-$productsSubtitle = trim($homeSettings['products_subtitle'] ?? '') ?: 'Itens vindos diretamente do seu loop PHP atual.';
+$productsTitle = trim($homeSettings['products_title'] ?? '') ?: 'Todos os Produtos';
+$productsSubtitle = array_key_exists('products_subtitle', $homeSettings)
+    ? trim((string)$homeSettings['products_subtitle'])
+    : 'Toda a nossa coleção premium em um só lugar';
 $productsButtonText = trim($homeSettings['products_button_text'] ?? '') ?: 'Ver todos os produtos';
 $productsButtonLink = trim($homeSettings['products_button_link'] ?? '') ?: 'produtos.php';
 
@@ -456,15 +463,6 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
             <div class="container-shell">
                 <div class="section-head">
                     <h2><?php echo htmlspecialchars($launchTitle); ?></h2>
-                    <p><?php echo htmlspecialchars($launchSubtitle); ?></p>
-                </div>
-
-                <div class="vitrine-filters" id="vitrineFilters">
-                    <button class="active" data-category="lancamentos"><span></span>Lancamentos</button>
-                    <button data-category="clubes"><span></span>Clubes</button>
-                    <button data-category="selecoes"><span></span>Selecoes</button>
-                    <button data-category="retro"><span></span>Retro</button>
-                    <button data-category="raras"><span></span>Raras</button>
                 </div>
 
                 <div class="vitrine-stage">
@@ -503,6 +501,10 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
 
                 <div class="product-grid" id="catalogCards">
                     <?php foreach ($allProducts as $product): ?>
+                    <?php
+                        $cardTags = getProductTags($product);
+                        $primaryTag = !empty($cardTags) ? (string) ($cardTags[0]['label'] ?? '') : '';
+                    ?>
                     <article class="product-card reveal" data-product-id="<?php echo (int)$product['id']; ?>" data-product-url="produto.php?id=<?php echo (int)$product['id']; ?>">
                             <div class="product-image-wrap">
                                 <?php if (!empty($product['imagem_principal'])): ?>
@@ -510,7 +512,9 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
                                 <?php else: ?>
                                 <div class="product-image-fallback">RARE</div>
                                 <?php endif; ?>
-                                <span class="product-badge"><?php echo htmlspecialchars($product['categoria'] ?? 'Premium'); ?></span>
+                                <?php if ($primaryTag !== ''): ?>
+                                <span class="product-badge"><?php echo htmlspecialchars($primaryTag); ?></span>
+                                <?php endif; ?>
                             </div>
                             <div class="product-info">
                                 <h3><?php echo htmlspecialchars($product['nome']); ?></h3>
@@ -881,13 +885,21 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
             ? `<span class="old-price">${formatPrice(p.price)}</span><span class="gold-price">${formatPrice(p.sale_price)}</span>`
             : `<span class="gold-price">${formatPrice(p.price)}</span>`;
 
+                    const primaryTag = Array.isArray(p.tags)
+                        ? p.tags.find((t) => String(t || '').trim() !== '')
+                        : '';
+
           const img = p.image
             ? `<img src="${escapeHtml(p.image)}" alt="${escapeHtml(p.name)}" loading="lazy">`
             : '<div class="product-image-fallback">RARE</div>';
 
-          return `
+                    const badgeHtml = primaryTag
+                        ? `<span class="product-badge">${escapeHtml(primaryTag)}</span>`
+                        : '';
+
+                    return `
                         <article class="vitrine-card" data-product-id="${Number(p.id || 0)}" data-product-url="produto.php?id=${Number(p.id || 0)}">
-                                <div class="vitrine-image">${img}<span class="product-badge">${escapeHtml(p.category || 'Rare')}</span></div>
+                                                                <div class="vitrine-image">${img}${badgeHtml}</div>
                                 <div class="vitrine-body">
                                     <h3>${escapeHtml(p.name)}</h3>
                                     <p>${escapeHtml((p.description || '').trim() || 'Produto premium da Rare.')}</p>
@@ -1022,15 +1034,17 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
                 });
             }
 
-      filters.addEventListener('click', (event) => {
-        const btn = event.target.closest('button[data-category]');
-        if (!btn) return;
-        activeCategory = btn.dataset.category;
-        page = 0;
-        filters.querySelectorAll('button').forEach((item) => item.classList.remove('active'));
-        btn.classList.add('active');
-        renderVitrine();
-      });
+            if (filters) {
+                filters.addEventListener('click', (event) => {
+                    const btn = event.target.closest('button[data-category]');
+                    if (!btn) return;
+                    activeCategory = btn.dataset.category;
+                    page = 0;
+                    filters.querySelectorAll('button').forEach((item) => item.classList.remove('active'));
+                    btn.classList.add('active');
+                    renderVitrine();
+                });
+            }
 
       btnPrev.addEventListener('click', () => {
         const list = getCurrentList();
