@@ -65,11 +65,8 @@ include '../includes/header.php';
 
     <section class="cart-layout">
         <div class="cart-main-column">
-            <div id="freeShippingBar" class="free-shipping-bar" style="display:none;">
-                <div class="shipping-text" id="shippingText">Faltam <strong id="shippingRemaining">R$ 0,00</strong> para frete gratis.</div>
-                <div class="progress-container">
-                    <div class="progress-bar" id="progressBar" style="width:0%"></div>
-                </div>
+            <div id="freeShippingBarMain" class="free-shipping-bar" style="display:none; width:100%; max-width:none; margin-bottom:12px; padding:0; border:none; background:transparent; box-shadow:none;">
+                <!-- Conteúdo gerado dinamicamente pelo JavaScript -->
             </div>
 
             <div class="cart-products" id="cartItemsContainer">
@@ -579,24 +576,21 @@ function atualizarInfoAplicadas() {
 }
 
 function atualizarProgressoFreteGratis() {
-    const bar = document.getElementById('freeShippingBar');
-    const text = document.getElementById('shippingText');
-    const progressBar = document.getElementById('progressBar');
+    const bar = document.getElementById('freeShippingBarMain');
 
-    if (!bar || !text || !progressBar) return;
+    if (!bar) return;
 
     if (carrinho.subtotal >= CONFIG.freteGratisLimite) {
-        text.innerHTML = 'Parabens! Voce ganhou frete gratis.';
-        progressBar.style.width = '100%';
-        bar.style.display = 'block';
-    } else if (carrinho.subtotal > 0) {
-        const falta = CONFIG.freteGratisLimite - carrinho.subtotal;
-        const porcentagem = (carrinho.subtotal / CONFIG.freteGratisLimite) * 100;
-        text.innerHTML = `Faltam <strong>R$ ${formatarDinheiro(falta)}</strong> para frete gratis.`;
-        progressBar.style.width = porcentagem + '%';
+        // Frete desbloqueado - estilo verde premium
+        bar.innerHTML = '<div style="background:linear-gradient(135deg,#1a4d2e 0%,#0f2818 100%);border:1px solid rgba(52,211,153,0.3);border-radius:10px;padding:10px 12px;display:flex;align-items:center;justify-content:center;gap:8px"><span class="material-symbols-sharp" style="font-size:18px;color:#34d399">check_circle</span><div style="text-align:center"><div style="font-size:0.66rem;color:#34d399;font-weight:600;text-transform:uppercase;letter-spacing:0.45px;margin-bottom:1px">Parabéns!</div><div style="font-size:0.8rem;color:#34d399;font-weight:700">Frete Grátis Desbloqueado</div></div></div>';
         bar.style.display = 'block';
     } else {
-        bar.style.display = 'none';
+        // Progresso - estilo ouro premium (inclusive para subtotal zero)
+        const falta = Math.max(0, CONFIG.freteGratisLimite - carrinho.subtotal);
+        const porcentagem = Math.min(100, Math.max(0, (carrinho.subtotal / CONFIG.freteGratisLimite) * 100));
+
+        bar.innerHTML = '<div style="background:linear-gradient(135deg,#1a1a1a 0%,#0f1c2e 100%);border:1px solid rgba(198,167,94,0.2);border-radius:10px;padding:10px 12px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><div style="display:flex;align-items:center;gap:6px"><span class="material-symbols-sharp" style="font-size:16px;color:#bfc5cc">local_shipping</span><span style="font-size:0.68rem;color:#bfc5cc;font-weight:600;text-transform:uppercase;letter-spacing:0.45px">Frete Grátis</span></div><span style="font-size:0.82rem;color:#c6a75e;font-weight:700">R$ ' + formatarDinheiro(carrinho.subtotal) + ' / R$ ' + formatarDinheiro(CONFIG.freteGratisLimite) + '</span></div><div style="height:5px;background:rgba(255,255,255,0.06);border-radius:99px;overflow:hidden;border:1px solid rgba(198,167,94,0.15)"><div style="height:100%;background:linear-gradient(90deg,#c6a75e 0%,#e6d1a3 100%);border-radius:inherit;transition:width 0.45s cubic-bezier(0.34,1.56,0.64,1);width:' + porcentagem + '%;box-shadow:0 0 14px rgba(198,167,94,0.35)"></div></div><div style="font-size:0.7rem;color:#bfc5cc;margin-top:6px;text-align:right">Faltam R$ ' + formatarDinheiro(falta) + ' para frete grátis</div></div>';
+        bar.style.display = 'block';
     }
 }
 

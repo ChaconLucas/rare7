@@ -1,5 +1,9 @@
 <?php
-session_start();
+// Configurar frete grátis para o mini-cart
+if (!function_exists('getFreteGratisThreshold')) {
+    include '../config.php';
+}
+$freteGratisValor = isset($pdo) ? getFreteGratisThreshold($pdo) : 0;
 require_once '../config.php';
 require_once '../conexao.php';
 require_once '../cms_data_provider.php';

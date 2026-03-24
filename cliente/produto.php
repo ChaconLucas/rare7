@@ -454,27 +454,6 @@ $pageTitle = htmlspecialchars($produto['nome']) . ' | RARE7';
     </div>
 </section>
 
-<div id="miniCartOverlay" class="mini-cart-overlay"></div>
-<div id="miniCartDrawer" class="mini-cart-drawer">
-    <div class="mini-cart-header">
-        <h2>Seu carrinho</h2>
-        <button id="closeMiniCart" class="btn-close-cart" aria-label="Fechar carrinho">
-            <span class="material-symbols-sharp">close</span>
-        </button>
-    </div>
-
-    <div class="mini-cart-body" id="miniCartBody"></div>
-
-    <div class="mini-cart-footer">
-        <div class="free-shipping-bar" id="freeShippingBar"></div>
-        <div class="mini-cart-subtotal">
-            <span>Subtotal:</span>
-            <strong id="miniCartSubtotal">R$ 0,00</strong>
-        </div>
-        <a href="pages/carrinho.php" class="btn-view-cart">Ver carrinho completo</a>
-    </div>
-</div>
-
 <script>
 (function () {
     const PRODUCT = {

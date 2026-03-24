@@ -396,7 +396,7 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
                     <span class="material-symbols-sharp">person</span>
                 </a>
                 <?php endif; ?>
-                <a href="pages/carrinho.php" class="nav-icon-link" aria-label="Carrinho"><span class="material-symbols-sharp">shopping_bag</span></a>
+                <a href="pages/carrinho.php" class="nav-icon-link" aria-label="Carrinho" data-open-mini-cart><span class="material-symbols-sharp">shopping_bag</span></a>
             </div>
         </div>
     </header>
@@ -586,6 +586,8 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
             </div>
         </section>
     </main>
+
+    <?php include __DIR__ . '/includes/mini-cart.php'; ?>
 
     <footer class="premium-footer" id="footer">
         <div class="container-shell footer-grid">
@@ -832,6 +834,9 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
 
                 if (action === 'add') {
                     showCartNotice(`Adicionado: ${product.name} (${selectedSize})`);
+                    if (window.RareMiniCart) {
+                        window.RareMiniCart.open();
+                    }
                 }
 
                 if (action === 'buy') {
@@ -854,6 +859,9 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
 
                 if (action === 'add') {
                     showCartNotice(`Adicionado: ${catalogProduct.name} (${selectedSize})`);
+                    if (window.RareMiniCart) {
+                        window.RareMiniCart.open();
+                    }
                 }
 
                 if (action === 'buy') {

@@ -17,6 +17,8 @@ $usuarioLogado = isset($_SESSION['cliente']);
 $clienteData = $usuarioLogado ? $_SESSION['cliente'] : null;
 $nomeUsuario = $usuarioLogado ? htmlspecialchars($clienteData['nome']) : '';
 
+$freteGratisValor = getFreteGratisThreshold($pdo);
+
 $clienteCompleto = null;
 if ($usuarioLogado && isset($clienteData['id'])) {
     $stmt = $pdo->prepare("SELECT * FROM clientes WHERE id = ?");
@@ -793,6 +795,10 @@ $boletoDisponivel = in_array('Boleto', $formasPagamento, true);
             </div>
 
             <div class="checkout-sidebar">
+                <div id="freeShippingBarCheckout" class="free-shipping-bar" style="margin-bottom: 14px; border-radius: 10px;">
+                    <!-- Conteúdo gerado dinamicamente pelo JavaScript -->
+                </div>
+
                 <div class="checkout-section order-summary">
                     <h2 class="section-title">
                         <span class="material-symbols-sharp">shopping_cart</span>
@@ -953,6 +959,7 @@ $boletoDisponivel = in_array('Boleto', $formasPagamento, true);
             
             // Renderizar resumo
             renderizarResumo();
+               atualizarProgressoFreteGratis();
             atualizarTextoParcelamento();
             
             // Verificar e alertar se frete nÃ£o foi calculado
@@ -983,6 +990,29 @@ $boletoDisponivel = in_array('Boleto', $formasPagamento, true);
             }
             
             carrinho.total = total;
+        }
+
+        /**
+         * Atualizar barra de progresso de frete gratis
+         */
+        function atualizarProgressoFreteGratis() {
+            const limiteBruto = <?php echo (float) $freteGratisValor; ?>;
+            const limite = Number(limiteBruto) > 0 ? Number(limiteBruto) : 500;
+            const bar = document.getElementById('freeShippingBarCheckout');
+
+            if (!bar) return;
+
+            if (carrinho.subtotal >= limite) {
+                bar.innerHTML = '<div style="background:linear-gradient(135deg,#1a4d2e 0%,#0f2818 100%);border:1px solid rgba(52,211,153,0.3);border-radius:10px;padding:10px 12px;display:flex;align-items:center;justify-content:center;gap:8px"><span class="material-symbols-sharp" style="font-size:18px;color:#34d399">check_circle</span><div style="text-align:center"><div style="font-size:0.66rem;color:#34d399;font-weight:600;text-transform:uppercase;letter-spacing:0.45px;margin-bottom:1px">Parabens!</div><div style="font-size:0.8rem;color:#34d399;font-weight:700">Frete Gratis Desbloqueado</div></div></div>';
+                bar.style.display = 'block';
+                return;
+            }
+
+            const falta = Math.max(0, limite - carrinho.subtotal);
+            const porcentagem = Math.min(100, Math.max(0, (carrinho.subtotal / limite) * 100));
+
+            bar.innerHTML = '<div style="background:linear-gradient(135deg,#1a1a1a 0%,#0f1c2e 100%);border:1px solid rgba(198,167,94,0.2);border-radius:10px;padding:10px 12px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><div style="display:flex;align-items:center;gap:6px"><span class="material-symbols-sharp" style="font-size:16px;color:#bfc5cc">local_shipping</span><span style="font-size:0.68rem;color:#bfc5cc;font-weight:600;text-transform:uppercase;letter-spacing:0.45px">Frete Gratis</span></div><span style="font-size:0.82rem;color:#c6a75e;font-weight:700">R$ ' + formatarDinheiro(carrinho.subtotal) + ' / R$ ' + formatarDinheiro(limite) + '</span></div><div style="height:5px;background:rgba(255,255,255,0.06);border-radius:99px;overflow:hidden;border:1px solid rgba(198,167,94,0.15)"><div style="height:100%;background:linear-gradient(90deg,#c6a75e 0%,#e6d1a3 100%);border-radius:inherit;transition:width 0.45s cubic-bezier(0.34,1.56,0.64,1);width:' + porcentagem + '%;box-shadow:0 0 14px rgba(198,167,94,0.35)"></div></div><div style="font-size:0.7rem;color:#bfc5cc;margin-top:6px;text-align:right">Faltam R$ ' + formatarDinheiro(falta) + ' para frete gratis</div></div>';
+            bar.style.display = 'block';
         }
         
         /**

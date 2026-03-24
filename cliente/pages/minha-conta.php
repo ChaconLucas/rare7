@@ -1896,7 +1896,7 @@ $pageTitle = 'Minha Conta - RARE7';
                     <a href="logout.php">Sair</a>
                 </div>
             </div>
-            <a href="carrinho.php" class="nav-icon-link" aria-label="Carrinho">
+            <a href="carrinho.php" class="nav-icon-link" data-open-mini-cart aria-label="Carrinho">
                 <span class="material-symbols-sharp">shopping_bag</span>
             </a>
         </div>
@@ -3011,6 +3011,7 @@ function maskCepInput() {
 }
 </script>
 
+<?php require_once '../includes/mini-cart.php'; ?>
 <?php require_once '../includes/footer.php'; ?>
 
 </body>

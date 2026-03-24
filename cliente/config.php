@@ -88,12 +88,15 @@ function getFreteGratisThreshold($pdo) {
         
         $valor = ($config && isset($config['free_shipping_threshold'])) 
             ? (float)$config['free_shipping_threshold'] 
-            : 1000.00; // Fallback se não encontrar no banco
+            : 500.00; // Fallback: valor padrão do admin
+        
+        // Debug: log do valor recuperado
+        error_log("[Frete] Valor recuperado do banco: " . json_encode(['valor' => $valor, 'config' => $config]));
             
         return $valor;
     } catch (PDOException $e) {
-        error_log("Erro ao buscar configuração de frete: " . $e->getMessage());
-        return 1000.00;
+        error_log("[Frete] Erro ao buscar configuração: " . $e->getMessage());
+        return 500.00; // Fallback consistent
     }
 }
 ?>

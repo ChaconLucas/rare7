@@ -461,36 +461,6 @@ $currentPage = 'cart';
     }
 </style>
 
-<!-- Mini Cart Overlay -->
-<div class="mini-cart-overlay" id="miniCartOverlay"></div>
-
-<!-- Mini Cart Drawer -->
-<div id="miniCartDrawer" class="mini-cart-drawer">
-    <div class="mini-cart-header">
-        <h2>Seu carrinho</h2>
-        <button id="closeMiniCart" class="btn-close-cart" aria-label="Fechar carrinho">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-            </svg>
-        </button>
-    </div>
-
-    <div class="mini-cart-body" id="miniCartBody">
-        <!-- ConteÃºdo preenchido via JS -->
-    </div>
-
-    <div class="mini-cart-footer">
-        <div class="free-shipping-bar" id="freeShippingBar">
-            <!-- Barra de progresso preenchida via JS -->
-        </div>
-        <div class="mini-cart-subtotal">
-            <span>Subtotal:</span>
-            <strong id="miniCartSubtotal">R$ 0,00</strong>
-        </div>
-        <a href="pages/carrinho.php" class="btn-view-cart">Ver carrinho completo</a>
-    </div>
-</div>
-
 <section class="rare-products-page">
     <div class="rare-products-shell">
         <div class="rare-products-topbar">
@@ -993,6 +963,7 @@ $currentPage = 'cart';
         setCart(cart);
         updateCartBadge();
         renderMiniCart();
+        openMiniCart();
         
         // Mostrar notificaÃ§Ã£o
         const notificationLabel = variantLabel ? (name + ' | ' + variantLabel) : name;

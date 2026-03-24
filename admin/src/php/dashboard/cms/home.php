@@ -274,6 +274,179 @@ while ($row = mysqli_fetch_assoc($footer_links_result)) {
         .success-msg.show {
             display: block;
         }
+        .clubs-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 1.25rem;
+        }
+        .clubs-toolbar-info {
+            color: var(--color-dark-variant);
+            font-size: 0.9rem;
+        }
+        .clubs-toolbar-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.85rem;
+        }
+        .clubs-action-button {
+            border: none;
+            border-radius: 16px;
+            cursor: pointer;
+            font-size: 0.92rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.55rem;
+            padding: 0.95rem 1.4rem;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, color 0.2s ease;
+        }
+        .clubs-action-button .material-symbols-sharp {
+            font-size: 1.15rem;
+        }
+        .clubs-action-button:hover {
+            transform: translateY(-2px);
+        }
+        .clubs-action-button.secondary {
+            background: linear-gradient(135deg, #f8fafc 0%, #eef2f7 100%);
+            color: #1f2937;
+            box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.35), 0 10px 24px rgba(15, 23, 42, 0.06);
+        }
+        .clubs-action-button.secondary:hover {
+            box-shadow: inset 0 0 0 1px rgba(100, 116, 139, 0.45), 0 14px 28px rgba(15, 23, 42, 0.1);
+        }
+        .clubs-action-button.primary {
+            background: linear-gradient(135deg, var(--color-primary) 0%, #b8913e 100%);
+            color: #fff;
+            box-shadow: 0 14px 28px rgba(198, 167, 94, 0.28);
+        }
+        .clubs-action-button.primary:hover {
+            box-shadow: 0 18px 34px rgba(198, 167, 94, 0.36);
+        }
+        .cms-clubes-grid {
+            display: grid;
+            gap: 1rem;
+        }
+        .cms-clube-item {
+            background: linear-gradient(180deg, #ffffff 0%, #fbfbfd 100%);
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            border-radius: 20px;
+            padding: 1.2rem;
+            box-shadow: 0 12px 30px rgba(15, 23, 42, 0.05);
+        }
+        .cms-clube-item.is-new {
+            border-style: dashed;
+            border-color: rgba(198, 167, 94, 0.5);
+            background: linear-gradient(180deg, rgba(198, 167, 94, 0.08) 0%, rgba(255, 255, 255, 1) 100%);
+        }
+        .cms-clube-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        .cms-clube-title {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            min-width: 0;
+        }
+        .cms-clube-badge {
+            width: 42px;
+            height: 42px;
+            border-radius: 14px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(198, 167, 94, 0.14);
+            color: var(--color-primary);
+        }
+        .cms-clube-badge .material-symbols-sharp {
+            font-size: 1.2rem;
+        }
+        .cms-clube-title strong {
+            display: block;
+            font-size: 0.98rem;
+            color: var(--color-dark);
+        }
+        .cms-clube-title span {
+            display: block;
+            font-size: 0.82rem;
+            color: var(--color-dark-variant);
+        }
+        .cms-clube-remove {
+            background: #fff;
+            color: #b42318;
+            box-shadow: inset 0 0 0 1px rgba(180, 35, 24, 0.18);
+            padding: 0.7rem 1rem;
+        }
+        .cms-clube-fields {
+            display: grid;
+            grid-template-columns: 1.4fr 0.7fr 2fr 0.6fr 0.7fr;
+            gap: 0.9rem;
+            align-items: end;
+        }
+        .cms-clube-item .form-group {
+            margin: 0;
+        }
+        .cms-clube-item .form-group label {
+            font-size: 0.82rem;
+            margin-bottom: 0.35rem;
+        }
+        .cms-clube-item .form-group .cms-checkbox-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.55rem;
+            margin-bottom: 0;
+            padding-top: 0.8rem;
+            font-weight: 500;
+            width: auto;
+        }
+        .cms-clube-item .form-group input {
+            background: #fff;
+            border: 1px solid rgba(148, 163, 184, 0.3);
+            border-radius: 12px;
+            min-height: 46px;
+        }
+        .cms-clube-item .form-group .cms-checkbox {
+            width: 18px;
+            height: 18px;
+            min-height: 18px;
+            flex: 0 0 18px;
+        }
+        .cms-clube-item .form-group input:focus {
+            outline: none;
+            border-color: rgba(198, 167, 94, 0.75);
+            box-shadow: 0 0 0 4px rgba(198, 167, 94, 0.12);
+        }
+        @media (max-width: 1100px) {
+            .cms-clube-fields {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+        @media (max-width: 700px) {
+            .clubs-toolbar {
+                align-items: stretch;
+            }
+            .clubs-toolbar-actions {
+                width: 100%;
+                flex-direction: column;
+            }
+            .clubs-action-button {
+                width: 100%;
+            }
+            .cms-clube-header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .cms-clube-fields {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
@@ -663,32 +836,43 @@ while ($row = mysqli_fetch_assoc($footer_links_result)) {
                     </p>
 
                     <form id="formClubes" style="margin-bottom: 1rem;">
-                        <div id="clubes-container">
+                        <div id="clubes-container" class="cms-clubes-grid">
                             <?php foreach ($clubes as $clube): ?>
-                            <div style="background: var(--color-light); padding: 1rem; border-radius: var(--border-radius-1); margin-bottom: 0.8rem;">
-                                <div style="display: grid; grid-template-columns: 1.4fr 0.7fr 2fr 0.5fr 0.7fr; gap: 0.8rem; align-items: end;">
-                                    <div class="form-group" style="margin: 0;">
-                                        <label style="font-size: 0.82rem; margin-bottom: 0.3rem;">Nome</label>
+                            <div class="cms-clube-item">
+                                <div class="cms-clube-header">
+                                    <div class="cms-clube-title">
+                                        <div class="cms-clube-badge">
+                                            <span class="material-symbols-sharp">sports_soccer</span>
+                                        </div>
+                                        <div>
+                                            <strong><?php echo htmlspecialchars($clube['nome']); ?></strong>
+                                            <span>Clube cadastrado para exibição na home</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="cms-clube-fields">
+                                    <div class="form-group">
+                                        <label>Nome</label>
                                         <input type="text" name="clubes[<?php echo $clube['id']; ?>][nome]" value="<?php echo htmlspecialchars($clube['nome']); ?>" required>
                                     </div>
 
-                                    <div class="form-group" style="margin: 0;">
-                                        <label style="font-size: 0.82rem; margin-bottom: 0.3rem;">Sigla</label>
+                                    <div class="form-group">
+                                        <label>Sigla</label>
                                         <input type="text" name="clubes[<?php echo $clube['id']; ?>][sigla]" value="<?php echo htmlspecialchars($clube['sigla']); ?>" maxlength="20" required>
                                     </div>
 
-                                    <div class="form-group" style="margin: 0;">
-                                        <label style="font-size: 0.82rem; margin-bottom: 0.3rem;">Imagem do escudo</label>
+                                    <div class="form-group">
+                                        <label>Imagem do escudo</label>
                                         <input type="text" name="clubes[<?php echo $clube['id']; ?>][imagem_path]" value="<?php echo htmlspecialchars($clube['imagem_path'] ?? ''); ?>" placeholder="Ex: assets/images/escudos/real-madrid.png">
                                     </div>
 
-                                    <div class="form-group" style="margin: 0;">
-                                        <label style="font-size: 0.82rem; margin-bottom: 0.3rem;">Ordem</label>
+                                    <div class="form-group">
+                                        <label>Ordem</label>
                                         <input type="number" name="clubes[<?php echo $clube['id']; ?>][ordem]" value="<?php echo (int)$clube['ordem']; ?>" min="1" required>
                                     </div>
 
-                                    <div class="form-group" style="margin: 0;">
-                                        <label style="font-size: 0.82rem; margin-bottom: 0.3rem;">Ativo</label>
+                                    <div class="form-group">
+                                        <label>Ativo</label>
                                         <label class="cms-checkbox-label">
                                             <input class="cms-checkbox" type="checkbox" name="clubes[<?php echo $clube['id']; ?>][ativo]" value="1" <?php echo ((int)$clube['ativo'] === 1) ? 'checked' : ''; ?>>
                                             <span style="font-size: 0.85rem;">Sim</span>
@@ -699,10 +883,20 @@ while ($row = mysqli_fetch_assoc($footer_links_result)) {
                             <?php endforeach; ?>
                         </div>
 
-                        <button type="button" onclick="salvarClubes()" class="btn-primary" style="margin-top: 1rem;">
-                            <span class="material-symbols-sharp">save</span>
-                            Salvar Clubes em Destaque
-                        </button>
+                        <div class="clubs-toolbar">
+                            <div class="clubs-toolbar-info">Adicione, reorganize e ative apenas os clubes que devem aparecer na faixa da home.</div>
+                            <div class="clubs-toolbar-actions">
+                                <button type="button" onclick="adicionarClube()" class="clubs-action-button secondary">
+                                    <span class="material-symbols-sharp">add_circle</span>
+                                    Adicionar clube
+                                </button>
+
+                                <button type="button" onclick="salvarClubes()" class="clubs-action-button primary">
+                                    <span class="material-symbols-sharp">save</span>
+                                    Salvar Clubes em Destaque
+                                </button>
+                            </div>
+                        </div>
                     </form>
                 </div>
                 
@@ -756,6 +950,94 @@ while ($row = mysqli_fetch_assoc($footer_links_result)) {
                         console.error('Erro na requisição:', error);
                         alert('�O Erro na comunicação: ' + error.message);
                     });
+                }
+
+                let novoClubeIndex = 0;
+
+                function obterProximaOrdemClube() {
+                    const ordemInputs = document.querySelectorAll('#clubes-container input[name$="[ordem]"]');
+                    let maiorOrdem = 0;
+
+                    ordemInputs.forEach(input => {
+                        const valor = parseInt(input.value, 10);
+                        if (!Number.isNaN(valor) && valor > maiorOrdem) {
+                            maiorOrdem = valor;
+                        }
+                    });
+
+                    return maiorOrdem + 1;
+                }
+
+                function removerNovoClube(button) {
+                    const card = button.closest('.cms-clube-item');
+                    if (card) {
+                        card.remove();
+                    }
+                }
+
+                function adicionarClube() {
+                    novoClubeIndex += 1;
+
+                    const clubeKey = 'new_' + novoClubeIndex;
+                    const ordem = obterProximaOrdemClube();
+                    const container = document.getElementById('clubes-container');
+                    const card = document.createElement('div');
+
+                    card.className = 'cms-clube-item is-new';
+
+                    card.innerHTML = `
+                        <div class="cms-clube-header">
+                            <div class="cms-clube-title">
+                                <div class="cms-clube-badge">
+                                    <span class="material-symbols-sharp">add_circle</span>
+                                </div>
+                                <div>
+                                    <strong>Novo clube</strong>
+                                    <span>Preencha os dados para incluir mais um time na home</span>
+                                </div>
+                            </div>
+                            <button type="button" onclick="removerNovoClube(this)" class="clubs-action-button cms-clube-remove">
+                                <span class="material-symbols-sharp">delete</span>
+                                Remover
+                            </button>
+                        </div>
+                        <div class="cms-clube-fields">
+                            <div class="form-group">
+                                <label>Nome</label>
+                                <input type="text" name="clubes[${clubeKey}][nome]" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Sigla</label>
+                                <input type="text" name="clubes[${clubeKey}][sigla]" maxlength="20" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Imagem do escudo</label>
+                                <input type="text" name="clubes[${clubeKey}][imagem_path]" placeholder="Ex: image/meu-clube.png">
+                            </div>
+
+                            <div class="form-group">
+                                <label>Ordem</label>
+                                <input type="number" name="clubes[${clubeKey}][ordem]" value="${ordem}" min="1" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Ativo</label>
+                                <label class="cms-checkbox-label">
+                                    <input class="cms-checkbox" type="checkbox" name="clubes[${clubeKey}][ativo]" value="1" checked>
+                                    <span style="font-size: 0.85rem;">Sim</span>
+                                </label>
+                            </div>
+                        </div>
+                    `;
+
+                    container.appendChild(card);
+
+                    const primeiroInput = card.querySelector('input[type="text"]');
+                    if (primeiroInput) {
+                        primeiroInput.focus();
+                    }
                 }
 
                 function salvarClubes() {

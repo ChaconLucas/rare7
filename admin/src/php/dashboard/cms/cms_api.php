@@ -967,14 +967,35 @@ if ($action === 'add_benefit') {
         }
 
         $updated = 0;
+        $inserted = 0;
+        $ignored = 0;
         $errors = [];
 
-        foreach ($clubes as $id => $data) {
-            $id = (int)$id;
-            if ($id <= 0) {
-                $errors[] = "ID inválido: {$id}";
-                continue;
+        $updateStmt = mysqli_prepare(
+            $conexao,
+            "UPDATE cms_home_clubs SET nome = ?, sigla = ?, imagem_path = ?, ordem = ?, ativo = ?, updated_at = NOW() WHERE id = ?"
+        );
+        $insertStmt = mysqli_prepare(
+            $conexao,
+            "INSERT INTO cms_home_clubs (nome, sigla, imagem_path, ordem, ativo) VALUES (?, ?, ?, ?, ?)"
+        );
+
+        if (!$updateStmt || !$insertStmt) {
+            if ($updateStmt) {
+                mysqli_stmt_close($updateStmt);
             }
+            if ($insertStmt) {
+                mysqli_stmt_close($insertStmt);
+            }
+
+            echo json_encode(['success' => false, 'message' => 'Erro ao preparar salvamento dos clubes']);
+            exit();
+        }
+
+        foreach ($clubes as $id => $data) {
+            $idOriginal = (string)$id;
+            $idNumerico = ctype_digit($idOriginal) ? (int)$idOriginal : 0;
+            $isNovoClube = $idNumerico <= 0;
 
             $nome = trim((string)($data['nome'] ?? ''));
             $sigla = strtoupper(trim((string)($data['sigla'] ?? '')));
@@ -982,43 +1003,57 @@ if ($action === 'add_benefit') {
             $ordem = max(1, (int)($data['ordem'] ?? 1));
             $ativo = (isset($data['ativo']) && (string)$data['ativo'] === '1') ? 1 : 0;
 
+            if ($nome === '' && $sigla === '' && $imagemPath === '' && $isNovoClube) {
+                $ignored++;
+                continue;
+            }
+
             if ($nome === '' || $sigla === '') {
-                $errors[] = "Clube ID {$id}: nome e sigla são obrigatórios";
+                $identificador = $isNovoClube ? $idOriginal : ('ID ' . $idNumerico);
+                $errors[] = "Clube {$identificador}: nome e sigla são obrigatórios";
                 continue;
             }
 
-            $stmt = mysqli_prepare(
-                $conexao,
-                "UPDATE cms_home_clubs SET nome = ?, sigla = ?, imagem_path = ?, ordem = ?, ativo = ?, updated_at = NOW() WHERE id = ?"
-            );
+            if ($isNovoClube) {
+                mysqli_stmt_bind_param($insertStmt, 'sssii', $nome, $sigla, $imagemPath, $ordem, $ativo);
 
-            if (!$stmt) {
-                $errors[] = "Clube ID {$id}: erro ao preparar query";
+                if (mysqli_stmt_execute($insertStmt)) {
+                    $inserted++;
+                } else {
+                    $errors[] = "Clube {$idOriginal}: " . mysqli_stmt_error($insertStmt);
+                }
+
                 continue;
             }
 
-            mysqli_stmt_bind_param($stmt, 'sssiii', $nome, $sigla, $imagemPath, $ordem, $ativo, $id);
+            mysqli_stmt_bind_param($updateStmt, 'sssiii', $nome, $sigla, $imagemPath, $ordem, $ativo, $idNumerico);
 
-            if (mysqli_stmt_execute($stmt)) {
+            if (mysqli_stmt_execute($updateStmt)) {
                 $updated++;
             } else {
-                $errors[] = "Clube ID {$id}: " . mysqli_stmt_error($stmt);
+                $errors[] = "Clube ID {$idNumerico}: " . mysqli_stmt_error($updateStmt);
             }
-
-            mysqli_stmt_close($stmt);
         }
+
+        mysqli_stmt_close($updateStmt);
+        mysqli_stmt_close($insertStmt);
 
         if (!empty($errors)) {
             echo json_encode([
                 'success' => false,
                 'message' => 'Alguns clubes não foram atualizados',
                 'updated' => $updated,
+                'inserted' => $inserted,
+                'ignored' => $ignored,
                 'errors' => $errors
             ]);
         } else {
             echo json_encode([
                 'success' => true,
-                'message' => "{$updated} clube(s) atualizado(s) com sucesso"
+                'message' => "{$updated} clube(s) atualizado(s) e {$inserted} novo(s) clube(s) salvo(s) com sucesso",
+                'updated' => $updated,
+                'inserted' => $inserted,
+                'ignored' => $ignored
             ]);
         }
 
