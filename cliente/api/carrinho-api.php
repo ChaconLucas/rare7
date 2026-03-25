@@ -77,10 +77,22 @@ try {
                 $variacao = mysqli_fetch_assoc($resultVar);
             }
 
-            // Calcular estoque e preço
+            // Calcular estoque e preço com herança do produto pai quando a variação não define preço próprio
             $estoque = $variacao ? (int)$variacao['estoque'] : (int)$produto['estoque'];
-            $preco = $variacao ? (float)$variacao['preco'] : (float)$produto['preco'];
-            $precoPromocional = $variacao ? (float)$variacao['preco_promocional'] : (float)$produto['preco_promocional'];
+            $preco = (float)$produto['preco'];
+            $precoPromocional = isset($produto['preco_promocional']) ? (float)$produto['preco_promocional'] : 0.0;
+
+            if ($variacao) {
+                $usaPrecoPai = !isset($variacao['preco']) || $variacao['preco'] === null || (float)$variacao['preco'] <= 0;
+                $preco = $usaPrecoPai ? (float)$produto['preco'] : (float)$variacao['preco'];
+
+                if (isset($variacao['preco_promocional']) && $variacao['preco_promocional'] !== null && (float)$variacao['preco_promocional'] > 0) {
+                    $precoPromocional = (float)$variacao['preco_promocional'];
+                } elseif (!$usaPrecoPai) {
+                    $precoPromocional = 0.0;
+                }
+            }
+
             $precoFinal = ($precoPromocional > 0 && $precoPromocional < $preco) ? $precoPromocional : $preco;
 
             // Imagem

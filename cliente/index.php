@@ -108,17 +108,26 @@ foreach ($featuredProducts as $pSize) {
     }
 }
 
-$productSizesMap = [];
+$productSizeOptionsMap = [];
 if (!empty($productIdsForSizes)) {
     $ids = array_keys($productIdsForSizes);
     $inClause = implode(',', array_map('intval', $ids));
     $sizesSql = "
-        SELECT produto_id, valor
-        FROM produto_variacoes
-        WHERE ativo = 1
-          AND LOWER(TRIM(tipo)) = 'tamanho'
-          AND produto_id IN ($inClause)
-                ORDER BY produto_id ASC, id ASC
+        SELECT
+            pv.produto_id,
+            pv.id,
+            pv.valor,
+            pv.estoque,
+            pv.preco,
+            pv.preco_promocional,
+            p.preco AS produto_preco,
+            p.preco_promocional AS produto_preco_promocional
+        FROM produto_variacoes pv
+        INNER JOIN produtos p ON p.id = pv.produto_id
+        WHERE pv.ativo = 1
+          AND LOWER(TRIM(pv.tipo)) = 'tamanho'
+          AND pv.produto_id IN ($inClause)
+        ORDER BY pv.produto_id ASC, pv.id ASC
     ";
     $sizesResult = mysqli_query($conn, $sizesSql);
     if ($sizesResult) {
@@ -128,19 +137,38 @@ if (!empty($productIdsForSizes)) {
             if ($pid <= 0 || $value === '') {
                 continue;
             }
-            if (!isset($productSizesMap[$pid])) {
-                $productSizesMap[$pid] = [];
+            if (!isset($productSizeOptionsMap[$pid])) {
+                $productSizeOptionsMap[$pid] = [];
             }
+
             $lower = mb_strtolower($value);
             $exists = false;
-            foreach ($productSizesMap[$pid] as $existing) {
-                if (mb_strtolower((string)$existing) === $lower) {
+            foreach ($productSizeOptionsMap[$pid] as $existing) {
+                if (mb_strtolower((string)($existing['label'] ?? '')) === $lower) {
                     $exists = true;
                     break;
                 }
             }
             if (!$exists) {
-                $productSizesMap[$pid][] = $value;
+                $precoPai = (float)($sizeRow['produto_preco'] ?? 0);
+                $precoPromoPai = (float)($sizeRow['produto_preco_promocional'] ?? 0);
+                $usaPrecoPai = !isset($sizeRow['preco']) || $sizeRow['preco'] === null || (float)$sizeRow['preco'] <= 0;
+                $precoVariacao = $usaPrecoPai ? $precoPai : (float)$sizeRow['preco'];
+                $precoPromoVariacao = null;
+
+                if (isset($sizeRow['preco_promocional']) && $sizeRow['preco_promocional'] !== null && (float)$sizeRow['preco_promocional'] > 0) {
+                    $precoPromoVariacao = (float)$sizeRow['preco_promocional'];
+                } elseif ($usaPrecoPai && $precoPromoPai > 0 && $precoPromoPai < $precoPai) {
+                    $precoPromoVariacao = $precoPromoPai;
+                }
+
+                $productSizeOptionsMap[$pid][] = [
+                    'label' => $value,
+                    'variation_id' => (int)($sizeRow['id'] ?? 0),
+                    'price' => $precoVariacao,
+                    'sale_price' => $precoPromoVariacao,
+                    'stock' => max(0, (int)($sizeRow['estoque'] ?? 0)),
+                ];
             }
         }
     }
@@ -157,8 +185,11 @@ $mapToVitrinePayload = static function (array $product): array {
     }
 
     $productId = (int)($product['id'] ?? 0);
-    global $productSizesMap;
-    $sizes = $productSizesMap[$productId] ?? [];
+    global $productSizeOptionsMap;
+    $sizeOptions = $productSizeOptionsMap[$productId] ?? [];
+    $sizes = array_values(array_map(static function ($option) {
+        return (string)($option['label'] ?? '');
+    }, $sizeOptions));
     $productTags = getProductTags($product);
     $tagLabels = array_values(array_map(static function ($tag) {
         return (string) ($tag['label'] ?? '');
@@ -174,6 +205,7 @@ $mapToVitrinePayload = static function (array $product): array {
         'image' => $img,
         'is_launch' => ($product['is_lancamento'] ?? '') === 'yes',
         'tags' => $tagLabels,
+        'size_options' => $sizeOptions,
         'sizes' => $sizes,
         'has_sizes' => !empty($sizes)
     ];
@@ -526,11 +558,12 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
                                     <span class="gold-price"><?php echo formatPrice($product['preco']); ?></span>
                                     <?php endif; ?>
                                 </div>
-                                <?php $catalogSizes = $productSizesMap[(int)$product['id']] ?? []; ?>
-                                <?php if (!empty($catalogSizes)): ?>
+                                <?php $catalogSizeOptions = $productSizeOptionsMap[(int)$product['id']] ?? []; ?>
+                                <?php if (!empty($catalogSizeOptions)): ?>
                                 <div class="vitrine-size-selector" data-size-group="<?php echo (int)$product['id']; ?>">
-                                    <?php foreach ($catalogSizes as $size): ?>
-                                        <button type="button" class="vitrine-size-chip" data-vitrine-size="<?php echo htmlspecialchars($size); ?>" data-product-id="<?php echo (int)$product['id']; ?>"><?php echo htmlspecialchars($size); ?></button>
+                                    <?php foreach ($catalogSizeOptions as $sizeOption): ?>
+                                        <?php $sizeStock = (int)($sizeOption['stock'] ?? 0); ?>
+                                        <button type="button" class="vitrine-size-chip<?php echo $sizeStock <= 0 ? ' is-sold-out' : ''; ?>" data-vitrine-size="<?php echo htmlspecialchars((string)$sizeOption['label']); ?>" data-product-id="<?php echo (int)$product['id']; ?>" data-variation-id="<?php echo (int)($sizeOption['variation_id'] ?? 0); ?>" data-price="<?php echo (float)($sizeOption['price'] ?? 0); ?>" data-sale-price="<?php echo isset($sizeOption['sale_price']) && $sizeOption['sale_price'] !== null ? (float)$sizeOption['sale_price'] : ''; ?>" data-stock="<?php echo $sizeStock; ?>" <?php echo $sizeStock <= 0 ? 'disabled aria-disabled="true" aria-label="Tamanho indisponível"' : ''; ?>><?php echo htmlspecialchars((string)$sizeOption['label']); ?></button>
                                     <?php endforeach; ?>
                                 </div>
                                 <?php endif; ?>
@@ -776,10 +809,70 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
                 }, 1700);
             }
 
-            function getUnitPrice(product) {
-                const sale = Number(product.sale_price || 0);
-                const regular = Number(product.price || 0);
-                return sale > 0 && sale < regular ? sale : regular;
+            function getVariantForSize(product, size) {
+                const wanted = String(size || '').trim().toUpperCase();
+                if (!wanted || !Array.isArray(product?.size_options)) {
+                    return null;
+                }
+
+                return product.size_options.find((option) => String(option?.label || '').trim().toUpperCase() === wanted) || null;
+            }
+
+            function getPriceState(product, size) {
+                const variant = getVariantForSize(product, size);
+                const regular = variant && Number(variant.price || 0) > 0
+                    ? Number(variant.price || 0)
+                    : Number(product.price || 0);
+                const sale = variant
+                    ? (Number(variant.sale_price || 0) > 0 ? Number(variant.sale_price || 0) : 0)
+                    : Number(product.sale_price || 0);
+
+                if (sale > 0 && sale < regular) {
+                    return { regular, current: sale, onSale: true, variant };
+                }
+
+                return { regular, current: regular, onSale: false, variant };
+            }
+
+            function getUnitPrice(product, size) {
+                return Number(getPriceState(product, size).current || 0);
+            }
+
+            function updateCardPrice(card, product, size) {
+                const priceLine = card?.querySelector('.price-line');
+                if (!priceLine || !product) {
+                    return;
+                }
+
+                const state = getPriceState(product, size);
+                priceLine.innerHTML = state.onSale
+                    ? `<span class="old-price">${formatPrice(state.regular)}</span><span class="gold-price">${formatPrice(state.current)}</span>`
+                    : `<span class="gold-price">${formatPrice(state.current)}</span>`;
+            }
+
+            function updateSizeChipState(root, productId, selectedSize) {
+                const group = root?.querySelector(`[data-size-group="${productId}"]`);
+                if (!group) {
+                    return;
+                }
+
+                group.querySelectorAll('.vitrine-size-chip').forEach((chip) => {
+                    const chipSize = String(chip.dataset.vitrineSize || '').trim().toUpperCase();
+                    const isActive = chipSize === String(selectedSize || '').trim().toUpperCase();
+                    chip.classList.toggle('is-active', isActive);
+                    chip.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+                });
+            }
+
+            function syncProductCardUI(root, product, productId) {
+                const card = root?.querySelector(`[data-product-id="${productId}"]`);
+                if (!card || !product) {
+                    return;
+                }
+
+                const selectedSize = selectedSizes[productId] || '';
+                updateSizeChipState(root, productId, selectedSize);
+                updateCardPrice(card, product, selectedSize);
             }
 
             function getCart() {
@@ -797,9 +890,16 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
             function addProductToCart(product, size) {
                 const cart = getCart();
                 const productId = Number(product.id || 0);
-                const unitPrice = getUnitPrice(product);
-                const variantText = `Tamanho: ${size}`;
-                const variantKey = `size::${String(size).toUpperCase()}`;
+                const safeSize = String(size || '').trim().toUpperCase();
+                const variant = getVariantForSize(product, safeSize);
+                const unitPrice = getUnitPrice(product, safeSize);
+                const variantText = safeSize ? `Tamanho: ${safeSize}` : '';
+                const variantKey = safeSize ? `size::${safeSize}` : 'base';
+
+                if (variant && Number(variant.stock || 0) <= 0) {
+                    showCartNotice(`Tamanho esgotado: ${safeSize}`);
+                    return false;
+                }
 
                 const existing = cart.find((item) => String(item.id) === String(productId) && String(item.variantKey || '') === variantKey);
 
@@ -812,6 +912,8 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
                         price: unitPrice,
                         qty: 1,
                         image: product.image || '',
+                        variacao_id: variant ? Number(variant.variation_id || 0) : null,
+                        estoque: variant ? Number(variant.stock || 0) : null,
                         variacao_texto: variantText,
                         variant: variantText,
                         variantKey: variantKey,
@@ -820,6 +922,7 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
                 }
 
                 setCart(cart);
+                return true;
             }
 
             function runVitrineAction(productId, action) {
@@ -834,7 +937,9 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
                     return;
                 }
 
-                addProductToCart(product, selectedSize);
+                if (!addProductToCart(product, selectedSize)) {
+                    return;
+                }
 
                 if (action === 'add') {
                     showCartNotice(`Adicionado: ${product.name} (${selectedSize})`);
@@ -859,7 +964,9 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
                     return;
                 }
 
-                addProductToCart(catalogProduct, selectedSize);
+                if (!addProductToCart(catalogProduct, selectedSize)) {
+                    return;
+                }
 
                 if (action === 'add') {
                     showCartNotice(`Adicionado: ${catalogProduct.name} (${selectedSize})`);
@@ -879,11 +986,11 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
                 const safeStart = Math.min(start, Math.max(0, list.length - 1));
         const current = list.slice(safeStart, safeStart + perPage);
 
-        cardsRoot.innerHTML = current.map((p) => {
-          const hasSale = p.sale_price > 0 && p.sale_price < p.price;
-          const priceHtml = hasSale
-            ? `<span class="old-price">${formatPrice(p.price)}</span><span class="gold-price">${formatPrice(p.sale_price)}</span>`
-            : `<span class="gold-price">${formatPrice(p.price)}</span>`;
+                cardsRoot.innerHTML = current.map((p) => {
+                    const priceState = getPriceState(p, selectedSizes[Number(p.id || 0)] || '');
+                    const priceHtml = priceState.onSale
+                        ? `<span class="old-price">${formatPrice(priceState.regular)}</span><span class="gold-price">${formatPrice(priceState.current)}</span>`
+                        : `<span class="gold-price">${formatPrice(priceState.current)}</span>`;
 
                     const primaryTag = Array.isArray(p.tags)
                         ? p.tags.find((t) => String(t || '').trim() !== '')
@@ -904,7 +1011,14 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
                                     <h3>${escapeHtml(p.name)}</h3>
                                     <p>${escapeHtml((p.description || '').trim() || 'Produto premium da Rare.')}</p>
                                     <div class="price-line">${priceHtml}</div>
-                                    ${Array.isArray(p.sizes) && p.sizes.length ? `<div class="vitrine-size-selector" data-size-group="${Number(p.id || 0)}">${p.sizes.map((size) => `<button type="button" class="vitrine-size-chip" data-vitrine-size="${escapeHtml(size)}" data-product-id="${Number(p.id || 0)}">${escapeHtml(size)}</button>`).join('')}</div>` : ''}
+                                    ${Array.isArray(p.size_options) && p.size_options.length ? `<div class="vitrine-size-selector" data-size-group="${Number(p.id || 0)}">${p.size_options.map((size) => {
+                                        const stock = Number(size?.stock || 0);
+                                        const soldOutClass = stock <= 0 ? ' is-sold-out' : '';
+                                        const disabledAttr = stock <= 0 ? ' disabled aria-disabled="true" aria-label="Tamanho indisponível"' : '';
+                                        const saleValue = size?.sale_price === null || size?.sale_price === undefined ? '' : Number(size.sale_price || 0);
+                                        const label = `${escapeHtml(size?.label || '')}`;
+                                        return `<button type="button" class="vitrine-size-chip${soldOutClass}" data-vitrine-size="${escapeHtml(size?.label || '')}" data-product-id="${Number(p.id || 0)}" data-variation-id="${Number(size?.variation_id || 0)}" data-price="${Number(size?.price || 0)}" data-sale-price="${saleValue}" data-stock="${stock}"${disabledAttr}>${label}</button>`;
+                                    }).join('')}</div>` : ''}
                                     <div class="vitrine-actions">
                                         <button type="button" class="vitrine-more" data-vitrine-action="add" data-product-id="${Number(p.id || 0)}">Adicionar</button>
                                         <button type="button" class="vitrine-buy" data-vitrine-action="buy" data-product-id="${Number(p.id || 0)}">Comprar</button>
@@ -916,6 +1030,10 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
         const x = list.length ? safeStart + 1 : 0;
         const y = Math.min(safeStart + current.length, list.length);
         counter.textContent = `Mostrando ${x}–${y} de ${list.length}`;
+
+                current.forEach((product) => {
+                        syncProductCardUI(cardsRoot, product, Number(product.id || 0));
+                });
       }
 
       function formatPrice(value) {
@@ -941,14 +1059,13 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
                     const size = String(sizeBtn.dataset.vitrineSize || '').toUpperCase();
                     if (!productId || !size) return;
 
-                    selectedSizes[productId] = size;
-
-                    const group = cardsRoot.querySelector(`[data-size-group="${productId}"]`);
-                    if (group) {
-                        group.querySelectorAll('.vitrine-size-chip').forEach((chip) => {
-                            chip.classList.toggle('is-active', chip === sizeBtn);
-                        });
+                    if (sizeBtn.disabled || Number(sizeBtn.dataset.stock || 0) <= 0) {
+                        return;
                     }
+
+                    selectedSizes[productId] = size;
+                    const product = getCurrentList().find((item) => Number(item.id) === Number(productId));
+                    syncProductCardUI(cardsRoot, product, productId);
                     return;
                 }
 
@@ -985,14 +1102,13 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
                         const size = String(sizeBtn.dataset.vitrineSize || '').toUpperCase();
                         if (!productId || !size) return;
 
-                        selectedSizes[productId] = size;
-
-                        const group = catalogRoot.querySelector(`[data-size-group="${productId}"]`);
-                        if (group) {
-                            group.querySelectorAll('.vitrine-size-chip').forEach((chip) => {
-                                chip.classList.toggle('is-active', chip === sizeBtn);
-                            });
+                        if (sizeBtn.disabled || Number(sizeBtn.dataset.stock || 0) <= 0) {
+                            return;
                         }
+
+                        selectedSizes[productId] = size;
+                        const product = products.find((item) => Number(item.id) === Number(productId));
+                        syncProductCardUI(catalogRoot, product, productId);
                         return;
                     }
 
@@ -1061,6 +1177,10 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
       });
 
       renderVitrine();
+
+            products.forEach((product) => {
+                syncProductCardUI(catalogRoot, product, Number(product.id || 0));
+            });
 
       const bannerSection = document.getElementById('showcaseBanner');
     const kicker = document.getElementById('showcaseKicker');

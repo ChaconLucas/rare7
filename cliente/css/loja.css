@@ -863,6 +863,34 @@ a {
   background: rgba(198, 167, 94, 0.2);
 }
 
+.vitrine-size-chip.is-sold-out,
+.vitrine-size-chip:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+  text-decoration: none;
+  position: relative;
+}
+
+.vitrine-size-chip.is-sold-out::before,
+.vitrine-size-chip.is-sold-out::after {
+  content: "";
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  top: 50%;
+  height: 1.4px;
+  background: rgba(225, 233, 243, 0.72);
+  pointer-events: none;
+}
+
+.vitrine-size-chip.is-sold-out::before {
+  transform: rotate(24deg);
+}
+
+.vitrine-size-chip.is-sold-out::after {
+  transform: rotate(-24deg);
+}
+
 .vitrine-more:hover,
 .buy-btn:hover,
 .btn-outline-gold:hover {
@@ -1652,6 +1680,34 @@ a {
   border-color: rgba(198, 167, 94, 0.52);
   background: rgba(198, 167, 94, 0.14);
   color: #f5e8c4;
+}
+
+.rare-size-chip.is-sold-out,
+.rare-size-chip:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+  text-decoration: none;
+  position: relative;
+}
+
+.rare-size-chip.is-sold-out::before,
+.rare-size-chip.is-sold-out::after {
+  content: "";
+  position: absolute;
+  left: 16%;
+  right: 16%;
+  top: 50%;
+  height: 1.5px;
+  background: rgba(225, 233, 243, 0.72);
+  pointer-events: none;
+}
+
+.rare-size-chip.is-sold-out::before {
+  transform: rotate(24deg);
+}
+
+.rare-size-chip.is-sold-out::after {
+  transform: rotate(-24deg);
 }
 
 .rare-product-price-block {
@@ -3962,6 +4018,44 @@ body.cart-page {
   border-color: rgba(198, 167, 94, 0.7);
   background: rgba(198, 167, 94, 0.15);
   color: #f8ecd0;
+}
+
+.rare-size-btn.is-sold-out,
+.rare-size-btn:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+  text-decoration: none;
+  position: relative;
+}
+
+.rare-size-btn.is-sold-out::before,
+.rare-size-btn.is-sold-out::after {
+  content: "";
+  position: absolute;
+  left: 16%;
+  right: 16%;
+  top: 50%;
+  height: 1.5px;
+  background: rgba(225, 233, 243, 0.72);
+  pointer-events: none;
+}
+
+.rare-size-btn.is-sold-out::before {
+  transform: rotate(24deg);
+}
+
+.rare-size-btn.is-sold-out::after {
+  transform: rotate(-24deg);
+}
+
+.rare-stock-status {
+  display: block;
+  margin-top: 0.4rem;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.rare-stock-status.is-sold-out {
+  color: #ff8c8c;
 }
 
 .rare-personalization-card {

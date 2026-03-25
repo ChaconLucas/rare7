@@ -419,6 +419,92 @@ foreach ($produtos as &$produtoLinha) {
 }
 unset($produtoLinha);
 
+$productSizeOptionsMap = [];
+$productIdsWithSizes = array_values(array_filter(array_map(static function ($produtoLinha) {
+    return (int)($produtoLinha['id'] ?? 0);
+}, $produtos)));
+
+if (!empty($productIdsWithSizes)) {
+    $inClause = implode(',', array_map('intval', array_unique($productIdsWithSizes)));
+    $sizeOptionsSql = "
+        SELECT
+            pv.produto_id,
+            pv.id,
+            pv.valor,
+            pv.estoque,
+            pv.preco,
+            pv.preco_promocional,
+            p.preco AS produto_preco,
+            p.preco_promocional AS produto_preco_promocional
+        FROM produto_variacoes pv
+        INNER JOIN produtos p ON p.id = pv.produto_id
+        WHERE pv.ativo = 1
+          AND LOWER(TRIM(pv.tipo)) = 'tamanho'
+          AND pv.produto_id IN ($inClause)
+        ORDER BY pv.produto_id ASC, pv.id ASC
+    ";
+    $sizeOptionsResult = mysqli_query($conn, $sizeOptionsSql);
+
+    if ($sizeOptionsResult) {
+        while ($sizeRow = mysqli_fetch_assoc($sizeOptionsResult)) {
+            $produtoIdLinha = (int)($sizeRow['produto_id'] ?? 0);
+            $label = trim((string)($sizeRow['valor'] ?? ''));
+
+            if ($produtoIdLinha <= 0 || $label === '') {
+                continue;
+            }
+
+            if (!isset($productSizeOptionsMap[$produtoIdLinha])) {
+                $productSizeOptionsMap[$produtoIdLinha] = [];
+            }
+
+            $labelKey = mb_strtolower($label);
+            $exists = false;
+            foreach ($productSizeOptionsMap[$produtoIdLinha] as $existing) {
+                if (mb_strtolower((string)($existing['label'] ?? '')) === $labelKey) {
+                    $exists = true;
+                    break;
+                }
+            }
+
+            if ($exists) {
+                continue;
+            }
+
+            $precoPai = (float)($sizeRow['produto_preco'] ?? 0);
+            $precoPromoPai = (float)($sizeRow['produto_preco_promocional'] ?? 0);
+            $usaPrecoPai = !isset($sizeRow['preco']) || $sizeRow['preco'] === null || (float)$sizeRow['preco'] <= 0;
+            $precoVariacao = $usaPrecoPai ? $precoPai : (float)$sizeRow['preco'];
+            $precoPromoVariacao = null;
+
+            if (isset($sizeRow['preco_promocional']) && $sizeRow['preco_promocional'] !== null && (float)$sizeRow['preco_promocional'] > 0) {
+                $precoPromoVariacao = (float)$sizeRow['preco_promocional'];
+            } elseif ($usaPrecoPai && $precoPromoPai > 0 && $precoPromoPai < $precoPai) {
+                $precoPromoVariacao = $precoPromoPai;
+            }
+
+            $productSizeOptionsMap[$produtoIdLinha][] = [
+                'label' => $label,
+                'variation_id' => (int)($sizeRow['id'] ?? 0),
+                'price' => $precoVariacao,
+                'sale_price' => $precoPromoVariacao,
+                'stock' => max(0, (int)($sizeRow['estoque'] ?? 0)),
+            ];
+        }
+    }
+}
+
+foreach ($produtos as &$produtoLinha) {
+    $produtoLinha['tamanho_opcoes'] = $productSizeOptionsMap[(int)($produtoLinha['id'] ?? 0)] ?? [];
+    if (!empty($produtoLinha['tamanho_opcoes'])) {
+        $produtoLinha['tamanhos'] = array_values(array_map(static function ($option) {
+            return (string)($option['label'] ?? '');
+        }, $produtoLinha['tamanho_opcoes']));
+        $produtoLinha['tem_tamanhos'] = count($produtoLinha['tamanhos']);
+    }
+}
+unset($produtoLinha);
+
 $queryTagsDisponiveis = "
     SELECT
         p.tags,
@@ -610,7 +696,7 @@ $currentPage = 'cart';
                 $heroExcerpt = $heroDescription !== '' ? mb_substr($heroDescription, 0, 220) . (mb_strlen($heroDescription) > 220 ? '...' : '') : 'Peca selecionada para abrir a vitrine da RARE com presenca forte, acabamento premium e proposta editorial.';
                 $heroImage = !empty($produtoDestaque['imagem_principal']) ? '../admin/assets/images/produtos/' . rawurlencode($produtoDestaque['imagem_principal']) : '';
             ?>
-            <article class="rare-product-hero" data-product-card data-product-id="<?php echo (int) $produtoDestaque['id']; ?>" data-has-variacoes="<?php echo (isset($produtoDestaque['tem_variacoes']) && $produtoDestaque['tem_variacoes'] > 0) ? '1' : '0'; ?>" data-has-tamanhos="<?php echo (!empty($produtoDestaque['tamanhos'])) ? '1' : '0'; ?>">
+            <article class="rare-product-hero" data-product-card data-product-id="<?php echo (int) $produtoDestaque['id']; ?>" data-has-variacoes="<?php echo (isset($produtoDestaque['tem_variacoes']) && $produtoDestaque['tem_variacoes'] > 0) ? '1' : '0'; ?>" data-has-tamanhos="<?php echo (!empty($produtoDestaque['tamanhos'])) ? '1' : '0'; ?>" data-base-price="<?php echo (float) ($produtoDestaque['preco'] ?? 0); ?>" data-base-sale-price="<?php echo (float) ($produtoDestaque['preco_promocional'] ?? 0); ?>">
                 <a href="produto.php?id=<?php echo $produtoDestaque['id']; ?>" class="rare-product-hero-media" aria-label="Abrir produto <?php echo htmlspecialchars($produtoDestaque['nome']); ?>">
                     <?php if ($heroImage !== ''): ?>
                         <img src="<?php echo htmlspecialchars($heroImage); ?>" alt="<?php echo htmlspecialchars($produtoDestaque['nome']); ?>" loading="lazy" onerror="this.parentElement.classList.add('is-fallback'); this.remove();">
@@ -632,18 +718,17 @@ $currentPage = 'cart';
                         <div class="rare-size-selector" data-product-sizes data-product-id="<?php echo (int) $produtoDestaque['id']; ?>">
                             <span class="rare-size-label">Tamanhos</span>
                             <div class="rare-size-options">
-                                <?php foreach ($produtoDestaque['tamanhos'] as $size): ?>
-                                    <button type="button" class="rare-size-chip" data-size-option="<?php echo htmlspecialchars($size); ?>"><?php echo htmlspecialchars($size); ?></button>
+                                <?php foreach (($produtoDestaque['tamanho_opcoes'] ?? []) as $size): ?>
+                                    <?php $sizeStock = (int) ($size['stock'] ?? 0); ?>
+                                    <button type="button" class="rare-size-chip<?php echo $sizeStock <= 0 ? ' is-sold-out' : ''; ?>" data-size-option="<?php echo htmlspecialchars((string) $size['label']); ?>" data-variation-id="<?php echo (int) ($size['variation_id'] ?? 0); ?>" data-price="<?php echo (float) ($size['price'] ?? 0); ?>" data-sale-price="<?php echo isset($size['sale_price']) && $size['sale_price'] !== null ? (float) $size['sale_price'] : ''; ?>" data-stock="<?php echo $sizeStock; ?>" <?php echo $sizeStock <= 0 ? 'disabled aria-disabled="true" aria-label="Tamanho indisponível"' : ''; ?>><?php echo htmlspecialchars((string) $size['label']); ?></button>
                                 <?php endforeach; ?>
                             </div>
                         </div>
                         <?php endif; ?>
 
                         <div class="rare-product-price-block">
-                            <?php if (isOnSale($produtoDestaque)): ?>
-                                <span class="rare-price-old"><?php echo formatPrice($produtoDestaque['preco']); ?></span>
-                            <?php endif; ?>
-                            <strong class="rare-price-current"><?php echo formatPrice($heroPrice); ?></strong>
+                            <span class="rare-price-old" data-price-old<?php echo !isOnSale($produtoDestaque) ? ' style="display:none;"' : ''; ?>><?php echo isOnSale($produtoDestaque) ? formatPrice($produtoDestaque['preco']) : ''; ?></span>
+                            <strong class="rare-price-current" data-price-current><?php echo formatPrice($heroPrice); ?></strong>
                         </div>
 
                         <div class="rare-product-cta" onclick="event.stopPropagation(); event.preventDefault();">
@@ -696,7 +781,7 @@ $currentPage = 'cart';
                         $description = trim((string) ($product['descricao'] ?? ''));
                         $excerpt = $description !== '' ? mb_substr($description, 0, 150) . (mb_strlen($description) > 150 ? '...' : '') : 'Peca com acabamento refinado, curadoria premium e presenca marcante dentro da colecao RARE.';
                     ?>
-                    <article class="rare-product-row" data-product-card data-product-id="<?php echo (int) $product['id']; ?>" data-has-variacoes="<?php echo (isset($product['tem_variacoes']) && $product['tem_variacoes'] > 0) ? '1' : '0'; ?>" data-has-tamanhos="<?php echo (!empty($product['tamanhos'])) ? '1' : '0'; ?>">
+                    <article class="rare-product-row" data-product-card data-product-id="<?php echo (int) $product['id']; ?>" data-has-variacoes="<?php echo (isset($product['tem_variacoes']) && $product['tem_variacoes'] > 0) ? '1' : '0'; ?>" data-has-tamanhos="<?php echo (!empty($product['tamanhos'])) ? '1' : '0'; ?>" data-base-price="<?php echo (float) ($product['preco'] ?? 0); ?>" data-base-sale-price="<?php echo (float) ($product['preco_promocional'] ?? 0); ?>">
                         <a href="produto.php?id=<?php echo $product['id']; ?>" class="rare-product-row-media" aria-label="Abrir produto <?php echo htmlspecialchars($product['nome']); ?>">
                             <?php if ($productImage !== ''): ?>
                                 <img src="<?php echo htmlspecialchars($productImage); ?>" alt="<?php echo htmlspecialchars($product['nome']); ?>" loading="lazy" onerror="this.parentElement.classList.add('is-fallback'); this.remove();">
@@ -719,8 +804,9 @@ $currentPage = 'cart';
                             <div class="rare-size-selector" data-product-sizes data-product-id="<?php echo (int) $product['id']; ?>">
                                 <span class="rare-size-label">Tamanhos</span>
                                 <div class="rare-size-options">
-                                    <?php foreach ($product['tamanhos'] as $size): ?>
-                                        <button type="button" class="rare-size-chip" data-size-option="<?php echo htmlspecialchars($size); ?>"><?php echo htmlspecialchars($size); ?></button>
+                                    <?php foreach (($product['tamanho_opcoes'] ?? []) as $size): ?>
+                                        <?php $sizeStock = (int) ($size['stock'] ?? 0); ?>
+                                        <button type="button" class="rare-size-chip<?php echo $sizeStock <= 0 ? ' is-sold-out' : ''; ?>" data-size-option="<?php echo htmlspecialchars((string) $size['label']); ?>" data-variation-id="<?php echo (int) ($size['variation_id'] ?? 0); ?>" data-price="<?php echo (float) ($size['price'] ?? 0); ?>" data-sale-price="<?php echo isset($size['sale_price']) && $size['sale_price'] !== null ? (float) $size['sale_price'] : ''; ?>" data-stock="<?php echo $sizeStock; ?>" <?php echo $sizeStock <= 0 ? 'disabled aria-disabled="true" aria-label="Tamanho indisponível"' : ''; ?>><?php echo htmlspecialchars((string) $size['label']); ?></button>
                                     <?php endforeach; ?>
                                 </div>
                             </div>
@@ -728,10 +814,8 @@ $currentPage = 'cart';
 
                             <div class="rare-product-row-footer" onclick="event.stopPropagation(); event.preventDefault();">
                                 <div class="rare-product-price-block">
-                                    <?php if (isOnSale($product)): ?>
-                                        <span class="rare-price-old"><?php echo formatPrice($product['preco']); ?></span>
-                                    <?php endif; ?>
-                                    <strong class="rare-price-current"><?php echo formatPrice($priceValue); ?></strong>
+                                    <span class="rare-price-old" data-price-old<?php echo !isOnSale($product) ? ' style="display:none;"' : ''; ?>><?php echo isOnSale($product) ? formatPrice($product['preco']) : ''; ?></span>
+                                    <strong class="rare-price-current" data-price-current><?php echo formatPrice($priceValue); ?></strong>
                                 </div>
                                 <div class="rare-product-cta compact">
                                     <button class="rare-btn rare-btn-secondary" onclick="addToCart(<?php echo (int) $product['id']; ?>, '<?php echo htmlspecialchars($product['nome'], ENT_QUOTES); ?>', event)">Adicionar</button>
@@ -886,16 +970,83 @@ $currentPage = 'cart';
         setSelectedSizes(map);
     }
 
+    function parseMoneyValue(value) {
+        const parsed = parseFloat(value);
+        return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    function findProductCard(productId) {
+        return document.querySelector(`[data-product-card][data-product-id="${String(productId)}"]`);
+    }
+
+    function getActiveSizeButton(productCard) {
+        return productCard ? productCard.querySelector('[data-size-option].is-active') : null;
+    }
+
+    function updateProductCardPricing(productCard) {
+        if (!productCard) {
+            return;
+        }
+
+        const activeButton = getActiveSizeButton(productCard);
+        const priceCurrentEl = productCard.querySelector('[data-price-current]');
+        const priceOldEl = productCard.querySelector('[data-price-old]');
+        const basePrice = parseMoneyValue(productCard.getAttribute('data-base-price') || '0');
+        const baseSalePrice = parseMoneyValue(productCard.getAttribute('data-base-sale-price') || '0');
+
+        let regularPrice = basePrice;
+        let salePrice = baseSalePrice > 0 && baseSalePrice < basePrice ? baseSalePrice : 0;
+
+        if (activeButton) {
+            const variantPrice = parseMoneyValue(activeButton.getAttribute('data-price') || '0');
+            const variantSalePrice = parseMoneyValue(activeButton.getAttribute('data-sale-price') || '0');
+
+            if (variantPrice > 0) {
+                regularPrice = variantPrice;
+            }
+
+            if (variantSalePrice > 0 && variantSalePrice < regularPrice) {
+                salePrice = variantSalePrice;
+            } else {
+                salePrice = 0;
+            }
+        }
+
+        const finalPrice = salePrice > 0 ? salePrice : regularPrice;
+
+        if (priceCurrentEl) {
+            priceCurrentEl.textContent = formatPrice(finalPrice);
+        }
+
+        if (priceOldEl) {
+            if (salePrice > 0 && regularPrice > finalPrice) {
+                priceOldEl.textContent = formatPrice(regularPrice);
+                priceOldEl.style.display = '';
+            } else {
+                priceOldEl.textContent = '';
+                priceOldEl.style.display = 'none';
+            }
+        }
+    }
+
     function applySelectedSizesToUI() {
         document.querySelectorAll('[data-product-sizes]').forEach((selector) => {
             const productId = selector.getAttribute('data-product-id');
-            const selectedSize = getSelectedSizeForProduct(productId);
+            let selectedSize = getSelectedSizeForProduct(productId);
+            const availableButton = selector.querySelector(`[data-size-option="${selectedSize}"]`);
+
+            if (selectedSize && (!availableButton || availableButton.disabled || Number(availableButton.getAttribute('data-stock') || 0) <= 0)) {
+                setSelectedSizeForProduct(productId, '');
+                selectedSize = '';
+            }
 
             selector.querySelectorAll('[data-size-option]').forEach((button) => {
                 const isActive = button.getAttribute('data-size-option') === selectedSize;
                 button.classList.toggle('is-active', isActive);
                 button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
             });
+
+            updateProductCardPricing(findProductCard(productId));
         });
     }
 
@@ -909,6 +1060,10 @@ $currentPage = 'cart';
 
                 const selector = this.closest('[data-product-sizes]');
                 if (!selector) {
+                    return;
+                }
+
+                if (this.disabled || Number(this.getAttribute('data-stock') || 0) <= 0) {
                     return;
                 }
 
@@ -982,7 +1137,6 @@ $currentPage = 'cart';
         }
         
         // Buscar elementos do card
-        let priceElement = productCard.querySelector('.produto-price, .rare-price-current');
         let imgElement = productCard.querySelector('img');
         let titleElement = productCard.querySelector('.produto-title') || productCard.querySelector('h2') || productCard.querySelector('h3');
 
@@ -990,10 +1144,16 @@ $currentPage = 'cart';
         const hasVariacoes = String(productCard.getAttribute('data-has-variacoes') || '0') === '1';
         const hasTamanhos = String(productCard.getAttribute('data-has-tamanhos') || '0') === '1';
         const selectedSize = getSelectedSizeForProduct(productIdValue);
+        const selectedButton = productCard.querySelector(`[data-size-option="${selectedSize}"]`);
 
         if (hasVariacoes && hasTamanhos && !selectedSize) {
             window.location.href = 'produto.php?id=' + encodeURIComponent(productIdValue);
-            return;
+            return false;
+        }
+
+        if (selectedButton && (selectedButton.disabled || Number(selectedButton.getAttribute('data-stock') || 0) <= 0)) {
+            showNotification('Esse tamanho está esgotado.');
+            return false;
         }
 
         const variantLabel = selectedSize ? `Tamanho: ${selectedSize}` : '';
@@ -1003,18 +1163,20 @@ $currentPage = 'cart';
         
         // Extrair preÃ§o
         let price = 0;
-        if (priceElement) {
-            const priceText = priceElement.textContent.trim();
-            const priceMatch = priceText.match(/R\$\s*([\d.,]+)/g);
-            
-            if (priceMatch && priceMatch.length > 0) {
-                const lastPrice = priceMatch[priceMatch.length - 1];
-                let priceStr = lastPrice.replace('R$', '').trim();
-                priceStr = priceStr.replace(/\./g, '').replace(',', '.');
-                price = parseFloat(priceStr);
-                
-                if (isNaN(price) || price < 0) {
-                    price = 0;
+        if (selectedButton) {
+            const selectedSalePrice = parseMoneyValue(selectedButton.getAttribute('data-sale-price') || '0');
+            const selectedRegularPrice = parseMoneyValue(selectedButton.getAttribute('data-price') || '0');
+            price = selectedSalePrice > 0 && selectedSalePrice < selectedRegularPrice ? selectedSalePrice : selectedRegularPrice;
+        }
+
+        if (price <= 0) {
+            const fallbackCurrent = productCard.querySelector('[data-price-current]');
+            if (fallbackCurrent) {
+                const fallbackText = fallbackCurrent.textContent.trim();
+                const fallbackMatch = fallbackText.match(/R\$\s*([\d.,]+)/);
+                if (fallbackMatch) {
+                    let priceStr = fallbackMatch[1].replace(/\./g, '').replace(',', '.');
+                    price = parseFloat(priceStr) || 0;
                 }
             }
         }
@@ -1027,7 +1189,7 @@ $currentPage = 'cart';
         
         if (isNaN(numericProductId)) {
             console.error('âŒ productId nÃ£o Ã© um nÃºmero vÃ¡lido:', productId);
-            return;
+            return false;
         }
         
         const newProductData = {
@@ -1036,6 +1198,8 @@ $currentPage = 'cart';
             price: price,
             qty: 1,
             image: image,
+            variacao_id: selectedButton ? (parseInt(selectedButton.getAttribute('data-variation-id') || '0', 10) || null) : null,
+            estoque: selectedButton ? (parseInt(selectedButton.getAttribute('data-stock') || '0', 10) || 0) : null,
             variant: variantLabel,
             variacao_texto: variantLabel
         };
@@ -1071,6 +1235,7 @@ $currentPage = 'cart';
         showNotification('Adicionado: ' + notificationLabel);
         
         __noopLog('âœ… Produto adicionado ao carrinho!');
+        return true;
     }
 
     function buyNow(productId, event) {
@@ -1100,7 +1265,10 @@ $currentPage = 'cart';
         const productName = titleElement ? titleElement.textContent.trim() : 'Produto';
         
         // Adicionar ao carrinho usando a funÃ§Ã£o existente
-        addToCart(productId, productName, event);
+        const added = addToCart(productId, productName, event);
+        if (!added) {
+            return;
+        }
         
         // Aguardar um pouco para garantir que foi adicionado e entÃ£o redirecionar
         setTimeout(() => {

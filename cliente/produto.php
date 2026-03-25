@@ -151,21 +151,17 @@ foreach (array_keys($variacoesPorTipo) as $tipoKey) {
 
 $tamanhos = [];
 if ($tipoTamanhoKey !== null) {
-    $produtoTemPromo = isset($produto['preco_promocional'])
-        && (float) $produto['preco_promocional'] > 0
-        && (float) $produto['preco_promocional'] < (float) $produto['preco'];
+    $precoProdutoBase = (float) ($produto['preco'] ?? 0);
 
     foreach ($variacoesPorTipo[$tipoTamanhoKey] as $v) {
         $usaPrecoPadraoProduto = !(isset($v['preco']) && (float) $v['preco'] > 0);
-        $precoVar = $usaPrecoPadraoProduto ? (float) $produto['preco'] : (float) $v['preco'];
+        $precoVar = $usaPrecoPadraoProduto ? $precoProdutoBase : (float) $v['preco'];
         $precoPromoVar = isset($v['preco_promocional']) && (float) $v['preco_promocional'] > 0
             ? (float) $v['preco_promocional']
             : null;
 
-        // Se a variação não define promoção própria e usa o preço-base do produto,
-        // herda o preço promocional do produto para manter a vitrine consistente.
-        if ($precoPromoVar === null && $usaPrecoPadraoProduto && $produtoTemPromo) {
-            $precoPromoVar = (float) $produto['preco_promocional'];
+        if ($precoPromoVar !== null && $precoPromoVar >= $precoVar) {
+            $precoPromoVar = null;
         }
 
         $imgVar = productImageUrl($v['imagem_principal'] ?? '');
@@ -184,10 +180,23 @@ if ($tipoTamanhoKey !== null) {
     }
 }
 
-$precoOriginal = (float) ($produto['preco'] ?? 0);
-$precoBase = isOnSale($produto)
+$tamanhoPadrao = null;
+
+$precoOriginalProduto = (float) ($produto['preco'] ?? 0);
+$precoBaseProduto = isOnSale($produto)
     ? (float) ($produto['preco_promocional'] ?? $produto['preco'])
     : (float) ($produto['preco'] ?? 0);
+$precoOriginal = $precoOriginalProduto;
+$precoBase = $precoBaseProduto;
+
+if ($tamanhoPadrao !== null) {
+    $precoOriginal = (float) ($tamanhoPadrao['preco'] ?? $precoOriginalProduto);
+    $promoPadrao = $tamanhoPadrao['preco_promo'] !== null ? (float) $tamanhoPadrao['preco_promo'] : null;
+    $precoBase = ($promoPadrao !== null && $promoPadrao > 0 && $promoPadrao < $precoOriginal)
+        ? $promoPadrao
+        : $precoOriginal;
+}
+
 $descontoPerc = ($precoOriginal > 0 && $precoBase < $precoOriginal)
     ? (int) round((($precoOriginal - $precoBase) / $precoOriginal) * 100)
     : 0;
@@ -334,6 +343,7 @@ $pageTitle = htmlspecialchars($produto['nome']) . ' | RARE7';
                     </div>
                     <small id="rarePriceHint">Preço unitário</small>
                     <small class="rare-price-total" id="rarePriceTotal">Total: <?php echo formatPrice($precoBase); ?></small>
+                    <small class="rare-stock-status" id="rareStockStatus"></small>
                 </div>
 
                 <?php if (!empty($tamanhos)): ?>
@@ -343,18 +353,20 @@ $pageTitle = htmlspecialchars($produto['nome']) . ' | RARE7';
                         <a href="#" onclick="event.preventDefault();">Guia de medidas</a>
                     </div>
                     <div class="rare-size-grid" id="rareSizeGrid">
-                        <?php foreach ($tamanhos as $idx => $size): ?>
+                        <?php foreach ($tamanhos as $size): ?>
+                            <?php $sizeStock = (int) ($size['estoque'] ?? 0); ?>
                             <button
                                 type="button"
-                                class="rare-size-btn<?php echo $idx === 0 ? ' is-active' : ''; ?>"
+                                class="rare-size-btn<?php echo ($tamanhoPadrao !== null && (int) $size['variacao_id'] === (int) ($tamanhoPadrao['variacao_id'] ?? 0)) ? ' is-active' : ''; ?><?php echo $sizeStock <= 0 ? ' is-sold-out' : ''; ?>"
                                 data-size="<?php echo htmlspecialchars($size['label']); ?>"
                                 data-variacao-id="<?php echo (int) $size['variacao_id']; ?>"
                                 data-preco="<?php echo (float) $size['preco']; ?>"
                                 data-preco-promo="<?php echo $size['preco_promo'] !== null ? (float) $size['preco_promo'] : ''; ?>"
-                                data-estoque="<?php echo (int) $size['estoque']; ?>"
+                                data-estoque="<?php echo $sizeStock; ?>"
                                 data-imagem="<?php echo htmlspecialchars($size['imagem']); ?>"
+                                <?php echo $sizeStock <= 0 ? 'disabled aria-disabled="true" aria-label="Tamanho indisponível"' : ''; ?>
                             >
-                                <?php echo htmlspecialchars($size['label']); ?>
+                                <?php echo htmlspecialchars((string) $size['label']); ?>
                             </button>
                         <?php endforeach; ?>
                     </div>
@@ -388,8 +400,8 @@ $pageTitle = htmlspecialchars($produto['nome']) . ' | RARE7';
                     <button type="button" class="rare-btn rare-btn-primary" id="rareBuyNowBtn">Comprar agora</button>
                 </div>
 
-                <input type="hidden" id="variacaoSelecionadaId" value="<?php echo !empty($tamanhos) ? (int) $tamanhos[0]['variacao_id'] : 0; ?>">
-                <input type="hidden" id="variacaoSelecionadaValor" value="<?php echo !empty($tamanhos) ? htmlspecialchars($tamanhos[0]['label']) : ''; ?>">
+                <input type="hidden" id="variacaoSelecionadaId" value="<?php echo $tamanhoPadrao ? (int) $tamanhoPadrao['variacao_id'] : 0; ?>">
+                <input type="hidden" id="variacaoSelecionadaValor" value="<?php echo $tamanhoPadrao ? htmlspecialchars((string) $tamanhoPadrao['label']) : ''; ?>">
             </div>
         </div>
 
@@ -493,17 +505,19 @@ $pageTitle = htmlspecialchars($produto['nome']) . ' | RARE7';
         image: <?php echo json_encode((string) $imagemPrincipal); ?>,
         basePrice: <?php echo json_encode($precoBase); ?>,
         oldPrice: <?php echo json_encode($precoOriginal); ?>,
+        baseStock: <?php echo json_encode((int) ($produto['estoque'] ?? 0)); ?>,
         personalizationFee: 30,
         freeShippingThreshold: <?php echo json_encode((float) $freteGratisValor); ?>,
         hasVariations: <?php echo json_encode(!empty($variacoes)); ?>
     };
 
     let selected = {
-        size: <?php echo json_encode(!empty($tamanhos) ? (string) $tamanhos[0]['label'] : ''); ?>,
-        variationId: <?php echo json_encode(!empty($tamanhos) ? (int) $tamanhos[0]['variacao_id'] : 0); ?>,
-        price: <?php echo json_encode(!empty($tamanhos) ? (float) $tamanhos[0]['preco'] : $precoBase); ?>,
-        promoPrice: <?php echo json_encode(!empty($tamanhos) && $tamanhos[0]['preco_promo'] !== null ? (float) $tamanhos[0]['preco_promo'] : null); ?>,
-        image: <?php echo json_encode(!empty($tamanhos) ? (string) $tamanhos[0]['imagem'] : ''); ?>,
+        size: <?php echo json_encode($tamanhoPadrao ? (string) $tamanhoPadrao['label'] : ''); ?>,
+        variationId: <?php echo json_encode($tamanhoPadrao ? (int) $tamanhoPadrao['variacao_id'] : 0); ?>,
+        price: <?php echo json_encode($tamanhoPadrao ? (float) $tamanhoPadrao['preco'] : $precoBase); ?>,
+        promoPrice: <?php echo json_encode($tamanhoPadrao && $tamanhoPadrao['preco_promo'] !== null ? (float) $tamanhoPadrao['preco_promo'] : null); ?>,
+        stock: <?php echo json_encode($tamanhoPadrao ? (int) $tamanhoPadrao['estoque'] : (!empty($tamanhos) ? 0 : (int) ($produto['estoque'] ?? 0))); ?>,
+        image: <?php echo json_encode($tamanhoPadrao ? (string) $tamanhoPadrao['imagem'] : ''); ?>,
         qty: 1,
         personalize: false,
         personalizations: []
@@ -525,41 +539,71 @@ $pageTitle = htmlspecialchars($produto['nome']) . ' | RARE7';
         return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value || 0));
     }
 
+    function parseAmount(value) {
+        const raw = String(value ?? '').trim();
+        if (raw === '') return null;
+
+        // Aceita entradas com virgula e simbolo de moeda sem quebrar o calculo.
+        const normalized = raw
+            .replace(/[^\d,.-]/g, '')
+            .replace(/\.(?=\d{3}(\D|$))/g, '')
+            .replace(',', '.');
+
+        const parsed = Number.parseFloat(normalized);
+        return Number.isFinite(parsed) ? parsed : null;
+    }
+
     function unitPrice() {
-        const productHasPromo = Number(PRODUCT.basePrice) > 0 && Number(PRODUCT.oldPrice) > Number(PRODUCT.basePrice);
-        const variationBase = selected.price && selected.price > 0
-            ? Number(selected.price)
+        const usingVariation = Boolean(PRODUCT.hasVariations && Number(selected.variationId || 0) > 0);
+
+        const variationBase = usingVariation
+            ? Number(selected.price || 0)
             : (Number(PRODUCT.oldPrice) || Number(PRODUCT.basePrice));
 
-        const promoCandidate = selected.promoPrice && selected.promoPrice > 0
-            ? Number(selected.promoPrice)
-            : ((selected.variationId === 0 || !PRODUCT.hasVariations) && productHasPromo ? Number(PRODUCT.basePrice) : null);
+        const productPromo = Number(PRODUCT.basePrice || 0);
+        const productOld = Number(PRODUCT.oldPrice || 0);
+        const productHasPromo = productPromo > 0 && productOld > productPromo;
 
-        const effectiveUnit = promoCandidate && promoCandidate < variationBase
+        const promoCandidate = usingVariation
+            ? Number(selected.promoPrice || 0)
+            : (productHasPromo ? productPromo : 0);
+
+        const effectiveUnit = promoCandidate > 0 && promoCandidate < variationBase
             ? promoCandidate
-            : (variationBase > 0 ? variationBase : Number(PRODUCT.basePrice));
+            : (variationBase > 0 ? variationBase : Number(PRODUCT.basePrice || 0));
 
         return effectiveUnit + (selected.personalize ? PRODUCT.personalizationFee : 0);
     }
 
     function priceReference() {
-        const productHasPromo = Number(PRODUCT.basePrice) > 0 && Number(PRODUCT.oldPrice) > Number(PRODUCT.basePrice);
-        const variationBase = selected.price && selected.price > 0
-            ? Number(selected.price)
+        const usingVariation = Boolean(PRODUCT.hasVariations && Number(selected.variationId || 0) > 0);
+
+        const variationBase = usingVariation
+            ? Number(selected.price || 0)
             : (Number(PRODUCT.oldPrice) || Number(PRODUCT.basePrice));
 
-        const promoCandidate = selected.promoPrice && selected.promoPrice > 0
-            ? Number(selected.promoPrice)
-            : ((selected.variationId === 0 || !PRODUCT.hasVariations) && productHasPromo ? Number(PRODUCT.basePrice) : null);
+        const productPromo = Number(PRODUCT.basePrice || 0);
+        const productOld = Number(PRODUCT.oldPrice || 0);
+        const productHasPromo = productPromo > 0 && productOld > productPromo;
+        const promoCandidate = usingVariation
+            ? Number(selected.promoPrice || 0)
+            : (productHasPromo ? productPromo : 0);
 
-        if (promoCandidate && promoCandidate < variationBase) {
+        if (promoCandidate > 0 && promoCandidate < variationBase) {
             return variationBase;
         }
 
-        return variationBase > 0 ? variationBase : Number(PRODUCT.oldPrice);
+        return variationBase > 0 ? variationBase : Number(PRODUCT.oldPrice || 0);
     }
 
     function refreshPriceAndTotal() {
+        const availableStock = Number(selected.stock || PRODUCT.baseStock || 0);
+        const requiresSizeSelection = Boolean(PRODUCT.hasVariations && Number(selected.variationId || 0) <= 0);
+
+        if (availableStock > 0 && selected.qty > availableStock) {
+            selected.qty = availableStock;
+        }
+
         const currentUnit = unitPrice();
         const oldRef = priceReference();
         const totalPrice = currentUnit * selected.qty;
@@ -570,7 +614,12 @@ $pageTitle = htmlspecialchars($produto['nome']) . ' | RARE7';
         const discountEl = $('#rareDiscountBadge');
         const hintEl = $('#rarePriceHint');
         const totalEl = $('#rarePriceTotal');
+        const stockEl = $('#rareStockStatus');
         const qtyValue = $('#rareQtyValue');
+        const addBtn = $('#rareAddCartBtn');
+        const buyBtn = $('#rareBuyNowBtn');
+        const asideBuy = $('#rareBuyNowAside');
+        const plusBtn = $('#rareQtyPlus');
 
         if (currentEl) currentEl.textContent = formatBRL(totalPrice);
 
@@ -600,6 +649,24 @@ $pageTitle = htmlspecialchars($produto['nome']) . ' | RARE7';
         }
 
         if (qtyValue) qtyValue.textContent = String(selected.qty);
+
+        if (stockEl) {
+            stockEl.textContent = requiresSizeSelection
+                ? 'Escolha um tamanho para continuar'
+                : (availableStock > 0 ? `${availableStock} unidade(s) disponíveis neste tamanho` : '');
+            stockEl.classList.toggle('is-sold-out', availableStock <= 0);
+        }
+
+        [addBtn, buyBtn, asideBuy].forEach((button) => {
+            if (!button) return;
+            const blocked = requiresSizeSelection || availableStock <= 0;
+            button.disabled = blocked;
+            button.setAttribute('aria-disabled', blocked ? 'true' : 'false');
+        });
+
+        if (plusBtn) {
+            plusBtn.disabled = requiresSizeSelection || (availableStock > 0 ? selected.qty >= availableStock : true);
+        }
     }
 
     function updateHiddenVariation() {
@@ -623,11 +690,17 @@ $pageTitle = htmlspecialchars($produto['nome']) . ' | RARE7';
     }
 
     function applySizeFromButton(btn) {
+        const stockRaw = (btn.dataset.estoque || '').trim();
         const promoRaw = (btn.dataset.precoPromo || '').trim();
+        const priceRaw = (btn.dataset.preco || '').trim();
         selected.size = btn.dataset.size || '';
         selected.variationId = parseInt(btn.dataset.variacaoId || '0', 10) || 0;
-        selected.price = parseFloat(btn.dataset.preco || PRODUCT.oldPrice || PRODUCT.basePrice || 0);
-        selected.promoPrice = promoRaw !== '' ? parseFloat(promoRaw) : null;
+        selected.price = parseAmount(priceRaw) ?? Number(PRODUCT.oldPrice || PRODUCT.basePrice || 0);
+        selected.promoPrice = parseAmount(promoRaw);
+        if (selected.promoPrice !== null && selected.promoPrice >= selected.price) {
+            selected.promoPrice = null;
+        }
+        selected.stock = stockRaw !== '' ? parseInt(stockRaw, 10) || 0 : Number(PRODUCT.baseStock || 0);
         selected.image = btn.dataset.imagem || '';
 
         if (selected.image) {
@@ -643,6 +716,10 @@ $pageTitle = htmlspecialchars($produto['nome']) . ' | RARE7';
         const sizeButtons = $$('.rare-size-btn');
         sizeButtons.forEach((btn) => {
             btn.addEventListener('click', function () {
+                if (btn.disabled || Number(btn.dataset.estoque || 0) <= 0) {
+                    return;
+                }
+
                 const parent = btn.closest('.rare-size-grid');
                 if (parent) {
                     parent.querySelectorAll('button').forEach((item) => item.classList.remove('is-active'));
@@ -815,6 +892,10 @@ $pageTitle = htmlspecialchars($produto['nome']) . ' | RARE7';
     function addCurrentProductToCart() {
         if (PRODUCT.hasVariations && !selected.variationId && !selected.size) {
             alert('Selecione uma opção antes de adicionar ao carrinho.');
+            return;
+        }
+        if (Number(selected.stock || PRODUCT.baseStock || 0) <= 0) {
+            alert('A opção selecionada está esgotada.');
             return;
         }
         const price = unitPrice();
@@ -1046,6 +1127,12 @@ $pageTitle = htmlspecialchars($produto['nome']) . ' | RARE7';
         bindPersonalization();
         bindQty();
         bindInfoTabs();
+
+        const activeSizeBtn = document.querySelector('.rare-size-btn.is-active:not([disabled])');
+        if (activeSizeBtn) {
+            applySizeFromButton(activeSizeBtn);
+        }
+
         renderPersonalizationFields();
         refreshPriceAndTotal();
         updateHiddenVariation();
