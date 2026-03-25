@@ -18,10 +18,10 @@ if (in_array(($currentPage ?? ''), ['login', 'register', 'cart'], true)):
         </a>
         <nav>
             <ul class="nav-links">
-                <li><a href="<?php echo $basePath; ?>produtos.php">Camisas</a></li>
-                <li><a href="<?php echo $basePath; ?>produtos.php?menu=retro">Retro</a></li>
-                <li><a href="<?php echo $basePath; ?>produtos.php?menu=clubes">Clubes</a></li>
-                <li><a href="<?php echo $basePath; ?>produtos.php?menu=selecoes">Selecoes</a></li>
+                <li><a href="<?php echo $basePath; ?>produtos.php">Todos Produtos</a></li>
+                <li><a href="<?php echo $basePath; ?>produtos.php?tag=retro">Retro</a></li>
+                <li><a href="<?php echo $basePath; ?>produtos.php?categoria=Times">Times</a></li>
+                <li><a href="<?php echo $basePath; ?>produtos.php?categoria=Sele%C3%A7%C3%B5es">Seleções</a></li>
             </ul>
         </nav>
         <div class="nav-icons">

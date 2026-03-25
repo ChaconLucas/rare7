@@ -466,8 +466,8 @@ $pageTitle = htmlspecialchars($produto['nome']) . ' | RARE7';
                                 : (float) ($rel['preco'] ?? 0);
                             $relTags = getProductTags($rel);
                         ?>
-                        <article class="rare-related-card">
-                            <a href="produto.php?id=<?php echo (int) $rel['id']; ?>" class="rare-related-media">
+                        <article class="rare-related-card product-card">
+                            <a href="produto.php?id=<?php echo (int) $rel['id']; ?>" class="rare-related-media product-image-wrap">
                                 <?php if ($imgRel !== ''): ?>
                                     <img src="<?php echo htmlspecialchars($imgRel); ?>" alt="<?php echo htmlspecialchars($rel['nome']); ?>" loading="lazy">
                                 <?php endif; ?>
@@ -475,7 +475,7 @@ $pageTitle = htmlspecialchars($produto['nome']) . ' | RARE7';
                                     <span class="material-symbols-sharp">sports_soccer</span>
                                 </div>
                             </a>
-                            <div class="rare-related-copy">
+                            <div class="rare-related-copy product-info">
                                 <h3><?php echo htmlspecialchars($rel['nome']); ?></h3>
                                 <?php if (!empty($relTags)): ?>
                                     <div class="rare-product-tags-inline">
@@ -486,8 +486,12 @@ $pageTitle = htmlspecialchars($produto['nome']) . ' | RARE7';
                                         <?php endforeach; ?>
                                     </div>
                                 <?php endif; ?>
-                                <p><?php echo formatPrice($precoRel); ?></p>
-                                <a href="produto.php?id=<?php echo (int) $rel['id']; ?>" class="rare-related-link">Ver produto</a>
+                                <div class="price-line">
+                                    <span class="gold-price"><?php echo formatPrice($precoRel); ?></span>
+                                </div>
+                                <div class="vitrine-actions rare-related-actions">
+                                    <a href="produto.php?id=<?php echo (int) $rel['id']; ?>" class="vitrine-buy">Ver produto</a>
+                                </div>
                             </div>
                         </article>
                     <?php endforeach; ?>
@@ -1121,7 +1125,31 @@ $pageTitle = htmlspecialchars($produto['nome']) . ' | RARE7';
     window.updateQty = updateQty;
     window.closeMiniCart = closeMiniCart;
 
+    function normalizeProductCardImages(root = document) {
+        root.querySelectorAll('.product-image-wrap img').forEach((img) => {
+            const wrap = img.closest('.product-image-wrap');
+            if (!wrap) return;
+
+            const applyFitMode = () => {
+                const w = Number(img.naturalWidth || 0);
+                const h = Number(img.naturalHeight || 0);
+                if (!w || !h) return;
+
+                const ratio = w / h;
+                wrap.classList.toggle('is-fill-image', ratio >= 1.55);
+            };
+
+            if (img.complete) {
+                applyFitMode();
+            }
+
+            img.addEventListener('load', applyFitMode, { once: true });
+            window.setTimeout(applyFitMode, 140);
+        });
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
+        normalizeProductCardImages(document);
         bindThumbs();
         bindSizeButtons();
         bindPersonalization();

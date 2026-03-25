@@ -1872,10 +1872,10 @@ $pageTitle = 'Minha Conta - RARE7';
         </a>
         <nav>
             <ul class="nav-links">
-                <li><a href="../produtos.php">Camisas</a></li>
-                <li><a href="../produtos.php?menu=retro">Retro</a></li>
-                <li><a href="../produtos.php?menu=clubes">Clubes</a></li>
-                <li><a href="../produtos.php?menu=selecoes">Selecoes</a></li>
+                <li><a href="../produtos.php">Todos Produtos</a></li>
+                <li><a href="../produtos.php?tag=retro">Retro</a></li>
+                <li><a href="../produtos.php?categoria=Times">Times</a></li>
+                <li><a href="../produtos.php?categoria=Sele%C3%A7%C3%B5es">Seleções</a></li>
             </ul>
         </nav>
         <div class="nav-icons">

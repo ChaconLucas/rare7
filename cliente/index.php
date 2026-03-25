@@ -338,8 +338,7 @@ if ($bannerInterval < 3 || $bannerInterval > 30) {
 
 $activePromo = !empty($promocoes) ? $promocoes[0] : null;
 $couponTitle = $activePromo['titulo'] ?? 'Ganhe 10% OFF no seu primeiro pedido';
-$couponSubtitle = $activePromo['subtitulo'] ?? 'Use seu cupom para liberar sua primeira vantagem Rare.';
-$couponCode = trim($activePromo['cupom_codigo'] ?? '') ?: 'RARE10';
+$couponSubtitle = $activePromo['subtitulo'] ?? 'Cadastre-se para receber sua vantagem exclusiva no email.';
 
 $footerProductLinks = $footerLinks['produtos'] ?? [];
 $footerSupportLinks = $footerLinks['atendimento'] ?? [];
@@ -405,10 +404,10 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
             </a>
             <nav>
                 <ul class="nav-links">
-                    <li><a href="#vitrine">Camisas</a></li>
-                    <li><a href="#vitrine">Retro</a></li>
-                    <li><a href="#times">Clubes</a></li>
-                    <li><a href="#vitrine">Selecoes</a></li>
+                    <li><a href="produtos.php">Todos Produtos</a></li>
+                    <li><a href="produtos.php?tag=retro">Retro</a></li>
+                    <li><a href="produtos.php?categoria=Times">Times</a></li>
+                    <li><a href="produtos.php?categoria=Sele%C3%A7%C3%B5es">Seleções</a></li>
                 </ul>
             </nav>
             <div class="nav-icons">
@@ -464,29 +463,33 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
                 <div class="section-head center">
                     <h2>Clubes Em Destaque</h2>
                 </div>
-                <div class="teams-marquee">
-                    <div class="teams-track" id="teamsTrack">
-                        <?php foreach ($clubesDestaque as $clube): ?>
-                            <?php
-                                $siglaClube = strtoupper(trim((string)($clube['sigla'] ?? 'CLB')));
-                                $nomeClube = trim((string)($clube['nome'] ?? 'Clube'));
-                                $imageUrl = resolveClubImageUrl((string)($clube['imagem_path'] ?? ''));
-                            ?>
-                            <button
-                                type="button"
-                                class="team-badge team-badge-button<?php echo $imageUrl !== '' ? ' has-image' : ''; ?>"
-                                title="Ver camisas do <?php echo htmlspecialchars($nomeClube); ?>"
-                                aria-label="Ver camisas do <?php echo htmlspecialchars($nomeClube); ?>"
-                                data-team-name="<?php echo htmlspecialchars($nomeClube); ?>"
-                                data-team-sigla="<?php echo htmlspecialchars($siglaClube); ?>"
-                            >
-                                <?php if ($imageUrl !== ''): ?>
-                                    <img src="<?php echo htmlspecialchars($imageUrl); ?>" alt="<?php echo htmlspecialchars($nomeClube); ?>" loading="lazy" onerror="this.closest('.team-badge').classList.remove('has-image'); this.remove();">
-                                <?php endif; ?>
-                                <span class="team-badge-text"><?php echo htmlspecialchars($siglaClube); ?></span>
-                            </button>
-                        <?php endforeach; ?>
+                <div class="teams-marquee-shell">
+                    <button type="button" class="teams-nav-arrow teams-nav-prev" id="teamsPrev" aria-label="Voltar clubes">&#10094;</button>
+                    <div class="teams-marquee" id="teamsMarquee">
+                        <div class="teams-track" id="teamsTrack">
+                            <?php foreach ($clubesDestaque as $clube): ?>
+                                <?php
+                                    $siglaClube = strtoupper(trim((string)($clube['sigla'] ?? 'CLB')));
+                                    $nomeClube = trim((string)($clube['nome'] ?? 'Clube'));
+                                    $imageUrl = resolveClubImageUrl((string)($clube['imagem_path'] ?? ''));
+                                ?>
+                                <button
+                                    type="button"
+                                    class="team-badge team-badge-button<?php echo $imageUrl !== '' ? ' has-image' : ''; ?>"
+                                    title="Ver camisas do <?php echo htmlspecialchars($nomeClube); ?>"
+                                    aria-label="Ver camisas do <?php echo htmlspecialchars($nomeClube); ?>"
+                                    data-team-name="<?php echo htmlspecialchars($nomeClube); ?>"
+                                    data-team-sigla="<?php echo htmlspecialchars($siglaClube); ?>"
+                                >
+                                    <?php if ($imageUrl !== ''): ?>
+                                        <img src="<?php echo htmlspecialchars($imageUrl); ?>" alt="<?php echo htmlspecialchars($nomeClube); ?>" loading="lazy" onerror="this.closest('.team-badge').classList.remove('has-image'); this.remove();">
+                                    <?php endif; ?>
+                                    <span class="team-badge-text"><?php echo htmlspecialchars($siglaClube); ?></span>
+                                </button>
+                            <?php endforeach; ?>
+                        </div>
                     </div>
+                    <button type="button" class="teams-nav-arrow teams-nav-next" id="teamsNext" aria-label="Avancar clubes">&#10095;</button>
                 </div>
             </div>
         </section>
@@ -498,9 +501,9 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
                 </div>
 
                 <div class="vitrine-stage">
-                    <button class="slider-arrow" id="vitrinePrev" aria-label="Anterior">←</button>
+                    <button class="slider-arrow" id="vitrinePrev" aria-label="Anterior"><span class="slider-arrow-icon" aria-hidden="true">&#10094;</span></button>
                     <div class="vitrine-cards" id="vitrineCards"></div>
-                    <button class="slider-arrow" id="vitrineNext" aria-label="Proximo">→</button>
+                    <button class="slider-arrow" id="vitrineNext" aria-label="Proximo"><span class="slider-arrow-icon" aria-hidden="true">&#10095;</span></button>
                 </div>
 
                 <div class="vitrine-counter" id="vitrineCounter">Mostrando 0–0 de 0</div>
@@ -514,7 +517,10 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
         </section>
 
         <section class="showcase section" id="showcaseBanner">
+            <img class="showcase-bg-image" id="showcaseImage" src="" alt="Banner principal" loading="eager" decoding="async">
             <div class="showcase-overlay"></div>
+            <button type="button" class="showcase-arrow showcase-arrow-prev" id="showcasePrev" aria-label="Banner anterior">&#10094;</button>
+            <button type="button" class="showcase-arrow showcase-arrow-next" id="showcaseNext" aria-label="Próximo banner">&#10095;</button>
             <div class="showcase-content container-shell">
                 <p class="showcase-kicker" id="showcaseKicker">Rare Collection</p>
                 <h2 id="showcaseTitle">ESTILO GLOBAL</h2>
@@ -536,6 +542,8 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
                     <?php
                         $cardTags = getProductTags($product);
                         $primaryTag = !empty($cardTags) ? (string) ($cardTags[0]['label'] ?? '') : '';
+                        $catalogDescription = trim((string) ($product['descricao'] ?? ''));
+                        $catalogExcerpt = $catalogDescription !== '' ? mb_substr($catalogDescription, 0, 110) . (mb_strlen($catalogDescription) > 110 ? '...' : '') : 'Produto premium da Rare.';
                     ?>
                     <article class="product-card reveal" data-product-id="<?php echo (int)$product['id']; ?>" data-product-url="produto.php?id=<?php echo (int)$product['id']; ?>">
                             <div class="product-image-wrap">
@@ -550,14 +558,7 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
                             </div>
                             <div class="product-info">
                                 <h3><?php echo htmlspecialchars($product['nome']); ?></h3>
-                                <div class="price-line">
-                                    <?php if (isOnSale($product)): ?>
-                                    <span class="old-price"><?php echo formatPrice($product['preco']); ?></span>
-                                    <span class="gold-price"><?php echo formatPrice($product['preco_promocional']); ?></span>
-                                    <?php else: ?>
-                                    <span class="gold-price"><?php echo formatPrice($product['preco']); ?></span>
-                                    <?php endif; ?>
-                                </div>
+                                <p><?php echo htmlspecialchars($catalogExcerpt); ?></p>
                                 <?php $catalogSizeOptions = $productSizeOptionsMap[(int)$product['id']] ?? []; ?>
                                 <?php if (!empty($catalogSizeOptions)): ?>
                                 <div class="vitrine-size-selector" data-size-group="<?php echo (int)$product['id']; ?>">
@@ -567,6 +568,14 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
                                     <?php endforeach; ?>
                                 </div>
                                 <?php endif; ?>
+                                <div class="price-line">
+                                    <?php if (isOnSale($product)): ?>
+                                    <span class="old-price"><?php echo formatPrice($product['preco']); ?></span>
+                                    <span class="gold-price"><?php echo formatPrice($product['preco_promocional']); ?></span>
+                                    <?php else: ?>
+                                    <span class="gold-price"><?php echo formatPrice($product['preco']); ?></span>
+                                    <?php endif; ?>
+                                </div>
                                 <div class="vitrine-actions">
                                     <button type="button" class="vitrine-more" data-catalog-action="add" data-product-id="<?php echo (int)$product['id']; ?>">Adicionar</button>
                                     <button type="button" class="vitrine-buy" data-catalog-action="buy" data-product-id="<?php echo (int)$product['id']; ?>">Comprar</button>
@@ -587,12 +596,12 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
                 <div class="coupon-box reveal">
                     <p class="coupon-kicker">Oferta de boas-vindas</p>
                     <h2><?php echo htmlspecialchars($couponTitle); ?></h2>
-                    <p><?php echo htmlspecialchars($couponSubtitle); ?></p>
-                    <p class="coupon-code">Cupom: <strong><?php echo htmlspecialchars($couponCode); ?></strong></p>
+                    <p class="coupon-subtitle">Se cadastre para receber seu cupom de primeira compra no email.</p>
+                    <p class="coupon-policy">Liberacao exclusiva para novos cadastros.</p>
                     <form class="coupon-form" id="couponForm">
-                        <input type="text" name="nome" placeholder="Nome" required>
-                        <input type="email" name="email" placeholder="Email" required>
-                        <button type="submit">Quero meu cupom</button>
+                        <input type="text" name="nome" placeholder="Seu nome" required>
+                        <input type="email" name="email" placeholder="Seu melhor email" required>
+                        <button type="submit">Cadastrar e receber cupom</button>
                     </form>
                     <p class="coupon-feedback" id="couponFeedback"></p>
                 </div>
@@ -743,9 +752,84 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
       revealItems.forEach((item) => observer.observe(item));
 
             const track = document.getElementById('teamsTrack');
-      if (track) {
-        track.innerHTML += track.innerHTML;
-      }
+            const teamsMarquee = document.getElementById('teamsMarquee');
+            const teamsPrev = document.getElementById('teamsPrev');
+            const teamsNext = document.getElementById('teamsNext');
+
+            if (track && teamsMarquee) {
+                if (!track.dataset.cloned) {
+                    track.innerHTML += track.innerHTML;
+                    track.dataset.cloned = '1';
+                }
+
+                const baseSpeed = 0.42;
+                const holdSpeed = 2.2;
+                let holdDirection = 0;
+                let impulse = 0;
+                let offset = 0;
+
+                const getLoopPoint = () => Math.max(1, track.scrollWidth / 2);
+
+                const normalizeOffset = () => {
+                    const loopPoint = getLoopPoint();
+                    while (offset >= loopPoint) offset -= loopPoint;
+                    while (offset < 0) offset += loopPoint;
+                };
+
+                const paintOffset = () => {
+                    track.style.transform = `translate3d(${-offset}px, 0, 0)`;
+                };
+
+                const step = () => {
+                    offset += baseSpeed + (holdDirection * holdSpeed) + impulse;
+                    normalizeOffset();
+                    paintOffset();
+
+                    impulse *= 0.9;
+                    if (Math.abs(impulse) < 0.02) {
+                        impulse = 0;
+                    }
+
+                    requestAnimationFrame(step);
+                };
+
+                const nudge = (direction) => {
+                    impulse += direction * 18;
+                };
+
+                const startBoost = (direction) => {
+                    holdDirection = direction;
+                };
+
+                const stopBoost = () => {
+                    holdDirection = 0;
+                };
+
+                requestAnimationFrame(step);
+
+                if (teamsPrev) {
+                    teamsPrev.addEventListener('click', () => nudge(-1));
+                    teamsPrev.addEventListener('mousedown', () => startBoost(-1));
+                    teamsPrev.addEventListener('mouseup', stopBoost);
+                    teamsPrev.addEventListener('mouseleave', stopBoost);
+                    teamsPrev.addEventListener('touchstart', () => startBoost(-1), { passive: true });
+                    teamsPrev.addEventListener('touchend', stopBoost);
+                    teamsPrev.addEventListener('touchcancel', stopBoost);
+                }
+
+                if (teamsNext) {
+                    teamsNext.addEventListener('click', () => nudge(1));
+                    teamsNext.addEventListener('mousedown', () => startBoost(1));
+                    teamsNext.addEventListener('mouseup', stopBoost);
+                    teamsNext.addEventListener('mouseleave', stopBoost);
+                    teamsNext.addEventListener('touchstart', () => startBoost(1), { passive: true });
+                    teamsNext.addEventListener('touchend', stopBoost);
+                    teamsNext.addEventListener('touchcancel', stopBoost);
+                }
+
+                window.addEventListener('mouseup', stopBoost);
+                window.addEventListener('blur', stopBoost);
+            }
 
       const products = Array.isArray(window.__RARE_PRODUCTS__) ? window.__RARE_PRODUCTS__ : [];
     const launchProducts = Array.isArray(window.__RARE_LAUNCH_PRODUCTS__) ? window.__RARE_LAUNCH_PRODUCTS__ : [];
@@ -761,6 +845,15 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
             let activeCategory = 'lancamentos';
       let page = 0;
       const perPage = 4;
+        let vitrineTransitionLock = false;
+        const vitrineViewport = (() => {
+          if (!cardsRoot || !cardsRoot.parentNode) return null;
+          const viewport = document.createElement('div');
+          viewport.className = 'vitrine-cards-viewport';
+          cardsRoot.parentNode.insertBefore(viewport, cardsRoot);
+          viewport.appendChild(cardsRoot);
+          return viewport;
+        })();
 
       function buildCategoryMap() {
         const byKeyword = (keywords) => products.filter((p) => {
@@ -980,13 +1073,16 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
                 }
             }
 
-      function renderVitrine() {
-        const list = getCurrentList();
-        const start = page * perPage;
+            function getVitrineState(pageIndex = page) {
+                const list = getCurrentList();
+                const start = pageIndex * perPage;
                 const safeStart = Math.min(start, Math.max(0, list.length - 1));
-        const current = list.slice(safeStart, safeStart + perPage);
+                const current = list.slice(safeStart, safeStart + perPage);
+                return { list, safeStart, current };
+            }
 
-                cardsRoot.innerHTML = current.map((p) => {
+            function buildVitrineCardsMarkup(current) {
+                return current.map((p) => {
                     const priceState = getPriceState(p, selectedSizes[Number(p.id || 0)] || '');
                     const priceHtml = priceState.onSale
                         ? `<span class="old-price">${formatPrice(priceState.regular)}</span><span class="gold-price">${formatPrice(priceState.current)}</span>`
@@ -1005,12 +1101,11 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
                         : '';
 
                     return `
-                        <article class="vitrine-card" data-product-id="${Number(p.id || 0)}" data-product-url="produto.php?id=${Number(p.id || 0)}">
-                                                                <div class="vitrine-image">${img}${badgeHtml}</div>
-                                <div class="vitrine-body">
+                        <article class="product-card vitrine-card" data-product-id="${Number(p.id || 0)}" data-product-url="produto.php?id=${Number(p.id || 0)}">
+                                <div class="product-image-wrap">${img}${badgeHtml}</div>
+                                <div class="product-info">
                                     <h3>${escapeHtml(p.name)}</h3>
                                     <p>${escapeHtml((p.description || '').trim() || 'Produto premium da Rare.')}</p>
-                                    <div class="price-line">${priceHtml}</div>
                                     ${Array.isArray(p.size_options) && p.size_options.length ? `<div class="vitrine-size-selector" data-size-group="${Number(p.id || 0)}">${p.size_options.map((size) => {
                                         const stock = Number(size?.stock || 0);
                                         const soldOutClass = stock <= 0 ? ' is-sold-out' : '';
@@ -1019,22 +1114,66 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
                                         const label = `${escapeHtml(size?.label || '')}`;
                                         return `<button type="button" class="vitrine-size-chip${soldOutClass}" data-vitrine-size="${escapeHtml(size?.label || '')}" data-product-id="${Number(p.id || 0)}" data-variation-id="${Number(size?.variation_id || 0)}" data-price="${Number(size?.price || 0)}" data-sale-price="${saleValue}" data-stock="${stock}"${disabledAttr}>${label}</button>`;
                                     }).join('')}</div>` : ''}
+                                    <div class="price-line">${priceHtml}</div>
                                     <div class="vitrine-actions">
                                         <button type="button" class="vitrine-more" data-vitrine-action="add" data-product-id="${Number(p.id || 0)}">Adicionar</button>
                                         <button type="button" class="vitrine-buy" data-vitrine-action="buy" data-product-id="${Number(p.id || 0)}">Comprar</button>
                                     </div>
                                 </div>
             </article>`;
-        }).join('');
+                }).join('');
+            }
 
-        const x = list.length ? safeStart + 1 : 0;
-        const y = Math.min(safeStart + current.length, list.length);
-        counter.textContent = `Mostrando ${x}–${y} de ${list.length}`;
-
+            function syncRenderedVitrine(root, current) {
                 current.forEach((product) => {
-                        syncProductCardUI(cardsRoot, product, Number(product.id || 0));
+                    syncProductCardUI(root, product, Number(product.id || 0));
                 });
-      }
+            }
+
+            function updateVitrineCounter(list, safeStart, current) {
+                const x = list.length ? safeStart + 1 : 0;
+                const y = Math.min(safeStart + current.length, list.length);
+                counter.textContent = `Mostrando ${x}–${y} de ${list.length}`;
+            }
+
+            function updateVitrineViewportHeight() {
+                if (!vitrineViewport || !cardsRoot) return;
+                vitrineViewport.style.height = `${cardsRoot.offsetHeight}px`;
+            }
+
+            function normalizeCardImages(root) {
+                if (!root) return;
+                root.querySelectorAll('.product-image-wrap img').forEach((img) => {
+                    const wrap = img.closest('.product-image-wrap');
+                    if (!wrap) return;
+
+                    const applyFitMode = () => {
+                        const w = Number(img.naturalWidth || 0);
+                        const h = Number(img.naturalHeight || 0);
+                        if (!w || !h) return;
+
+                        // Only very wide assets (banner/screenshot-like) should fill the frame.
+                        const ratio = w / h;
+                        wrap.classList.toggle('is-fill-image', ratio >= 1.55);
+                    };
+
+                    if (img.complete) {
+                        applyFitMode();
+                    }
+
+                    img.addEventListener('load', applyFitMode, { once: true });
+                    window.setTimeout(applyFitMode, 140);
+                });
+            }
+
+            function renderVitrine() {
+                const state = getVitrineState(page);
+                cardsRoot.innerHTML = buildVitrineCardsMarkup(state.current);
+                syncRenderedVitrine(cardsRoot, state.current);
+                normalizeCardImages(cardsRoot);
+                updateVitrineCounter(state.list, state.safeStart, state.current);
+                updateVitrineViewportHeight();
+            }
 
       function formatPrice(value) {
         return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value || 0));
@@ -1162,21 +1301,68 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
                 });
             }
 
-      btnPrev.addEventListener('click', () => {
-        const list = getCurrentList();
-        const maxPage = Math.max(0, Math.ceil(list.length / perPage) - 1);
-        page = page <= 0 ? maxPage : page - 1;
-        renderVitrine();
-      });
+            function animateVitrinePage(nextPage, direction) {
+                if (!cardsRoot || !vitrineViewport || vitrineTransitionLock) {
+                    page = nextPage;
+                    renderVitrine();
+                    return;
+                }
 
-      btnNext.addEventListener('click', () => {
-        const list = getCurrentList();
-        const maxPage = Math.max(0, Math.ceil(list.length / perPage) - 1);
-        page = page >= maxPage ? 0 : page + 1;
-        renderVitrine();
-      });
+                vitrineTransitionLock = true;
+                const state = getVitrineState(nextPage);
+
+                const incoming = document.createElement('div');
+                incoming.className = `vitrine-cards vitrine-cards-panel vitrine-cards-panel-enter-${direction}`;
+                incoming.innerHTML = buildVitrineCardsMarkup(state.current);
+                vitrineViewport.appendChild(incoming);
+                syncRenderedVitrine(incoming, state.current);
+                normalizeCardImages(incoming);
+
+                cardsRoot.classList.add('vitrine-cards-panel', `vitrine-cards-panel-leave-${direction}`);
+                incoming.classList.add('is-prepared');
+
+                requestAnimationFrame(() => {
+                    cardsRoot.classList.add('is-active');
+                    incoming.classList.add('is-active');
+                });
+
+                window.setTimeout(() => {
+                    page = nextPage;
+                    cardsRoot.innerHTML = incoming.innerHTML;
+                    syncRenderedVitrine(cardsRoot, state.current);
+                    normalizeCardImages(cardsRoot);
+                    updateVitrineCounter(state.list, state.safeStart, state.current);
+
+                    cardsRoot.classList.remove(
+                      'vitrine-cards-panel',
+                      'vitrine-cards-panel-leave-next',
+                      'vitrine-cards-panel-leave-prev',
+                      'is-active'
+                    );
+
+                    incoming.remove();
+                    updateVitrineViewportHeight();
+                    vitrineTransitionLock = false;
+                }, 360);
+            }
+
+            btnPrev.addEventListener('click', () => {
+                const list = getCurrentList();
+                const maxPage = Math.max(0, Math.ceil(list.length / perPage) - 1);
+                const nextPage = page <= 0 ? maxPage : page - 1;
+                animateVitrinePage(nextPage, 'prev');
+            });
+
+            btnNext.addEventListener('click', () => {
+                const list = getCurrentList();
+                const maxPage = Math.max(0, Math.ceil(list.length / perPage) - 1);
+                const nextPage = page >= maxPage ? 0 : page + 1;
+                animateVitrinePage(nextPage, 'next');
+            });
 
       renderVitrine();
+
+            normalizeCardImages(catalogRoot);
 
             products.forEach((product) => {
                 syncProductCardUI(catalogRoot, product, Number(product.id || 0));
@@ -1188,6 +1374,9 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
       const subtitle = document.getElementById('showcaseSub');
             const cta = document.getElementById('showcaseCta');
       const dotsRoot = document.getElementById('showcaseDots');
+        const showcaseImage = document.getElementById('showcaseImage');
+    const bannerPrev = document.getElementById('showcasePrev');
+    const bannerNext = document.getElementById('showcaseNext');
 
             const bannerSlides = Array.isArray(window.__RARE_BANNER_SLIDES__) && window.__RARE_BANNER_SLIDES__.length
                 ? window.__RARE_BANNER_SLIDES__
@@ -1230,37 +1419,89 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
                     }
                 }
 
+                const hasTextContent = Boolean(
+                  titleText ||
+                  subtitleText ||
+                  (cta && cta.style.display !== 'none')
+                );
+                bannerSection.classList.toggle('has-text-content', hasTextContent);
+
                 if (slide.image) {
-                    bannerSection.style.backgroundImage = `linear-gradient(120deg, rgba(14,14,14,.7), rgba(15,28,46,.65)), url('${slide.image}')`;
-        }
+                    if (showcaseImage) {
+                        showcaseImage.src = slide.image;
+                        showcaseImage.style.display = 'block';
+                    }
+                    bannerSection.classList.add('has-banner-image');
+                } else {
+                    if (showcaseImage) {
+                        showcaseImage.removeAttribute('src');
+                        showcaseImage.style.display = 'none';
+                    }
+                    bannerSection.classList.remove('has-banner-image');
+                }
 
         dotsRoot.querySelectorAll('button').forEach((dot, dotIndex) => {
           dot.classList.toggle('active', dotIndex === index);
         });
       }
 
-            bannerSlides.forEach((_, index) => {
+                        const bannerIntervalMs = Math.max(3000, Math.min(30000, Number(window.__RARE_BANNER_INTERVAL__ || 4) * 1000));
+                        let bannerTimerId = null;
+
+                        function scheduleNextBanner() {
+                                if (bannerTimerId) {
+                                        window.clearTimeout(bannerTimerId);
+                                        bannerTimerId = null;
+                                }
+
+                                if (bannerSlides.length <= 1) {
+                                        return;
+                                }
+
+                                bannerTimerId = window.setTimeout(() => {
+                                    goBanner(1, false);
+                                    scheduleNextBanner();
+                                }, bannerIntervalMs);
+                        }
+
+                        bannerSlides.forEach((_, index) => {
         const dot = document.createElement('button');
         dot.type = 'button';
         dot.addEventListener('click', () => {
           bannerIndex = index;
           paintBanner(bannerIndex);
+                    scheduleNextBanner();
         });
         dotsRoot.appendChild(dot);
       });
 
       paintBanner(0);
-            const bannerIntervalMs = Math.max(3000, Math.min(30000, Number(window.__RARE_BANNER_INTERVAL__ || 4) * 1000));
-            setInterval(() => {
-                bannerIndex = (bannerIndex + 1) % bannerSlides.length;
-        paintBanner(bannerIndex);
-            }, bannerIntervalMs);
+
+            function goBanner(step, isManual = true) {
+                if (!bannerSlides.length) return;
+                bannerIndex = (bannerIndex + step + bannerSlides.length) % bannerSlides.length;
+                paintBanner(bannerIndex);
+
+                if (isManual) {
+                    scheduleNextBanner();
+                }
+            }
+
+            if (bannerPrev) {
+                bannerPrev.addEventListener('click', () => goBanner(-1));
+            }
+
+            if (bannerNext) {
+                bannerNext.addEventListener('click', () => goBanner(1));
+            }
+
+            scheduleNextBanner();
 
       const couponForm = document.getElementById('couponForm');
       const couponFeedback = document.getElementById('couponFeedback');
       couponForm.addEventListener('submit', (event) => {
         event.preventDefault();
-        couponFeedback.textContent = 'Cupom RARE10 liberado. Verifique seu email em instantes.';
+                couponFeedback.textContent = 'Cadastro confirmado. Seu cupom de primeira compra sera enviado por email.';
       });
 
       document.getElementById('newsletterForm').addEventListener('submit', (event) => {

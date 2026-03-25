@@ -781,8 +781,8 @@ $currentPage = 'cart';
                         $description = trim((string) ($product['descricao'] ?? ''));
                         $excerpt = $description !== '' ? mb_substr($description, 0, 150) . (mb_strlen($description) > 150 ? '...' : '') : 'Peca com acabamento refinado, curadoria premium e presenca marcante dentro da colecao RARE.';
                     ?>
-                    <article class="rare-product-row" data-product-card data-product-id="<?php echo (int) $product['id']; ?>" data-has-variacoes="<?php echo (isset($product['tem_variacoes']) && $product['tem_variacoes'] > 0) ? '1' : '0'; ?>" data-has-tamanhos="<?php echo (!empty($product['tamanhos'])) ? '1' : '0'; ?>" data-base-price="<?php echo (float) ($product['preco'] ?? 0); ?>" data-base-sale-price="<?php echo (float) ($product['preco_promocional'] ?? 0); ?>">
-                        <a href="produto.php?id=<?php echo $product['id']; ?>" class="rare-product-row-media" aria-label="Abrir produto <?php echo htmlspecialchars($product['nome']); ?>">
+                    <article class="rare-product-row product-card" data-product-card data-product-id="<?php echo (int) $product['id']; ?>" data-has-variacoes="<?php echo (isset($product['tem_variacoes']) && $product['tem_variacoes'] > 0) ? '1' : '0'; ?>" data-has-tamanhos="<?php echo (!empty($product['tamanhos'])) ? '1' : '0'; ?>" data-base-price="<?php echo (float) ($product['preco'] ?? 0); ?>" data-base-sale-price="<?php echo (float) ($product['preco_promocional'] ?? 0); ?>">
+                        <a href="produto.php?id=<?php echo $product['id']; ?>" class="rare-product-row-media product-image-wrap" aria-label="Abrir produto <?php echo htmlspecialchars($product['nome']); ?>">
                             <?php if ($productImage !== ''): ?>
                                 <img src="<?php echo htmlspecialchars($productImage); ?>" alt="<?php echo htmlspecialchars($product['nome']); ?>" loading="lazy" onerror="this.parentElement.classList.add('is-fallback'); this.remove();">
                             <?php endif; ?>
@@ -793,33 +793,27 @@ $currentPage = 'cart';
                                 <span class="product-badge"><?php echo strtoupper(htmlspecialchars($badge)); ?></span>
                             <?php endif; ?>
                         </a>
-                        <div class="rare-product-row-content">
-                            <div class="rare-product-row-topline">
-                                <span class="rare-product-category"><?php echo htmlspecialchars($product['categoria'] ?? 'Colecao Rare'); ?></span>
-                            </div>
+                        <div class="rare-product-row-content product-info">
                             <h3><a href="produto.php?id=<?php echo $product['id']; ?>"><?php echo htmlspecialchars($product['nome']); ?></a></h3>
                             <p class="rare-product-description"><?php echo htmlspecialchars($excerpt); ?></p>
 
                             <?php if (!empty($product['tamanhos'])): ?>
-                            <div class="rare-size-selector" data-product-sizes data-product-id="<?php echo (int) $product['id']; ?>">
-                                <span class="rare-size-label">Tamanhos</span>
-                                <div class="rare-size-options">
+                            <div class="vitrine-size-selector" data-product-sizes data-product-id="<?php echo (int) $product['id']; ?>">
                                     <?php foreach (($product['tamanho_opcoes'] ?? []) as $size): ?>
                                         <?php $sizeStock = (int) ($size['stock'] ?? 0); ?>
-                                        <button type="button" class="rare-size-chip<?php echo $sizeStock <= 0 ? ' is-sold-out' : ''; ?>" data-size-option="<?php echo htmlspecialchars((string) $size['label']); ?>" data-variation-id="<?php echo (int) ($size['variation_id'] ?? 0); ?>" data-price="<?php echo (float) ($size['price'] ?? 0); ?>" data-sale-price="<?php echo isset($size['sale_price']) && $size['sale_price'] !== null ? (float) $size['sale_price'] : ''; ?>" data-stock="<?php echo $sizeStock; ?>" <?php echo $sizeStock <= 0 ? 'disabled aria-disabled="true" aria-label="Tamanho indisponível"' : ''; ?>><?php echo htmlspecialchars((string) $size['label']); ?></button>
+                                        <button type="button" class="vitrine-size-chip<?php echo $sizeStock <= 0 ? ' is-sold-out' : ''; ?>" data-size-option="<?php echo htmlspecialchars((string) $size['label']); ?>" data-variation-id="<?php echo (int) ($size['variation_id'] ?? 0); ?>" data-price="<?php echo (float) ($size['price'] ?? 0); ?>" data-sale-price="<?php echo isset($size['sale_price']) && $size['sale_price'] !== null ? (float) $size['sale_price'] : ''; ?>" data-stock="<?php echo $sizeStock; ?>" <?php echo $sizeStock <= 0 ? 'disabled aria-disabled="true" aria-label="Tamanho indisponível"' : ''; ?>><?php echo htmlspecialchars((string) $size['label']); ?></button>
                                     <?php endforeach; ?>
-                                </div>
                             </div>
                             <?php endif; ?>
 
                             <div class="rare-product-row-footer" onclick="event.stopPropagation(); event.preventDefault();">
-                                <div class="rare-product-price-block">
-                                    <span class="rare-price-old" data-price-old<?php echo !isOnSale($product) ? ' style="display:none;"' : ''; ?>><?php echo isOnSale($product) ? formatPrice($product['preco']) : ''; ?></span>
-                                    <strong class="rare-price-current" data-price-current><?php echo formatPrice($priceValue); ?></strong>
+                                <div class="rare-product-price-block price-line">
+                                    <span class="rare-price-old old-price" data-price-old<?php echo !isOnSale($product) ? ' style="display:none;"' : ''; ?>><?php echo isOnSale($product) ? formatPrice($product['preco']) : ''; ?></span>
+                                    <strong class="rare-price-current gold-price" data-price-current><?php echo formatPrice($priceValue); ?></strong>
                                 </div>
-                                <div class="rare-product-cta compact">
-                                    <button class="rare-btn rare-btn-secondary" onclick="addToCart(<?php echo (int) $product['id']; ?>, '<?php echo htmlspecialchars($product['nome'], ENT_QUOTES); ?>', event)">Adicionar</button>
-                                    <button class="rare-btn rare-btn-primary btn-buy-now" onclick="buyNow(<?php echo (int) $product['id']; ?>, event)" data-has-variacoes="<?php echo (isset($product['tem_variacoes']) && $product['tem_variacoes'] > 0) ? '1' : '0'; ?>">Comprar</button>
+                                <div class="rare-product-cta compact vitrine-actions">
+                                    <button type="button" class="vitrine-more" onclick="addToCart(<?php echo (int) $product['id']; ?>, '<?php echo htmlspecialchars($product['nome'], ENT_QUOTES); ?>', event)">Adicionar</button>
+                                    <button type="button" class="vitrine-buy btn-buy-now" onclick="buyNow(<?php echo (int) $product['id']; ?>, event)" data-has-variacoes="<?php echo (isset($product['tem_variacoes']) && $product['tem_variacoes'] > 0) ? '1' : '0'; ?>">Comprar</button>
                                 </div>
                             </div>
                         </div>
@@ -973,6 +967,30 @@ $currentPage = 'cart';
     function parseMoneyValue(value) {
         const parsed = parseFloat(value);
         return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    function normalizeProductCardImages(root = document) {
+        root.querySelectorAll('.product-image-wrap img').forEach((img) => {
+            const wrap = img.closest('.product-image-wrap');
+            if (!wrap) return;
+
+            const applyFitMode = () => {
+                const w = Number(img.naturalWidth || 0);
+                const h = Number(img.naturalHeight || 0);
+                if (!w || !h) return;
+
+                // Only very wide assets (banner/screenshot-like) should fill the frame.
+                const ratio = w / h;
+                wrap.classList.toggle('is-fill-image', ratio >= 1.55);
+            };
+
+            if (img.complete) {
+                applyFitMode();
+            }
+
+            img.addEventListener('load', applyFitMode, { once: true });
+            window.setTimeout(applyFitMode, 140);
+        });
     }
 
     function findProductCard(productId) {
@@ -1517,6 +1535,7 @@ $currentPage = 'cart';
     // Event Listeners
     document.addEventListener('DOMContentLoaded', function() {
         __noopLog('=== INICIALIZANDO CARRINHO ===');
+        normalizeProductCardImages(document);
         
         // Verificar se o localStorage tem dados corrompidos
         try {
