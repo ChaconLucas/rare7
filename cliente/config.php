@@ -5,6 +5,10 @@
  * Tabela: clientes
  */
 
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    session_start();
+}
+
 // Configurações do banco de dados
 define('DB_HOST', '127.0.0.1');
 define('DB_NAME', 'adm_rare');
