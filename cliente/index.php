@@ -706,6 +706,7 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
             </div>
         </section>
 
+        <?php if (!empty($testimonials)): ?>
         <section class="testimonials section" id="depoimentos">
             <div class="container-shell">
                 <div class="section-head">
@@ -713,22 +714,17 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
                     <p>Clientes que sentem a experiencia Rare.</p>
                 </div>
                 <div class="testimonials-grid">
-                    <?php if (!empty($testimonials)): ?>
-                        <?php foreach ($testimonials as $depoimento): ?>
-                        <article class="testimonial-card reveal">
-                            <p class="testimonial-text"><?php echo htmlspecialchars($depoimento['texto'] ?? 'Excelente experiencia.'); ?></p>
-                            <p class="testimonial-name"><?php echo htmlspecialchars($depoimento['nome'] ?? 'Cliente Rare'); ?></p>
-                            <p class="testimonial-stars"><?php echo str_repeat('★', max(1, min(5, (int)($depoimento['rating'] ?? 5)))); ?></p>
-                        </article>
-                        <?php endforeach; ?>
-                    <?php else: ?>
-                        <article class="testimonial-card reveal"><p class="testimonial-text">"Entrega impecavel e acabamento premium."</p><p class="testimonial-name">Camila R.</p><p class="testimonial-stars">★★★★★</p></article>
-                        <article class="testimonial-card reveal"><p class="testimonial-text">"A melhor experiencia de compra em camisas."</p><p class="testimonial-name">Lucas M.</p><p class="testimonial-stars">★★★★★</p></article>
-                        <article class="testimonial-card reveal"><p class="testimonial-text">"Visual elegante e produtos exclusivos."</p><p class="testimonial-name">Renata S.</p><p class="testimonial-stars">★★★★★</p></article>
-                    <?php endif; ?>
+                    <?php foreach ($testimonials as $depoimento): ?>
+                    <article class="testimonial-card reveal">
+                        <p class="testimonial-text"><?php echo htmlspecialchars($depoimento['texto'] ?? 'Excelente experiencia.'); ?></p>
+                        <p class="testimonial-name"><?php echo htmlspecialchars($depoimento['nome'] ?? 'Cliente Rare'); ?></p>
+                        <p class="testimonial-stars"><?php echo str_repeat('★', max(1, min(5, (int)($depoimento['rating'] ?? 5)))); ?></p>
+                    </article>
+                    <?php endforeach; ?>
                 </div>
             </div>
         </section>
+        <?php endif; ?>
     </main>
 
     <?php include __DIR__ . '/includes/mini-cart.php'; ?>
