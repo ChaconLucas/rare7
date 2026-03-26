@@ -143,6 +143,73 @@ if ($clubesResult) {
     }
 }
 
+// Garantir tabela de ligas em destaque
+$createLeaguesTableSql = "
+    CREATE TABLE IF NOT EXISTS cms_home_leagues (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        nome VARCHAR(120) NOT NULL,
+        slug VARCHAR(120) NOT NULL,
+        sigla VARCHAR(20) NOT NULL,
+        classe VARCHAR(60) NOT NULL DEFAULT '',
+        logo_path VARCHAR(255) NULL,
+        ordem INT NOT NULL DEFAULT 1,
+        ativo TINYINT(1) NOT NULL DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_cms_home_leagues_ativo_ordem (ativo, ordem)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+";
+mysqli_query($conexao, $createLeaguesTableSql);
+
+// Compatibilidade com bancos antigos
+$checkLeagueSlug = mysqli_query($conexao, "SHOW COLUMNS FROM cms_home_leagues LIKE 'slug'");
+if ($checkLeagueSlug && mysqli_num_rows($checkLeagueSlug) === 0) {
+    mysqli_query($conexao, "ALTER TABLE cms_home_leagues ADD COLUMN slug VARCHAR(120) NOT NULL DEFAULT '' AFTER nome");
+}
+
+$checkLeagueClass = mysqli_query($conexao, "SHOW COLUMNS FROM cms_home_leagues LIKE 'classe'");
+if ($checkLeagueClass && mysqli_num_rows($checkLeagueClass) === 0) {
+    mysqli_query($conexao, "ALTER TABLE cms_home_leagues ADD COLUMN classe VARCHAR(60) NOT NULL DEFAULT '' AFTER sigla");
+}
+
+// Seed inicial se tabela estiver vazia
+$leaguesCountResult = mysqli_query($conexao, "SELECT COUNT(*) AS total FROM cms_home_leagues");
+$leaguesCountData = $leaguesCountResult ? mysqli_fetch_assoc($leaguesCountResult) : ['total' => 0];
+$leaguesTotal = (int)($leaguesCountData['total'] ?? 0);
+
+if ($leaguesTotal === 0) {
+    $ligasPadrao = [
+        ['Premier League', 'premier-league', 'PL', 'league-premier', 1, 1],
+        ['La Liga', 'la-liga', 'LL', 'league-laliga', 2, 1],
+        ['Brasileirão', 'brasileirao', 'BR', 'league-brasileirao', 3, 1],
+        ['Serie A', 'serie-a', 'SA', 'league-seriea', 4, 1],
+        ['Bundesliga', 'bundesliga', 'BL', 'league-bundesliga', 5, 1],
+        ['Champions League', 'champions-league', 'UCL', 'league-champions', 6, 1]
+    ];
+
+    $insertLeagueStmt = mysqli_prepare(
+        $conexao,
+        "INSERT INTO cms_home_leagues (nome, slug, sigla, classe, ordem, ativo) VALUES (?, ?, ?, ?, ?, ?)"
+    );
+
+    if ($insertLeagueStmt) {
+        foreach ($ligasPadrao as $liga) {
+            mysqli_stmt_bind_param($insertLeagueStmt, 'ssssii', $liga[0], $liga[1], $liga[2], $liga[3], $liga[4], $liga[5]);
+            mysqli_stmt_execute($insertLeagueStmt);
+        }
+        mysqli_stmt_close($insertLeagueStmt);
+    }
+}
+
+// Buscar ligas para edição
+$ligas = [];
+$ligasResult = mysqli_query($conexao, "SELECT * FROM cms_home_leagues ORDER BY ordem ASC, id ASC");
+if ($ligasResult) {
+    while ($row = mysqli_fetch_assoc($ligasResult)) {
+        $ligas[] = $row;
+    }
+}
+
 // Buscar dados do footer
 $footer_sql = "SELECT * FROM cms_footer WHERE id = 1";
 $footer_result = mysqli_query($conexao, $footer_sql);
@@ -423,6 +490,129 @@ while ($row = mysqli_fetch_assoc($footer_links_result)) {
             border-color: rgba(198, 167, 94, 0.75);
             box-shadow: 0 0 0 4px rgba(198, 167, 94, 0.12);
         }
+
+        .cms-league-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        .cms-league-card {
+            background: linear-gradient(180deg, #ffffff 0%, #fbfbfd 100%);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 16px;
+            padding: 1rem;
+        }
+        .cms-league-card.is-new {
+            border-style: dashed;
+            border-color: rgba(198, 167, 94, 0.6);
+        }
+        .league-card-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 0.9rem;
+        }
+        .league-logo-preview {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            border: 2px solid var(--color-light);
+            background: var(--color-background);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+        .league-logo-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        .league-logo-preview span {
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--color-dark-variant);
+        }
+        .league-card-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--color-dark);
+        }
+        .league-card-id {
+            font-size: 0.75rem;
+            color: var(--color-dark-variant);
+        }
+        .league-fields {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+        }
+        .league-fields .full {
+            grid-column: 1 / -1;
+        }
+        .league-fields .form-group {
+            margin: 0;
+        }
+        .league-fields .form-group label {
+            font-size: 0.8rem;
+            margin-bottom: 0.3rem;
+        }
+        .league-fields .form-group input[type="text"],
+        .league-fields .form-group input[type="number"] {
+            min-height: 42px;
+            border-radius: 10px;
+            border: 1px solid rgba(148, 163, 184, 0.32);
+            background: #fff;
+            padding: 0.6rem 0.7rem;
+            font-size: 0.86rem;
+        }
+        .league-upload-row {
+            display: flex;
+            gap: 0.6rem;
+            align-items: center;
+        }
+        .league-upload-row input[type="file"] {
+            flex: 1;
+            font-size: 0.8rem;
+        }
+        .league-upload-btn {
+            border: none;
+            border-radius: 10px;
+            background: var(--color-primary);
+            color: #fff;
+            padding: 0.6rem 0.9rem;
+            font-size: 0.8rem;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+        .league-upload-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .league-upload-status {
+            font-size: 0.75rem;
+            color: var(--color-dark-variant);
+            margin-top: 0.35rem;
+        }
+        .league-card-actions {
+            margin-top: 0.9rem;
+        }
+        .btn-delete-league {
+            border: 1px solid var(--color-danger);
+            background: transparent;
+            color: var(--color-danger);
+            border-radius: 10px;
+            padding: 0.55rem 0.85rem;
+            font-size: 0.82rem;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
         @media (max-width: 1100px) {
             .cms-clube-fields {
                 grid-template-columns: 1fr 1fr;
@@ -445,6 +635,12 @@ while ($row = mysqli_fetch_assoc($footer_links_result)) {
             }
             .cms-clube-fields {
                 grid-template-columns: 1fr;
+            }
+            .league-fields {
+                grid-template-columns: 1fr;
+            }
+            .league-fields .full {
+                grid-column: auto;
             }
         }
     </style>
@@ -758,9 +954,7 @@ while ($row = mysqli_fetch_assoc($footer_links_result)) {
                         Salvar Configurações da Home
                     </button>
                 </div>
-            </form>
 
-                <!-- CARDS DE BENEFÍCIOS -->
                 <div class="settings-card">
                     <h3>
                         <span class="material-symbols-sharp">verified</span>
@@ -896,6 +1090,115 @@ while ($row = mysqli_fetch_assoc($footer_links_result)) {
                                     Salvar Clubes em Destaque
                                 </button>
                             </div>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- LIGAS EM DESTAQUE -->
+                <div class="settings-card">
+                    <h3>
+                        <span class="material-symbols-sharp">emoji_events</span>
+                        Ligas em Destaque (Cards)
+                    </h3>
+                    <p style="margin-bottom: 1.25rem; color: var(--color-dark-variant);">
+                        Edite aqui os cards da seção de ligas da home: nome, sigla, slug, classe, ordem, ativo e logo.
+                    </p>
+
+                    <form id="formLigas" style="margin-bottom: 0;">
+                        <div class="clubs-toolbar" style="margin-top: 0; margin-bottom: 1rem;">
+                            <div class="clubs-toolbar-info">O slug deve ser o mesmo cadastrado no campo Liga dos produtos para o filtro funcionar.</div>
+                            <div class="clubs-toolbar-actions">
+                                <button type="button" onclick="adicionarLiga()" class="clubs-action-button secondary">
+                                    <span class="material-symbols-sharp">add_circle</span>
+                                    Adicionar liga
+                                </button>
+                                <button type="button" onclick="salvarLigasHome()" class="clubs-action-button primary" id="btnSalvarLigasHome">
+                                    <span class="material-symbols-sharp">save</span>
+                                    Salvar Ligas em Destaque
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="cms-league-grid" id="ligas-container-home">
+                            <?php foreach ($ligas as $liga): ?>
+                            <?php
+                                $logoResolvida = '';
+                                $lp = trim((string)($liga['logo_path'] ?? ''));
+                                if ($lp !== '') {
+                                    if (preg_match('/^https?:\/\//i', $lp)) {
+                                        $logoResolvida = $lp;
+                                    } else {
+                                        $normalizedLogoPath = ltrim($lp, '/');
+                                        if (strpos($normalizedLogoPath, '/') === false) {
+                                            $normalizedLogoPath = 'image/' . $normalizedLogoPath;
+                                        }
+                                        $logoResolvida = BASE_URL . $normalizedLogoPath;
+                                    }
+                                }
+                            ?>
+                            <div class="cms-league-card" data-id="<?php echo (int)$liga['id']; ?>">
+                                <div class="league-card-header">
+                                    <div class="league-logo-preview" id="preview-home-<?php echo (int)$liga['id']; ?>">
+                                        <?php if ($logoResolvida !== ''): ?>
+                                            <img src="<?php echo htmlspecialchars($logoResolvida); ?>" alt="<?php echo htmlspecialchars($liga['nome']); ?>" onerror="this.style.display='none';">
+                                        <?php else: ?>
+                                            <span><?php echo htmlspecialchars($liga['sigla']); ?></span>
+                                        <?php endif; ?>
+                                    </div>
+                                    <div>
+                                        <div class="league-card-title"><?php echo htmlspecialchars($liga['nome']); ?></div>
+                                        <div class="league-card-id">ID #<?php echo (int)$liga['id']; ?></div>
+                                    </div>
+                                </div>
+
+                                <div class="league-fields">
+                                    <div class="form-group">
+                                        <label>Nome *</label>
+                                        <input type="text" name="ligas[<?php echo (int)$liga['id']; ?>][nome]" value="<?php echo htmlspecialchars($liga['nome']); ?>" required>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label>Sigla *</label>
+                                        <input type="text" name="ligas[<?php echo (int)$liga['id']; ?>][sigla]" value="<?php echo htmlspecialchars($liga['sigla']); ?>" maxlength="10" required>
+                                    </div>
+
+                                    <div class="form-group full">
+                                        <label>Slug *</label>
+                                        <input type="text" name="ligas[<?php echo (int)$liga['id']; ?>][slug]" value="<?php echo htmlspecialchars($liga['slug']); ?>" required>
+                                    </div>
+
+                                    <div class="form-group full">
+                                        <label>Classe CSS (opcional)</label>
+                                        <input type="text" name="ligas[<?php echo (int)$liga['id']; ?>][classe]" value="<?php echo htmlspecialchars($liga['classe'] ?? ''); ?>" placeholder="Ex: league-premier">
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label>Ordem</label>
+                                        <input type="number" name="ligas[<?php echo (int)$liga['id']; ?>][ordem]" value="<?php echo (int)$liga['ordem']; ?>" min="1">
+                                    </div>
+
+                                    <div class="form-group" style="display: flex; align-items: flex-end;">
+                                        <label class="cms-checkbox-label" style="margin-bottom: 0.55rem;">
+                                            <input class="cms-checkbox" type="checkbox" name="ligas[<?php echo (int)$liga['id']; ?>][ativo]" value="1" <?php echo ((int)$liga['ativo'] === 1) ? 'checked' : ''; ?>>
+                                            <span style="font-size: 0.86rem;">Ativo</span>
+                                        </label>
+                                    </div>
+
+                                    <div class="form-group full" style="margin-top: 0.1rem;">
+                                        <label>Caminho da logo</label>
+                                        <input type="text" name="ligas[<?php echo (int)$liga['id']; ?>][logo_path]" value="<?php echo htmlspecialchars($liga['logo_path'] ?? ''); ?>" placeholder="Ex: image/premier.png">
+                                        <small>Use o caminho da imagem igual ao padrão dos clubes em destaque.</small>
+                                    </div>
+                                </div>
+
+                                <div class="league-card-actions">
+                                    <button type="button" class="btn-delete-league" onclick="excluirLigaHome(<?php echo (int)$liga['id']; ?>, '<?php echo addslashes(htmlspecialchars($liga['nome'])); ?>', this)">
+                                        <span class="material-symbols-sharp" style="font-size:.95rem;">delete</span>
+                                        Excluir
+                                    </button>
+                                </div>
+                            </div>
+                            <?php endforeach; ?>
                         </div>
                     </form>
                 </div>
@@ -1069,6 +1372,145 @@ while ($row = mysqli_fetch_assoc($footer_links_result)) {
                         console.error('Erro ao salvar clubes:', error);
                         alert('Erro na comunicação ao salvar clubes.');
                     });
+                }
+
+                let novaLigaIndex = 0;
+
+                function adicionarLiga() {
+                    novaLigaIndex += 1;
+                    const key = 'new_' + novaLigaIndex;
+                    const container = document.getElementById('ligas-container-home');
+                    const ordemAtual = container.querySelectorAll('.cms-league-card').length + 1;
+
+                    const card = document.createElement('div');
+                    card.className = 'cms-league-card is-new';
+                    card.dataset.id = key;
+
+                    card.innerHTML = `
+                        <div class="league-card-header">
+                            <div class="league-logo-preview" id="preview-home-${key}"><span>?</span></div>
+                            <div>
+                                <div class="league-card-title">Nova liga</div>
+                                <div class="league-card-id">Ainda não salva</div>
+                            </div>
+                        </div>
+
+                        <div class="league-fields">
+                            <div class="form-group">
+                                <label>Nome *</label>
+                                <input type="text" name="ligas[${key}][nome]" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Sigla *</label>
+                                <input type="text" name="ligas[${key}][sigla]" maxlength="10" required>
+                            </div>
+
+                            <div class="form-group full">
+                                <label>Slug *</label>
+                                <input type="text" name="ligas[${key}][slug]" required>
+                            </div>
+
+                            <div class="form-group full">
+                                <label>Classe CSS (opcional)</label>
+                                <input type="text" name="ligas[${key}][classe]" placeholder="Ex: league-premier">
+                            </div>
+
+                            <div class="form-group">
+                                <label>Ordem</label>
+                                <input type="number" name="ligas[${key}][ordem]" value="${ordemAtual}" min="1">
+                            </div>
+
+                            <div class="form-group" style="display: flex; align-items: flex-end;">
+                                <label class="cms-checkbox-label" style="margin-bottom: 0.55rem;">
+                                    <input class="cms-checkbox" type="checkbox" name="ligas[${key}][ativo]" value="1" checked>
+                                    <span style="font-size: 0.86rem;">Ativo</span>
+                                </label>
+                            </div>
+
+                            <div class="form-group full" style="margin-top: 0.1rem;">
+                                <label>Caminho da logo</label>
+                                <input type="text" name="ligas[${key}][logo_path]" placeholder="Ex: image/minha-liga.png">
+                                <small>Use o caminho da imagem igual ao padrão dos clubes em destaque.</small>
+                            </div>
+                        </div>
+
+                        <div class="league-card-actions">
+                            <button type="button" class="btn-delete-league" onclick="this.closest('.cms-league-card').remove()">
+                                <span class="material-symbols-sharp" style="font-size:.95rem;">delete</span>
+                                Remover
+                            </button>
+                        </div>
+                    `;
+
+                    container.appendChild(card);
+                }
+
+                function salvarLigasHome() {
+                    const btn = document.getElementById('btnSalvarLigasHome');
+                    if (btn) {
+                        btn.disabled = true;
+                    }
+
+                    const cards = document.querySelectorAll('#ligas-container-home .cms-league-card');
+                    const fd = new FormData();
+                    fd.append('action', 'update_home_leagues');
+
+                    cards.forEach(card => {
+                        card.querySelectorAll('input[name]').forEach(inp => {
+                            if (inp.type === 'checkbox') {
+                                fd.append(inp.name, inp.checked ? '1' : '0');
+                            } else {
+                                fd.append(inp.name, inp.value);
+                            }
+                        });
+                    });
+
+                    fetch('cms_api.php', { method: 'POST', body: fd })
+                        .then(r => r.json())
+                        .then(data => {
+                            if (data.success) {
+                                alert('Ligas salvas com sucesso!');
+                                location.reload();
+                            } else {
+                                alert('Erro ao salvar ligas: ' + (data.message || 'erro desconhecido'));
+                            }
+                        })
+                        .catch(() => {
+                            alert('Falha na comunicação ao salvar ligas.');
+                        })
+                        .finally(() => {
+                            if (btn) {
+                                btn.disabled = false;
+                            }
+                        });
+                }
+
+                function excluirLigaHome(id, nome, button) {
+                    if (!confirm('Excluir a liga "' + nome + '"?')) {
+                        return;
+                    }
+
+                    const fd = new FormData();
+                    fd.append('action', 'delete_home_league');
+                    fd.append('id', String(id));
+
+                    fetch('cms_api.php', { method: 'POST', body: fd })
+                        .then(r => r.json())
+                        .then(data => {
+                            if (data.success) {
+                                const card = button ? button.closest('.cms-league-card') : null;
+                                if (card) {
+                                    card.remove();
+                                }
+                                alert('Liga excluída com sucesso!');
+                            } else {
+                                alert('Erro ao excluir: ' + (data.message || 'erro desconhecido'));
+                            }
+                        })
+                        .catch(() => {
+                            alert('Falha na comunicação ao excluir liga.');
+                        });
                 }
                 
                 </script>

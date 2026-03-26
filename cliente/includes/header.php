@@ -51,22 +51,41 @@
             padding-top: 85px; /* Compensa a altura do header fixo */
         }
         
-        /* Scrollbar personalizada */
-        ::-webkit-scrollbar {
-            width: 8px;
+        /* Scrollbar global no estilo RARE7 (escuro + dourado) */
+        :root {
+            --rare-scroll-track: linear-gradient(180deg, rgba(10, 12, 18, 0.96) 0%, rgba(12, 20, 34, 0.96) 100%);
+            --rare-scroll-thumb: linear-gradient(180deg, rgba(216, 185, 112, 0.95) 0%, rgba(198, 167, 94, 0.92) 100%);
+            --rare-scroll-thumb-hover: linear-gradient(180deg, rgba(234, 205, 135, 0.98) 0%, rgba(214, 181, 106, 0.96) 100%);
+            --rare-scroll-edge: rgba(8, 10, 16, 0.85);
         }
-        
-        ::-webkit-scrollbar-track {
-            background: #f8f9fa;
+
+        html,
+        body {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(198, 167, 94, 0.95) rgba(10, 12, 18, 0.9);
         }
-        
-        ::-webkit-scrollbar-thumb {
-            background: linear-gradient(135deg, var(--color-magenta) 0%, var(--color-magenta-dark) 100%);
-            border-radius: 4px;
+
+        *::-webkit-scrollbar {
+            width: 11px;
+            height: 11px;
         }
-        
-        ::-webkit-scrollbar-thumb:hover {
-            background: linear-gradient(135deg, var(--color-magenta-dark) 0%, #a0005a 100%);
+
+        *::-webkit-scrollbar-track {
+            background: var(--rare-scroll-track);
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        *::-webkit-scrollbar-thumb {
+            background: var(--rare-scroll-thumb);
+            border-radius: 999px;
+            border: 2px solid var(--rare-scroll-edge);
+            box-shadow: 0 0 0 1px rgba(198, 167, 94, 0.2);
+        }
+
+        *::-webkit-scrollbar-thumb:hover {
+            background: var(--rare-scroll-thumb-hover);
+            box-shadow: 0 0 0 1px rgba(234, 205, 135, 0.4);
         }
         
         /* ===== NAVBAR PREMIUM RARE7 ===== */
@@ -1565,25 +1584,6 @@
             flex: 1;
             padding: 10px 0;
             transition: transform 0.3s ease;
-        }
-        
-        /* Scrollbar customizada para produtos */
-        .produtos-grid-dz::-webkit-scrollbar {
-            height: 8px;
-        }
-        
-        .produtos-grid-dz::-webkit-scrollbar-track {
-            background: rgba(0, 0, 0, 0.1);
-            border-radius: 4px;
-        }
-        
-        .produtos-grid-dz::-webkit-scrollbar-thumb {
-            background: linear-gradient(135deg, var(--color-magenta) 0%, var(--color-magenta-dark) 100%);
-            border-radius: 4px;
-        }
-        
-        .produtos-grid-dz::-webkit-scrollbar-thumb:hover {
-            background: linear-gradient(135deg, var(--color-magenta-dark) 0%, #a0005a 100%);
         }
         
         .produto-card-dz {
@@ -3242,10 +3242,6 @@
             .produtos-grid-dz {
                 overflow-x: auto;
                 padding: 10px 0 20px 0;
-            }
-            
-            .produtos-grid-dz::-webkit-scrollbar {
-                height: 8px;
             }
             
             .produto-card-dz {

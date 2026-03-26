@@ -28,14 +28,38 @@ if ($clubsResult) {
     }
 }
 
-$ligasDestaque = [
-    ['nome' => 'Premier League',   'slug' => 'premier-league',   'sigla' => 'PL',  'logo' => '', 'classe' => 'league-premier'],
-    ['nome' => 'La Liga',          'slug' => 'la-liga',          'sigla' => 'LL',  'logo' => '', 'classe' => 'league-laliga'],
-    ['nome' => 'Brasileirão',      'slug' => 'brasileirao',      'sigla' => 'BR',  'logo' => '', 'classe' => 'league-brasileirao'],
-    ['nome' => 'Serie A',          'slug' => 'serie-a',          'sigla' => 'SA',  'logo' => '', 'classe' => 'league-seriea'],
-    ['nome' => 'Bundesliga',       'slug' => 'bundesliga',       'sigla' => 'BL',  'logo' => '', 'classe' => 'league-bundesliga'],
-    ['nome' => 'Champions League', 'slug' => 'champions-league', 'sigla' => 'UCL', 'logo' => '', 'classe' => 'league-champions'],
-];
+$ligasDestaque = [];
+
+$_ligasTabelaExiste = false;
+$_tableCheck = mysqli_query($conn, "SHOW TABLES LIKE 'cms_home_leagues'");
+if ($_tableCheck && mysqli_num_rows($_tableCheck) > 0) {
+    $_ligasTabelaExiste = true;
+}
+
+if ($_ligasTabelaExiste) {
+    $_ligasQr = mysqli_query($conn, "SELECT nome, slug, sigla, classe, logo_path FROM cms_home_leagues WHERE ativo = 1 ORDER BY ordem ASC, id ASC");
+    if ($_ligasQr) {
+        while ($_lr = mysqli_fetch_assoc($_ligasQr)) {
+            $ligasDestaque[] = [
+                'nome' => $_lr['nome'],
+                'slug' => $_lr['slug'],
+                'sigla' => $_lr['sigla'],
+                'classe' => $_lr['classe'],
+                'logo' => $_lr['logo_path'] ?? ''
+            ];
+        }
+    }
+}
+if (empty($ligasDestaque)) {
+    $ligasDestaque = [
+        ['nome' => 'Premier League',   'slug' => 'premier-league',   'sigla' => 'PL',  'logo' => '', 'classe' => 'league-premier'],
+        ['nome' => 'La Liga',          'slug' => 'la-liga',          'sigla' => 'LL',  'logo' => '', 'classe' => 'league-laliga'],
+        ['nome' => 'Brasileirão',      'slug' => 'brasileirao',      'sigla' => 'BR',  'logo' => '', 'classe' => 'league-brasileirao'],
+        ['nome' => 'Serie A',          'slug' => 'serie-a',          'sigla' => 'SA',  'logo' => '', 'classe' => 'league-seriea'],
+        ['nome' => 'Bundesliga',       'slug' => 'bundesliga',       'sigla' => 'BL',  'logo' => '', 'classe' => 'league-bundesliga'],
+        ['nome' => 'Champions League', 'slug' => 'champions-league', 'sigla' => 'UCL', 'logo' => '', 'classe' => 'league-champions'],
+    ];
+}
 
 if (empty($clubesDestaque)) {
     $clubesDestaque = [
@@ -65,6 +89,30 @@ function resolveClubImageUrl(string $rawPath): string {
     $normalized = ltrim($path, '/');
     if (strpos($normalized, '../') === 0) {
         return $normalized;
+    }
+
+    return '../' . $normalized;
+}
+
+function resolveLeagueLogoUrl(string $rawPath): string {
+    $path = trim($rawPath);
+    if ($path === '') {
+        return '';
+    }
+
+    if (preg_match('/^https?:\/\//i', $path) || strpos($path, 'data:') === 0 || strpos($path, '//') === 0) {
+        return $path;
+    }
+
+    $normalized = ltrim($path, '/');
+
+    if (strpos($normalized, '../') === 0) {
+        return $normalized;
+    }
+
+    // Se vier só o nome do arquivo (ex: premier.png), assume pasta image/.
+    if (strpos($normalized, '/') === false) {
+        $normalized = 'image/' . $normalized;
     }
 
     return '../' . $normalized;
@@ -377,11 +425,12 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Rare7 | E-commerce Premium</title>
     <meta name="description" content="Rare7 - Futebol com estetica premium.">
+    <link rel="icon" type="image/png" href="../image/logo_png.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Cinzel:wght@500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Sharp:opsz,wght,FILL,GRAD@20..48,300..700,0..1,-50..200">
-    <link rel="stylesheet" href="css/loja.css">
+    <link rel="stylesheet" href="css/loja.css?v=<?php echo filemtime(__DIR__.'/css/loja.css'); ?>">
 </head>
 <body>
     <section class="hero" id="topo">
@@ -478,14 +527,19 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
                     <button type="button" class="rl-arrow rl-arrow-prev" id="rareLeaguePrev" aria-label="Ligas anteriores">&#10094;</button>
                     <div class="rl-viewport" id="rareLeaguesViewport">
                         <div class="rl-track" id="rareLeaguesTrack">
-                            <?php foreach ($ligasDestaque as $liga): ?>
-                            <a href="/cliente/produtos.php?liga=<?php echo urlencode($liga['slug']); ?>"
+                            <?php foreach ($ligasDestaque as $liga):
+                                $lp = trim((string)($liga['logo'] ?? ''));
+                                $ligaLogoUrl = resolveLeagueLogoUrl($lp);
+                            ?>
+                                     <a href="produtos.php?liga=<?php echo urlencode($liga['slug']); ?>"
                                class="rl-card <?php echo htmlspecialchars($liga['classe']); ?>"
                                title="Ver camisas da <?php echo htmlspecialchars($liga['nome']); ?>">
                                 <div class="rl-card-inner">
-                                    <?php if (!empty($liga['logo'])): ?>
-                                        <img class="rl-logo" src="<?php echo htmlspecialchars($liga['logo']); ?>"
-                                             alt="<?php echo htmlspecialchars($liga['nome']); ?>" loading="lazy">
+                                    <?php if ($ligaLogoUrl !== ''): ?>
+                                        <img class="rl-logo" src="<?php echo htmlspecialchars($ligaLogoUrl); ?>"
+                                             alt="<?php echo htmlspecialchars($liga['nome']); ?>" loading="lazy"
+                                             onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+                                        <span class="rl-sigla" style="display:none"><?php echo htmlspecialchars($liga['sigla']); ?></span>
                                     <?php else: ?>
                                         <span class="rl-sigla"><?php echo htmlspecialchars($liga['sigla']); ?></span>
                                     <?php endif; ?>

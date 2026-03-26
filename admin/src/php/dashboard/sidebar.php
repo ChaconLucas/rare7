@@ -43,7 +43,7 @@
             <span class="material-symbols-sharp">account_tree</span>
             <h3>Gestão de Fluxo</h3>
         </a>
-        
+
         <div class="menu-item-container">
           <a href="home.php" class="menu-item-with-submenu">
               <span class="material-symbols-sharp">web</span>

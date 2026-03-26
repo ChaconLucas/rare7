@@ -95,9 +95,42 @@ $boletoDisponivel = in_array('Boleto', $formasPagamento, true);
             --rare-gold: #C6A75E;
             --rare-gray: #BFC5CC;
             --rare-border: rgba(191, 197, 204, 0.2);
+            --rare-scroll-track: linear-gradient(180deg, rgba(10, 12, 18, 0.96) 0%, rgba(12, 20, 34, 0.96) 100%);
+            --rare-scroll-thumb: linear-gradient(180deg, rgba(216, 185, 112, 0.95) 0%, rgba(198, 167, 94, 0.92) 100%);
+            --rare-scroll-thumb-hover: linear-gradient(180deg, rgba(234, 205, 135, 0.98) 0%, rgba(214, 181, 106, 0.96) 100%);
+            --rare-scroll-edge: rgba(8, 10, 16, 0.85);
         }
 
         * { box-sizing: border-box; }
+
+        html,
+        body {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(198, 167, 94, 0.95) rgba(10, 12, 18, 0.9);
+        }
+
+        *::-webkit-scrollbar {
+            width: 11px;
+            height: 11px;
+        }
+
+        *::-webkit-scrollbar-track {
+            background: var(--rare-scroll-track);
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        *::-webkit-scrollbar-thumb {
+            background: var(--rare-scroll-thumb);
+            border-radius: 999px;
+            border: 2px solid var(--rare-scroll-edge);
+            box-shadow: 0 0 0 1px rgba(198, 167, 94, 0.2);
+        }
+
+        *::-webkit-scrollbar-thumb:hover {
+            background: var(--rare-scroll-thumb-hover);
+            box-shadow: 0 0 0 1px rgba(234, 205, 135, 0.4);
+        }
 
         body {
             margin: 0;

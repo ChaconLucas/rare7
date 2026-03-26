@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 /**
  * CMS API Handler - Processa todas as ações do CMS
  * Banners, Home Settings, Featured Products
@@ -1065,6 +1065,199 @@ if ($action === 'add_benefit') {
 // ====================================================================
 
 if ($action === 'list_promotions') {
+            exit();
+        }
+
+    // ====================================================================
+    // LIGAS EM DESTAQUE - AÇÕES
+    // ====================================================================
+
+    if ($action === 'upload_league_logo') {
+        if (!isset($_FILES['image']) || $_FILES['image']['error'] !== UPLOAD_ERR_OK) {
+            echo json_encode(['success' => false, 'message' => 'Nenhum arquivo enviado']);
+            exit();
+        }
+
+        $file = $_FILES['image'];
+        $allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+        $file_type = mime_content_type($file['tmp_name']);
+
+        if (!in_array($file_type, $allowed)) {
+            echo json_encode(['success' => false, 'message' => 'Formato inválido. Use JPG, PNG ou WEBP']);
+            exit();
+        }
+        if ($file['size'] > 2 * 1024 * 1024) {
+            echo json_encode(['success' => false, 'message' => 'Imagem muito grande. Máximo 2MB']);
+            exit();
+        }
+        if (!is_uploaded_file($file['tmp_name'])) {
+            echo json_encode(['success' => false, 'message' => 'Arquivo inválido']);
+            exit();
+        }
+
+        $upload_dir = dirname(__DIR__, 5) . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'ligas' . DIRECTORY_SEPARATOR;
+        $upload_dir = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $upload_dir);
+
+        if (!is_dir($upload_dir) && !mkdir($upload_dir, 0755, true)) {
+            echo json_encode(['success' => false, 'message' => 'Erro ao criar pasta de upload']);
+            exit();
+        }
+        if (!is_writable($upload_dir)) {
+            echo json_encode(['success' => false, 'message' => 'Pasta de upload sem permissão de escrita']);
+            exit();
+        }
+
+        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        $filename = 'liga_' . time() . '_' . bin2hex(random_bytes(6)) . '.' . $ext;
+        $filepath = $upload_dir . $filename;
+
+        if (move_uploaded_file($file['tmp_name'], $filepath)) {
+            $relative = 'uploads/ligas/' . $filename;
+            $url = rtrim(BASE_URL, '/') . '/' . $relative;
+            echo json_encode(['success' => true, 'path' => $relative, 'url' => $url]);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Falha ao mover arquivo']);
+        }
+        exit();
+    }
+
+    if ($action === 'update_home_leagues') {
+        mysqli_query($conexao, "
+            CREATE TABLE IF NOT EXISTS cms_home_leagues (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                nome VARCHAR(120) NOT NULL,
+                slug VARCHAR(120) NOT NULL,
+                sigla VARCHAR(20) NOT NULL,
+                classe VARCHAR(60) NOT NULL DEFAULT '',
+                logo_path VARCHAR(255) NULL,
+                ordem INT NOT NULL DEFAULT 1,
+                ativo TINYINT(1) NOT NULL DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_cms_home_leagues_ativo_ordem (ativo, ordem)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+
+        $ligas = $_POST['ligas'] ?? [];
+        if (empty($ligas) || !is_array($ligas)) {
+            echo json_encode(['success' => false, 'message' => 'Nenhuma liga recebida']);
+            exit();
+        }
+
+        $updated = 0;
+        $inserted = 0;
+        $errors = [];
+
+        $updateStmt = mysqli_prepare(
+            $conexao,
+            "UPDATE cms_home_leagues SET nome=?, slug=?, sigla=?, classe=?, logo_path=?, ordem=?, ativo=?, updated_at=NOW() WHERE id=?"
+        );
+        $insertStmt = mysqli_prepare(
+            $conexao,
+            "INSERT INTO cms_home_leagues (nome, slug, sigla, classe, logo_path, ordem, ativo) VALUES (?,?,?,?,?,?,?)"
+        );
+
+        if (!$updateStmt || !$insertStmt) {
+            if ($updateStmt) {
+                mysqli_stmt_close($updateStmt);
+            }
+            if ($insertStmt) {
+                mysqli_stmt_close($insertStmt);
+            }
+            echo json_encode(['success' => false, 'message' => 'Erro ao preparar salvamento']);
+            exit();
+        }
+
+        foreach ($ligas as $id => $data) {
+            $idStr = (string)$id;
+            $idNum = ctype_digit($idStr) ? (int)$idStr : 0;
+            $isNova = $idNum <= 0;
+
+            $nome = trim((string)($data['nome'] ?? ''));
+            $slug = trim(strtolower((string)($data['slug'] ?? '')));
+            $sigla = strtoupper(trim((string)($data['sigla'] ?? '')));
+            $classe = trim((string)($data['classe'] ?? ''));
+            $logoPath = trim((string)($data['logo_path'] ?? ''));
+            $ordem = max(1, (int)($data['ordem'] ?? 1));
+            $ativo = (isset($data['ativo']) && (string)$data['ativo'] === '1') ? 1 : 0;
+
+            if ($nome === '' && $sigla === '' && $isNova) {
+                continue;
+            }
+            if ($nome === '' || $sigla === '') {
+                $errors[] = "Liga {$idStr}: nome e sigla são obrigatórios";
+                continue;
+            }
+
+            if ($slug === '') {
+                $slug = trim(preg_replace('/[^a-z0-9]+/', '-', strtolower($nome)), '-');
+            }
+
+            if ($isNova) {
+                mysqli_stmt_bind_param($insertStmt, 'sssssii', $nome, $slug, $sigla, $classe, $logoPath, $ordem, $ativo);
+                if (mysqli_stmt_execute($insertStmt)) {
+                    $inserted++;
+                } else {
+                    $errors[] = "Insert {$idStr}: " . mysqli_stmt_error($insertStmt);
+                }
+            } else {
+                mysqli_stmt_bind_param($updateStmt, 'sssssiii', $nome, $slug, $sigla, $classe, $logoPath, $ordem, $ativo, $idNum);
+                if (mysqli_stmt_execute($updateStmt)) {
+                    $updated++;
+                } else {
+                    $errors[] = "Update ID {$idNum}: " . mysqli_stmt_error($updateStmt);
+                }
+            }
+        }
+
+        mysqli_stmt_close($updateStmt);
+        mysqli_stmt_close($insertStmt);
+
+        if (!empty($errors)) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Algumas ligas não foram salvas',
+                'updated' => $updated,
+                'inserted' => $inserted,
+                'errors' => $errors
+            ]);
+        } else {
+            echo json_encode([
+                'success' => true,
+                'message' => "{$updated} liga(s) atualizada(s) e {$inserted} nova(s) inserida(s) com sucesso",
+                'updated' => $updated,
+                'inserted' => $inserted
+            ]);
+        }
+
+        exit();
+    }
+
+    if ($action === 'delete_home_league') {
+        $id = (int)($_POST['id'] ?? 0);
+        if ($id <= 0) {
+            echo json_encode(['success' => false, 'message' => 'ID inválido']);
+            exit();
+        }
+
+        $stmt = mysqli_prepare($conexao, "DELETE FROM cms_home_leagues WHERE id = ?");
+        mysqli_stmt_bind_param($stmt, 'i', $id);
+
+        if (mysqli_stmt_execute($stmt)) {
+            echo json_encode(['success' => true, 'message' => 'Liga excluída com sucesso']);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Erro ao excluir: ' . mysqli_stmt_error($stmt)]);
+        }
+
+        mysqli_stmt_close($stmt);
+        exit();
+    }
+
+    // ====================================================================
+    // PROMOÇÕES - AÇÕES
+    // ====================================================================
+
+    if ($action === 'list_promotions') {
     try {
         $sql = "SELECT p.*, c.codigo as cupom_codigo 
                 FROM cms_home_promotions p 
@@ -1280,7 +1473,7 @@ if ($action === 'list_coupons_simple') {
 }
 
 // ====================================================================
-// MÉTRICAS DA EMPRESA - AÇÕES
+// M├ëTRICAS DA EMPRESA - A├ç├òES
 // ====================================================================
 
 if ($action === 'list_metrics') {
@@ -1290,7 +1483,7 @@ if ($action === 'list_metrics') {
     if (!$table_check || mysqli_num_rows($table_check) === 0) {
         echo json_encode([
             'success' => false, 
-            'message' => 'Tabela cms_home_metrics não encontrada. Execute o setup_metrics.php primeiro.',
+            'message' => 'Tabela cms_home_metrics n├úo encontrada. Execute o setup_metrics.php primeiro.',
             'setup_needed' => true
         ]);
         exit();
@@ -1301,7 +1494,7 @@ if ($action === 'list_metrics') {
         $result = mysqli_query($conexao, $sql);
         
         if (!$result) {
-            throw new Exception('Erro ao consultar métricas: ' . mysqli_error($conexao));
+            throw new Exception('Erro ao consultar m├®tricas: ' . mysqli_error($conexao));
         }
         
         $metrics = [];
@@ -1309,7 +1502,7 @@ if ($action === 'list_metrics') {
             $metrics[] = $row;
         }
         
-        // Contar métricas ativas e total
+        // Contar m├®tricas ativas e total
         $count_active = 0;
         $count_total = count($metrics);
         foreach ($metrics as $m) {
@@ -1342,24 +1535,24 @@ if ($action === 'add_metric') {
         $ordem = intval($_POST['ordem'] ?? 0);
         $ativo = isset($_POST['ativo']) ? 1 : 0;
         
-        // Validações
+        // Valida├º├Áes
         if (empty($valor)) {
-            echo json_encode(['success' => false, 'message' => 'Valor é obrigatório']);
+            echo json_encode(['success' => false, 'message' => 'Valor ├® obrigat├│rio']);
             exit();
         }
         
         if (empty($label)) {
-            echo json_encode(['success' => false, 'message' => 'Label (descrição) é obrigatório']);
+            echo json_encode(['success' => false, 'message' => 'Label (descri├º├úo) ├® obrigat├│rio']);
             exit();
         }
         
         if (strlen($valor) > 20) {
-            echo json_encode(['success' => false, 'message' => 'Valor deve ter no máximo 20 caracteres']);
+            echo json_encode(['success' => false, 'message' => 'Valor deve ter no m├íximo 20 caracteres']);
             exit();
         }
         
         if (strlen($label) > 60) {
-            echo json_encode(['success' => false, 'message' => 'Label deve ter no máximo 60 caracteres']);
+            echo json_encode(['success' => false, 'message' => 'Label deve ter no m├íximo 60 caracteres']);
             exit();
         }
         
@@ -1373,7 +1566,7 @@ if ($action === 'add_metric') {
         );
         
         if (!$stmt) {
-            throw new Exception('Tabela cms_home_metrics não encontrada. Execute o setup_metrics.php primeiro.');
+            throw new Exception('Tabela cms_home_metrics n├úo encontrada. Execute o setup_metrics.php primeiro.');
         }
         
         mysqli_stmt_bind_param($stmt, 'sssii', $valor, $label, $tipo, $ordem, $ativo);
@@ -1381,13 +1574,13 @@ if ($action === 'add_metric') {
         if (mysqli_stmt_execute($stmt)) {
             echo json_encode([
                 'success' => true, 
-                'message' => 'Métrica criada com sucesso!',
+                'message' => 'M├®trica criada com sucesso!',
                 'id' => mysqli_insert_id($conexao)
             ]);
         } else {
             echo json_encode([
                 'success' => false, 
-                'message' => 'Erro ao criar métrica: ' . mysqli_error($conexao)
+                'message' => 'Erro ao criar m├®trica: ' . mysqli_error($conexao)
             ]);
         }
         
@@ -1412,28 +1605,28 @@ if ($action === 'update_metric') {
         $ativo = isset($_POST['ativo']) ? 1 : 0;
         
         if ($id <= 0) {
-            echo json_encode(['success' => false, 'message' => 'ID inválido']);
+            echo json_encode(['success' => false, 'message' => 'ID inv├ílido']);
             exit();
         }
         
-        // Validações
+        // Valida├º├Áes
         if (empty($valor)) {
-            echo json_encode(['success' => false, 'message' => 'Valor é obrigatório']);
+            echo json_encode(['success' => false, 'message' => 'Valor ├® obrigat├│rio']);
             exit();
         }
         
         if (empty($label)) {
-            echo json_encode(['success' => false, 'message' => 'Label (descrição) é obrigatório']);
+            echo json_encode(['success' => false, 'message' => 'Label (descri├º├úo) ├® obrigat├│rio']);
             exit();
         }
         
         if (strlen($valor) > 20) {
-            echo json_encode(['success' => false, 'message' => 'Valor deve ter no máximo 20 caracteres']);
+            echo json_encode(['success' => false, 'message' => 'Valor deve ter no m├íximo 20 caracteres']);
             exit();
         }
         
         if (strlen($label) > 60) {
-            echo json_encode(['success' => false, 'message' => 'Label deve ter no máximo 60 caracteres']);
+            echo json_encode(['success' => false, 'message' => 'Label deve ter no m├íximo 60 caracteres']);
             exit();
         }
         
@@ -1448,17 +1641,17 @@ if ($action === 'update_metric') {
         );
         
         if (!$stmt) {
-            throw new Exception('Tabela cms_home_metrics não encontrada. Execute o setup_metrics.php primeiro.');
+            throw new Exception('Tabela cms_home_metrics n├úo encontrada. Execute o setup_metrics.php primeiro.');
         }
         
         mysqli_stmt_bind_param($stmt, 'sssiii', $valor, $label, $tipo, $ordem, $ativo, $id);
         
         if (mysqli_stmt_execute($stmt)) {
-            echo json_encode(['success' => true, 'message' => 'Métrica atualizada com sucesso!']);
+            echo json_encode(['success' => true, 'message' => 'M├®trica atualizada com sucesso!']);
         } else {
             echo json_encode([
                 'success' => false, 
-                'message' => 'Erro ao atualizar métrica: ' . mysqli_error($conexao)
+                'message' => 'Erro ao atualizar m├®trica: ' . mysqli_error($conexao)
             ]);
         }
         
@@ -1478,7 +1671,7 @@ if ($action === 'toggle_metric') {
         $id = intval($_POST['id'] ?? 0);
         
         if ($id <= 0) {
-            echo json_encode(['success' => false, 'message' => 'ID inválido']);
+            echo json_encode(['success' => false, 'message' => 'ID inv├ílido']);
             exit();
         }
         
@@ -1487,7 +1680,7 @@ if ($action === 'toggle_metric') {
         );
         
         if (!$stmt) {
-            throw new Exception('Tabela cms_home_metrics não encontrada.');
+            throw new Exception('Tabela cms_home_metrics n├úo encontrada.');
         }
         
         mysqli_stmt_bind_param($stmt, 'i', $id);
@@ -1521,24 +1714,24 @@ if ($action === 'delete_metric') {
         $id = intval($_POST['id'] ?? 0);
         
         if ($id <= 0) {
-            echo json_encode(['success' => false, 'message' => 'ID inválido']);
+            echo json_encode(['success' => false, 'message' => 'ID inv├ílido']);
             exit();
         }
         
         $stmt = mysqli_prepare($conexao, "DELETE FROM cms_home_metrics WHERE id = ?");
         
         if (!$stmt) {
-            throw new Exception('Tabela cms_home_metrics não encontrada.');
+            throw new Exception('Tabela cms_home_metrics n├úo encontrada.');
         }
         
         mysqli_stmt_bind_param($stmt, 'i', $id);
         
         if (mysqli_stmt_execute($stmt)) {
-            echo json_encode(['success' => true, 'message' => 'Métrica excluída com sucesso!']);
+            echo json_encode(['success' => true, 'message' => 'M├®trica exclu├¡da com sucesso!']);
         } else {
             echo json_encode([
                 'success' => false, 
-                'message' => 'Erro ao excluir métrica: ' . mysqli_error($conexao)
+                'message' => 'Erro ao excluir m├®trica: ' . mysqli_error($conexao)
             ]);
         }
         

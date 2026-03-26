@@ -129,6 +129,10 @@ function corStatus($status) {
             --color-magenta: #E6007E;
             --color-magenta-dark: #C4006A;
             --color-rose-light: #FDF2F8;
+            --rare-scroll-track: linear-gradient(180deg, rgba(10, 12, 18, 0.96) 0%, rgba(12, 20, 34, 0.96) 100%);
+            --rare-scroll-thumb: linear-gradient(180deg, rgba(216, 185, 112, 0.95) 0%, rgba(198, 167, 94, 0.92) 100%);
+            --rare-scroll-thumb-hover: linear-gradient(180deg, rgba(234, 205, 135, 0.98) 0%, rgba(214, 181, 106, 0.96) 100%);
+            --rare-scroll-edge: rgba(8, 10, 16, 0.85);
         }
         
         /* Configurações globais premium */
@@ -153,22 +157,35 @@ function corStatus($status) {
             margin: 0;
         }
         
-        /* Scrollbar personalizada */
-        ::-webkit-scrollbar {
-            width: 8px;
+        /* Scrollbar padrão RARE7: escuro + dourado */
+
+        html,
+        body {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(198, 167, 94, 0.95) rgba(10, 12, 18, 0.9);
         }
-        
-        ::-webkit-scrollbar-track {
-            background: #f8f9fa;
+
+        *::-webkit-scrollbar {
+            width: 11px;
+            height: 11px;
         }
-        
-        ::-webkit-scrollbar-thumb {
-            background: linear-gradient(135deg, var(--color-magenta) 0%, var(--color-magenta-dark) 100%);
-            border-radius: 4px;
+
+        *::-webkit-scrollbar-track {
+            background: var(--rare-scroll-track);
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
         }
-        
-        ::-webkit-scrollbar-thumb:hover {
-            background: linear-gradient(135deg, var(--color-magenta-dark) 0%, #a0005a 100%);
+
+        *::-webkit-scrollbar-thumb {
+            background: var(--rare-scroll-thumb);
+            border-radius: 999px;
+            border: 2px solid var(--rare-scroll-edge);
+            box-shadow: 0 0 0 1px rgba(198, 167, 94, 0.2);
+        }
+
+        *::-webkit-scrollbar-thumb:hover {
+            background: var(--rare-scroll-thumb-hover);
+            box-shadow: 0 0 0 1px rgba(234, 205, 135, 0.4);
         }
         
         .header-loja {
@@ -2877,20 +2894,6 @@ function corStatus($status) {
             overflow-y: auto;
             padding: 14px;
             background: #f8fafc;
-        }
-
-        .mini-cart-body::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        .mini-cart-body::-webkit-scrollbar-track {
-            background: #e2e8f0;
-            border-radius: 3px;
-        }
-
-        .mini-cart-body::-webkit-scrollbar-thumb {
-            background: linear-gradient(135deg, var(--color-magenta) 0%, var(--color-magenta-dark) 100%);
-            border-radius: 3px;
         }
 
         .cart-empty {

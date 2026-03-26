@@ -36,6 +36,7 @@ $isMenuLancamentos = ($menu === 'lancamentos');
 $isMenuGroup = in_array($menu, $menuGroupsPadrao, true);
 $isMenuTime = (!empty($menu) && !$isMenuLancamentos && !$isMenuGroup);
 $marca = isset($_GET['marca']) ? trim($_GET['marca']) : '';
+$liga = isset($_GET['liga']) ? trim($_GET['liga']) : '';
 $secao_marcas = isset($_GET['secao']) && $_GET['secao'] == 'marcas'; // Filtrar apenas produtos com marca
 $preco_min = isset($_GET['preco_min']) && is_numeric($_GET['preco_min']) ? (float)$_GET['preco_min'] : null;
 $preco_max = isset($_GET['preco_max']) && is_numeric($_GET['preco_max']) ? (float)$_GET['preco_max'] : null;
@@ -72,6 +73,61 @@ $formatFiltroLabel = static function (string $label): string {
     $texto = str_replace(['_', '-'], ' ', $texto);
 
     return mb_convert_case(mb_strtolower($texto), MB_CASE_TITLE, 'UTF-8');
+};
+
+$normalizeDisplayText = static function (string $text): string {
+    $value = trim($text);
+    if ($value === '') {
+        return '';
+    }
+
+    // Corrige textos que eventualmente chegaram em latin1/cp1252 e foram lidos como UTF-8.
+    if (preg_match('/Ã.|Â|â€™|â€œ|â€|�/u', $value)) {
+        $converted = @mb_convert_encoding($value, 'UTF-8', 'ISO-8859-1');
+        if (is_string($converted) && $converted !== '') {
+            $value = $converted;
+        }
+    }
+
+    return $value;
+};
+
+$resolveLeagueLabel = static function (string $leagueSlug) use ($conn, $formatFiltroLabel, $normalizeDisplayText): string {
+    $slug = trim($leagueSlug);
+    if ($slug === '') {
+        return '';
+    }
+
+    $fallback = $formatFiltroLabel($slug);
+    $fallbackMap = [
+        'brasileirao' => 'Brasileirão',
+        'campeonato-brasileiro' => 'Campeonato Brasileiro',
+    ];
+
+    $slugKey = mb_strtolower($slug, 'UTF-8');
+    if (isset($fallbackMap[$slugKey])) {
+        $fallback = $fallbackMap[$slugKey];
+    }
+
+    $sql = "SELECT nome FROM cms_home_leagues WHERE slug = ? ORDER BY id DESC LIMIT 1";
+    $stmt = mysqli_prepare($conn, $sql);
+    if (!$stmt) {
+        return $fallback;
+    }
+
+    mysqli_stmt_bind_param($stmt, 's', $slug);
+    mysqli_stmt_execute($stmt);
+    $result = mysqli_stmt_get_result($stmt);
+    $row = $result ? mysqli_fetch_assoc($result) : null;
+    mysqli_stmt_close($stmt);
+
+    if (!$row || empty($row['nome'])) {
+        return $fallback;
+    }
+
+    $name = $normalizeDisplayText((string) $row['nome']);
+
+    return $name !== '' ? $name : $fallback;
 };
 
 // PaginaÃ§Ã£o
@@ -192,6 +248,13 @@ if (!empty($marca)) {
     $types .= 's';
 }
 
+// Filtro por liga (slug cadastrado no produto)
+if (!empty($liga)) {
+    $queryCount .= " AND LOWER(COALESCE(p.liga, '')) = LOWER(?)";
+    $params[] = $liga;
+    $types .= 's';
+}
+
 // Filtro por seÃ§Ã£o de marcas (apenas produtos com marca configurada)
 if ($secao_marcas && empty($marca)) {
     $queryCount .= " AND p.marca IS NOT NULL AND p.marca != ''";
@@ -305,6 +368,12 @@ if (!empty($categoria)) {
 if (!empty($marca)) {
     $query .= " AND LOWER(p.marca) = LOWER(?)";
     $params[] = $marca;
+    $types .= 's';
+}
+
+if (!empty($liga)) {
+    $query .= " AND LOWER(COALESCE(p.liga, '')) = LOWER(?)";
+    $params[] = $liga;
     $types .= 's';
 }
 
@@ -540,11 +609,13 @@ if ($tagNormalizada !== '') {
     $pageTitle = 'Tag: ' . $tagNormalizada;
 } elseif (!empty($categoria)) {
     $pageTitle = 'Categoria: ' . ucfirst($categoria);
+} elseif (!empty($liga)) {
+    $pageTitle = 'Liga: ' . $resolveLeagueLabel($liga);
 } elseif (!empty($busca)) {
     $pageTitle = 'Resultados para: ' . htmlspecialchars($busca);
 } elseif (!empty($menu)) {
     if ($isMenuLancamentos) {
-        $pageTitle = 'Lancamentos';
+        $pageTitle = 'Lançamentos';
     } elseif ($isMenuTime) {
         $pageTitle = 'Time: ' . ucwords($menu);
     } else {
@@ -558,18 +629,23 @@ if ($tagNormalizada !== '') {
 
 $pageKicker = $tagNormalizada !== ''
     ? 'TAG'
-    : ($isMenuLancamentos ? 'LANCAMENTOS' : ($isMenuTime ? 'TIME' : 'CATALOGO'));
+    : (!empty($liga)
+        ? 'LIGA'
+        : ($isMenuLancamentos ? 'LANCAMENTOS' : ($isMenuTime ? 'TIME' : 'CATALOGO')));
 $pageSubtitle = $tagNormalizada !== ''
     ? 'Produtos exibidos com a tag visual selecionada.'
-    : ($isMenuLancamentos
-    ? 'Somente produtos selecionados como lancamentos no CMS.'
-    : ($isMenuTime
-        ? 'Produtos filtrados pelo time selecionado na home.'
-        : 'Um novo layout para explorar a colecao completa da RARE.'));
+    : (!empty($liga)
+        ? 'Produtos filtrados pela liga selecionada na home.'
+        : ($isMenuLancamentos
+            ? 'Somente produtos selecionados como lançamentos no CMS.'
+            : ($isMenuTime
+                ? 'Produtos filtrados pelo time selecionado na home.'
+                : 'Um novo layout para explorar a coleção completa da RARE.')));
 
 $mostrarHero = $paginaAtual === 1
     && $tagNormalizada === ''
     && empty($categoria)
+    && empty($liga)
     && empty($marca)
     && empty($busca)
     && !$secao_marcas
@@ -585,7 +661,7 @@ $filtroBotoes = [
     [
         'label' => 'Todos',
         'url' => $buildProdutosUrl(),
-        'active' => empty($menu) && $tagNormalizada === '' && empty($categoria) && !$apenas_promocao && empty($marca) && !$secao_marcas && empty($busca) && $preco_min === null && $preco_max === null
+        'active' => empty($menu) && $tagNormalizada === '' && empty($categoria) && empty($liga) && !$apenas_promocao && empty($marca) && !$secao_marcas && empty($busca) && $preco_min === null && $preco_max === null
     ],
     [
         'label' => 'Lançamentos',
