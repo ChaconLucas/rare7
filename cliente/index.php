@@ -28,6 +28,15 @@ if ($clubsResult) {
     }
 }
 
+$ligasDestaque = [
+    ['nome' => 'Premier League',   'slug' => 'premier-league',   'sigla' => 'PL',  'logo' => '', 'classe' => 'league-premier'],
+    ['nome' => 'La Liga',          'slug' => 'la-liga',          'sigla' => 'LL',  'logo' => '', 'classe' => 'league-laliga'],
+    ['nome' => 'Brasileirão',      'slug' => 'brasileirao',      'sigla' => 'BR',  'logo' => '', 'classe' => 'league-brasileirao'],
+    ['nome' => 'Serie A',          'slug' => 'serie-a',          'sigla' => 'SA',  'logo' => '', 'classe' => 'league-seriea'],
+    ['nome' => 'Bundesliga',       'slug' => 'bundesliga',       'sigla' => 'BL',  'logo' => '', 'classe' => 'league-bundesliga'],
+    ['nome' => 'Champions League', 'slug' => 'champions-league', 'sigla' => 'UCL', 'logo' => '', 'classe' => 'league-champions'],
+];
+
 if (empty($clubesDestaque)) {
     $clubesDestaque = [
         ['nome' => 'Real Madrid', 'sigla' => 'RMA', 'imagem_path' => '', 'ordem' => 1],
@@ -457,6 +466,41 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
                 </div>
             </div>
         </section>
+
+        <!-- LIGAS EM DESTAQUE -->
+        <section class="rare-leagues-section section" id="ligas-destaque">
+            <div class="container-shell">
+                <div class="section-head center">
+                    <h2>Ligas em Destaque</h2>
+                    <p>Explore camisas oficiais das maiores competições do mundo</p>
+                </div>
+                <div class="rl-viewport-wrap">
+                    <button type="button" class="rl-arrow rl-arrow-prev" id="rareLeaguePrev" aria-label="Ligas anteriores">&#10094;</button>
+                    <div class="rl-viewport" id="rareLeaguesViewport">
+                        <div class="rl-track" id="rareLeaguesTrack">
+                            <?php foreach ($ligasDestaque as $liga): ?>
+                            <a href="/cliente/produtos.php?liga=<?php echo urlencode($liga['slug']); ?>"
+                               class="rl-card <?php echo htmlspecialchars($liga['classe']); ?>"
+                               title="Ver camisas da <?php echo htmlspecialchars($liga['nome']); ?>">
+                                <div class="rl-card-inner">
+                                    <?php if (!empty($liga['logo'])): ?>
+                                        <img class="rl-logo" src="<?php echo htmlspecialchars($liga['logo']); ?>"
+                                             alt="<?php echo htmlspecialchars($liga['nome']); ?>" loading="lazy">
+                                    <?php else: ?>
+                                        <span class="rl-sigla"><?php echo htmlspecialchars($liga['sigla']); ?></span>
+                                    <?php endif; ?>
+                                    <span class="rl-nome"><?php echo htmlspecialchars($liga['nome']); ?></span>
+                                    <span class="rl-cta">Ver camisas ›</span>
+                                </div>
+                            </a>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                    <button type="button" class="rl-arrow rl-arrow-next" id="rareLeagueNext" aria-label="Próximas ligas">&#10095;</button>
+                </div>
+            </div>
+        </section>
+        <!-- / LIGAS EM DESTAQUE -->
 
         <section class="teams section" id="times">
             <div class="container-shell">
@@ -1536,6 +1580,24 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
           }
         }
       }, true);
+    })();
+    </script>
+
+    <!-- Ligas em Destaque – scroll -->
+    <script>
+    (function(){
+        const viewport = document.getElementById('rareLeaguesViewport');
+        const track    = document.getElementById('rareLeaguesTrack');
+        const prev     = document.getElementById('rareLeaguePrev');
+        const next     = document.getElementById('rareLeagueNext');
+        if (!viewport || !track) return;
+
+        function scrollBy(dir) {
+            const cardW = (track.querySelector('.rl-card') || {offsetWidth: 220}).offsetWidth + 20;
+            viewport.scrollBy({ left: dir * cardW * 2, behavior: 'smooth' });
+        }
+        if (prev) prev.addEventListener('click', () => scrollBy(-1));
+        if (next) next.addEventListener('click', () => scrollBy(1));
     })();
     </script>
 </body>

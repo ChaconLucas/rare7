@@ -5043,3 +5043,114 @@ body.cart-page {
   transform: translateY(-1px);
   opacity: 0.9;
 }
+
+
+/* ============================================================
+   LIGAS EM DESTAQUE
+   ============================================================ */
+.rare-leagues-section { padding: 64px 0; background: var(--bg-deep, #0a0a0a); }
+
+.rl-viewport-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.rl-viewport {
+  flex: 1;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+.rl-track {
+  display: flex;
+  gap: 20px;
+  padding: 12px 4px 20px;
+}
+
+/* Arrow buttons */
+.rl-arrow {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.18);
+  background: rgba(255,255,255,.06);
+  color: #fff;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background .2s, border-color .2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.rl-arrow:hover { background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.35); }
+
+/* Card base */
+.rl-card {
+  flex-shrink: 0;
+  width: 200px;
+  border-radius: 14px;
+  border: 1.5px solid rgba(255,255,255,.1);
+  background: linear-gradient(145deg, rgba(255,255,255,.04), rgba(0,0,0,.3));
+  text-decoration: none;
+  color: #e5e7eb;
+  transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease;
+  overflow: hidden;
+}
+.rl-card:hover {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 0 24px var(--league-glow, rgba(255,200,60,.35));
+  border-color: var(--league-edge, rgba(255,200,60,.6));
+}
+.rl-card-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 28px 16px 20px;
+  gap: 10px;
+  height: 100%;
+}
+.rl-logo { width: 72px; height: 72px; object-fit: contain; }
+.rl-sigla {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: .5px;
+  background: var(--league-glow, rgba(255,200,60,.15));
+  color: #fff;
+  border: 2px solid var(--league-edge, rgba(255,200,60,.4));
+}
+.rl-nome {
+  font-size: .9rem;
+  font-weight: 600;
+  text-align: center;
+  color: #f3f4f6;
+}
+.rl-cta {
+  font-size: .78rem;
+  color: var(--league-edge, rgba(255,200,60,.8));
+  opacity: .8;
+  transition: opacity .2s;
+}
+.rl-card:hover .rl-cta { opacity: 1; }
+
+/* Per-league accent colours */
+.league-premier    { --league-glow: rgba(62,186,123,.4); --league-edge: rgba(62,186,123,.7); }
+.league-laliga     { --league-glow: rgba(226,60,60,.4);  --league-edge: rgba(226,60,60,.7);  }
+.league-brasileirao{ --league-glow: rgba(30,160,60,.35); --league-edge: rgba(30,160,60,.65); }
+.league-seriea     { --league-glow: rgba(30,80,180,.4);  --league-edge: rgba(80,130,230,.7); }
+.league-bundesliga { --league-glow: rgba(220,30,30,.4);  --league-edge: rgba(220,30,30,.7);  }
+.league-champions  { --league-glow: rgba(100,160,255,.4);--league-edge: rgba(100,160,255,.7);}
+
+@media (max-width: 768px) {
+  .rl-card { width: 160px; }
+  .rl-card-inner { padding: 20px 12px 14px; }
+}
