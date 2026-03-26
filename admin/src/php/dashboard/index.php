@@ -151,6 +151,19 @@ try {
 // (Valores padrão até criar as tabelas na segunda)
 // ===============================================
 
+function tableExists($conexao, $table) {
+  $table = mysqli_real_escape_string($conexao, $table);
+  $res = mysqli_query($conexao, "SHOW TABLES LIKE '{$table}'");
+  return $res && mysqli_num_rows($res) > 0;
+}
+
+function columnExists($conexao, $table, $column) {
+  $table = mysqli_real_escape_string($conexao, $table);
+  $column = mysqli_real_escape_string($conexao, $column);
+  $res = mysqli_query($conexao, "SHOW COLUMNS FROM `{$table}` LIKE '{$column}'");
+  return $res && mysqli_num_rows($res) > 0;
+}
+
 // Vendas
 $vendas_hoje = 0;
 $vendas_total = 0;
@@ -163,18 +176,93 @@ $pedidos_total = 0;
 $clientes_ativos = 0;
 $clientes_total = 0;
 
-// Produtos sem estoque (para sidebar)
-$produtos_sem_estoque = 1; // Valor de exemplo para mostrar "ATENÇÃO"
+// Produtos sem estoque (sidebar)
+$produtos_sem_estoque = 0;
 
-// Pedidos pendentes (para sidebar)
+// Pedidos pendentes (sidebar)
 $pedidos_pendentes = 0;
 
-// Dados para gráfico de performance (últimos 7 dias - todos zerados)
+// Dados para gráfico de performance (últimos 7 dias)
 $labels_7_dias = [];
 $vendas_7_dias = [];
 for ($i = 6; $i >= 0; $i--) {
-    $labels_7_dias[] = date('d/m', strtotime("-$i days"));
-    $vendas_7_dias[] = 0; // Zero até ter dados reais
+  $labels_7_dias[] = date('d/m', strtotime("-$i days"));
+  $vendas_7_dias[] = 0;
+}
+
+try {
+  if (tableExists($conexao, 'pedidos')) {
+    $colDataPedido = columnExists($conexao, 'pedidos', 'data_pedido') ? 'data_pedido' : null;
+    $colValorTotal = columnExists($conexao, 'pedidos', 'valor_total') ? 'valor_total' : null;
+
+    if ($colDataPedido && $colValorTotal) {
+      $resHoje = $conexao->query("SELECT COALESCE(SUM({$colValorTotal}),0) AS total FROM pedidos WHERE DATE({$colDataPedido}) = CURDATE()");
+      if ($resHoje && ($row = $resHoje->fetch_assoc())) {
+        $vendas_hoje = (float)($row['total'] ?? 0);
+      }
+
+      $resTotal = $conexao->query("SELECT COALESCE(SUM({$colValorTotal}),0) AS total FROM pedidos");
+      if ($resTotal && ($row = $resTotal->fetch_assoc())) {
+        $vendas_total = (float)($row['total'] ?? 0);
+      }
+
+      $resPedidosHoje = $conexao->query("SELECT COUNT(*) AS total FROM pedidos WHERE DATE({$colDataPedido}) = CURDATE()");
+      if ($resPedidosHoje && ($row = $resPedidosHoje->fetch_assoc())) {
+        $pedidos_hoje = (int)($row['total'] ?? 0);
+      }
+
+      $resPedidosTotal = $conexao->query("SELECT COUNT(*) AS total FROM pedidos");
+      if ($resPedidosTotal && ($row = $resPedidosTotal->fetch_assoc())) {
+        $pedidos_total = (int)($row['total'] ?? 0);
+      }
+
+      if (columnExists($conexao, 'pedidos', 'status')) {
+        $resPendentes = $conexao->query("SELECT COUNT(*) AS total FROM pedidos WHERE UPPER(status) IN ('PENDENTE','PAGAMENTO PENDENTE','AGUARDANDO PAGAMENTO','AGUARDANDO')");
+        if ($resPendentes && ($row = $resPendentes->fetch_assoc())) {
+          $pedidos_pendentes = (int)($row['total'] ?? 0);
+        }
+      }
+
+      $res7 = $conexao->query("SELECT DATE({$colDataPedido}) AS dia, COALESCE(SUM({$colValorTotal}),0) AS total FROM pedidos WHERE DATE({$colDataPedido}) BETWEEN DATE_SUB(CURDATE(), INTERVAL 6 DAY) AND CURDATE() GROUP BY DATE({$colDataPedido})");
+      if ($res7) {
+        $mapa = [];
+        while ($row = $res7->fetch_assoc()) {
+          $mapa[$row['dia']] = (float)$row['total'];
+        }
+
+        $vendas_7_dias = [];
+        for ($i = 6; $i >= 0; $i--) {
+          $key = date('Y-m-d', strtotime("-$i days"));
+          $vendas_7_dias[] = $mapa[$key] ?? 0;
+        }
+      }
+    }
+  }
+
+  if (tableExists($conexao, 'clientes')) {
+    $resClientesTotal = $conexao->query("SELECT COUNT(*) AS total FROM clientes");
+    if ($resClientesTotal && ($row = $resClientesTotal->fetch_assoc())) {
+      $clientes_total = (int)($row['total'] ?? 0);
+    }
+
+    if (columnExists($conexao, 'clientes', 'status')) {
+      $resClientesAtivos = $conexao->query("SELECT COUNT(*) AS total FROM clientes WHERE LOWER(status) = 'ativo'");
+      if ($resClientesAtivos && ($row = $resClientesAtivos->fetch_assoc())) {
+        $clientes_ativos = (int)($row['total'] ?? 0);
+      }
+    } else {
+      $clientes_ativos = $clientes_total;
+    }
+  }
+
+  if (tableExists($conexao, 'produtos') && columnExists($conexao, 'produtos', 'estoque')) {
+    $resSemEstoque = $conexao->query("SELECT COUNT(*) AS total FROM produtos WHERE estoque <= 0");
+    if ($resSemEstoque && ($row = $resSemEstoque->fetch_assoc())) {
+      $produtos_sem_estoque = (int)($row['total'] ?? 0);
+    }
+  }
+} catch (Exception $e) {
+  error_log('Erro ao calcular métricas do dashboard: ' . $e->getMessage());
 }
 
 // Buscar todos os administradores do banco (apenas os 3 que existem)
@@ -435,11 +523,32 @@ try {
           // Buscar pedidos do banco de dados
           $pedidos = [];
           try {
-              $result = $conexao->query("SELECT * FROM pedidos ORDER BY created_at DESC LIMIT 6");
-              if ($result) {
+              if (tableExists($conexao, 'pedidos')) {
+                $sqlPedidosRecentes = "
+                  SELECT
+                    p.id,
+                    p.valor_total,
+                    p.status,
+                    p.data_pedido,
+                    COALESCE(c.nome, p.cliente_nome, 'Cliente') AS cliente_nome,
+                    COALESCE(ip.nome_produto, 'Pedido com múltiplos itens') AS produto_nome
+                  FROM pedidos p
+                  LEFT JOIN clientes c ON c.id = p.cliente_id
+                  LEFT JOIN (
+                    SELECT pedido_id, MAX(nome_produto) AS nome_produto
+                    FROM itens_pedido
+                    GROUP BY pedido_id
+                  ) ip ON ip.pedido_id = p.id
+                  ORDER BY p.data_pedido DESC
+                  LIMIT 6
+                ";
+
+                $result = $conexao->query($sqlPedidosRecentes);
+                if ($result) {
                   while ($row = $result->fetch_assoc()) {
-                      $pedidos[] = $row;
+                    $pedidos[] = $row;
                   }
+                }
               }
           } catch (Exception $e) {
               // Silencioso - se não houver tabela pedidos, $pedidos fica vazio
@@ -468,11 +577,21 @@ try {
                   <td>#<?php echo $pedido['id']; ?></td>
                   <td><?php echo htmlspecialchars($pedido['cliente_nome'] ?? 'N/A'); ?></td>
                   <td><?php echo htmlspecialchars($pedido['produto_nome'] ?? 'N/A'); ?></td>
-                  <td>R$ <?php echo number_format($pedido['valor'] ?? 0, 2, ',', '.'); ?></td>
-                  <td class="<?php echo $pedido['status'] == 'aprovado' ? 'success' : ($pedido['status'] == 'pendente' ? 'warning' : 'danger'); ?>">
-                    <?php echo ucfirst($pedido['status'] ?? 'pendente'); ?>
+                  <td>R$ <?php echo number_format((float)($pedido['valor_total'] ?? 0), 2, ',', '.'); ?></td>
+                  <?php
+                    $statusRow = (string)($pedido['status'] ?? 'pendente');
+                    $statusUpper = strtoupper($statusRow);
+                    $statusClass = 'warning';
+                    if (in_array($statusUpper, ['ENTREGUE', 'ENVIADO', 'PAGAMENTO CONFIRMADO'], true)) {
+                        $statusClass = 'success';
+                    } elseif (in_array($statusUpper, ['ESTORNADO', 'CANCELADO', 'PEDIDO CANCELADO'], true)) {
+                        $statusClass = 'danger';
+                    }
+                  ?>
+                  <td class="<?php echo $statusClass; ?>">
+                    <?php echo htmlspecialchars($statusRow); ?>
                   </td>
-                  <td class="primary">Detalhes</td>
+                  <td class="primary"><a href="orders.php">Detalhes</a></td>
                 </tr>
                 <?php endforeach; ?>
               </tbody>

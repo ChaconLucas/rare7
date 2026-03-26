@@ -16,6 +16,39 @@ require_once '../auto_log.php';
 // Incluir conexão com banco
 require_once '../../../PHP/conexao.php';
 
+// Estruturas para reembolso parcial/total
+if ($conexao) {
+    mysqli_query($conexao, "CREATE TABLE IF NOT EXISTS pedidos_reembolsos (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        pedido_id INT NOT NULL,
+        tipo VARCHAR(20) NOT NULL DEFAULT 'parcial',
+        incluir_frete TINYINT(1) NOT NULL DEFAULT 0,
+        valor_frete_reembolsado DECIMAL(10,2) NOT NULL DEFAULT 0,
+        valor_total_reembolso DECIMAL(10,2) NOT NULL DEFAULT 0,
+        observacoes TEXT NULL,
+        usuario_alteracao VARCHAR(100) NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_reembolso_pedido (pedido_id),
+        CONSTRAINT fk_reembolso_pedido FOREIGN KEY (pedido_id) REFERENCES pedidos(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    mysqli_query($conexao, "CREATE TABLE IF NOT EXISTS pedidos_reembolso_itens (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        reembolso_id INT NOT NULL,
+        item_pedido_id INT NOT NULL,
+        produto_id INT NOT NULL,
+        variacao_id INT NULL,
+        quantidade INT NOT NULL DEFAULT 0,
+        valor_unitario DECIMAL(10,2) NOT NULL DEFAULT 0,
+        valor_total DECIMAL(10,2) NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_reembolso_item (reembolso_id),
+        INDEX idx_reembolso_item_pedido (item_pedido_id),
+        CONSTRAINT fk_reembolso_item_reembolso FOREIGN KEY (reembolso_id) REFERENCES pedidos_reembolsos(id) ON DELETE CASCADE,
+        CONSTRAINT fk_reembolso_item_itempedido FOREIGN KEY (item_pedido_id) REFERENCES itens_pedido(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+}
+
 // Função para buscar status de fluxo
 function buscarStatusFluxo($conexao) {
     $status = [];
@@ -643,10 +676,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                         $sql_itens = "
                             SELECT 
                                 ip.*,
-                                COALESCE(pr.nome, 'Produto não encontrado') as produto_nome
+                                COALESCE(pr.nome, 'Produto não encontrado') as produto_nome,
+                                COALESCE(SUM(pri.quantidade), 0) as quantidade_reembolsada
                             FROM itens_pedido ip
                             LEFT JOIN produtos pr ON ip.produto_id = pr.id
+                            LEFT JOIN pedidos_reembolso_itens pri ON pri.item_pedido_id = ip.id
                             WHERE ip.pedido_id = ?
+                            GROUP BY ip.id, ip.pedido_id, ip.produto_id, ip.variacao_id, ip.quantidade, ip.preco_unitario, ip.nome_produto, ip.created_at, pr.nome
                         ";
                         
                         $stmt_itens = mysqli_prepare($conexao, $sql_itens);
@@ -678,6 +714,256 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
             }
             exit;
             
+        case 'atualizar_rastreio':
+            if (ob_get_level()) ob_clean();
+            header('Content-Type: application/json; charset=utf-8');
+
+            $pedido_id      = intval($_POST['pedido_id'] ?? 0);
+            $codigo_rastreio = trim($_POST['codigo_rastreio'] ?? '');
+
+            if ($pedido_id) {
+                $sql_rastreio = "UPDATE pedidos SET codigo_rastreio = ? WHERE id = ?";
+                $stmt_rastreio = mysqli_prepare($conexao, $sql_rastreio);
+                if ($stmt_rastreio) {
+                    mysqli_stmt_bind_param($stmt_rastreio, 'si', $codigo_rastreio, $pedido_id);
+                    if (mysqli_stmt_execute($stmt_rastreio)) {
+                        echo json_encode(['success' => true, 'message' => 'Código de rastreio atualizado!'], JSON_UNESCAPED_UNICODE);
+                    } else {
+                        echo json_encode(['success' => false, 'message' => 'Erro ao salvar: ' . mysqli_stmt_error($stmt_rastreio)], JSON_UNESCAPED_UNICODE);
+                    }
+                    mysqli_stmt_close($stmt_rastreio);
+                } else {
+                    echo json_encode(['success' => false, 'message' => 'Erro ao preparar query: ' . mysqli_error($conexao)], JSON_UNESCAPED_UNICODE);
+                }
+            } else {
+                echo json_encode(['success' => false, 'message' => 'ID do pedido inválido'], JSON_UNESCAPED_UNICODE);
+            }
+            exit;
+
+        case 'processar_reembolso_detalhado':
+            if (ob_get_level()) {
+                ob_clean();
+            }
+
+            header('Content-Type: application/json; charset=utf-8');
+
+            $pedido_id = intval($_POST['pedido_id'] ?? 0);
+            $incluir_frete = intval($_POST['incluir_frete'] ?? 0) === 1 ? 1 : 0;
+            $observacoes_reembolso = trim((string) ($_POST['observacoes'] ?? ''));
+            $itens_json = $_POST['itens'] ?? '[]';
+            $itens_solicitados = json_decode($itens_json, true);
+            $usuario_log = $_SESSION['usuario_nome'] ?? 'Admin';
+
+            if (!$pedido_id || !is_array($itens_solicitados)) {
+                echo json_encode(['success' => false, 'message' => 'Dados do reembolso inválidos.'], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+
+            mysqli_begin_transaction($conexao);
+
+            try {
+                $pedido_stmt = mysqli_prepare($conexao, "SELECT id, status, valor_frete, observacoes FROM pedidos WHERE id = ? LIMIT 1");
+                if (!$pedido_stmt) {
+                    throw new Exception('Erro ao carregar pedido.');
+                }
+                mysqli_stmt_bind_param($pedido_stmt, 'i', $pedido_id);
+                mysqli_stmt_execute($pedido_stmt);
+                $pedido_result = mysqli_stmt_get_result($pedido_stmt);
+                $pedido = mysqli_fetch_assoc($pedido_result);
+                mysqli_stmt_close($pedido_stmt);
+
+                if (!$pedido) {
+                    throw new Exception('Pedido não encontrado.');
+                }
+
+                $itens_disponiveis = [];
+                $itens_stmt = mysqli_prepare($conexao, "
+                    SELECT 
+                        ip.id,
+                        ip.produto_id,
+                        ip.variacao_id,
+                        ip.quantidade,
+                        ip.preco_unitario,
+                        COALESCE(ip.nome_produto, pr.nome, 'Produto') AS produto_nome,
+                        COALESCE(SUM(pri.quantidade), 0) AS quantidade_reembolsada
+                    FROM itens_pedido ip
+                    LEFT JOIN produtos pr ON pr.id = ip.produto_id
+                    LEFT JOIN pedidos_reembolso_itens pri ON pri.item_pedido_id = ip.id
+                    WHERE ip.pedido_id = ?
+                    GROUP BY ip.id, ip.produto_id, ip.variacao_id, ip.quantidade, ip.preco_unitario, ip.nome_produto, pr.nome
+                ");
+                if (!$itens_stmt) {
+                    throw new Exception('Erro ao carregar itens do pedido.');
+                }
+                mysqli_stmt_bind_param($itens_stmt, 'i', $pedido_id);
+                mysqli_stmt_execute($itens_stmt);
+                $itens_result = mysqli_stmt_get_result($itens_stmt);
+                while ($row = mysqli_fetch_assoc($itens_result)) {
+                    $itens_disponiveis[(int) $row['id']] = $row;
+                }
+                mysqli_stmt_close($itens_stmt);
+
+                $itens_para_reembolso = [];
+                $valor_itens_reembolso = 0.0;
+                $total_itens_pedido = 0;
+                $total_itens_reembolsados_apos = 0;
+
+                foreach ($itens_disponiveis as $item_db) {
+                    $total_itens_pedido += (int) $item_db['quantidade'];
+                    $total_itens_reembolsados_apos += (int) $item_db['quantidade_reembolsada'];
+                }
+
+                foreach ($itens_solicitados as $item_req) {
+                    $item_id = intval($item_req['item_pedido_id'] ?? 0);
+                    $quantidade = intval($item_req['quantidade'] ?? 0);
+
+                    if ($item_id <= 0 || $quantidade <= 0) {
+                        continue;
+                    }
+
+                    if (!isset($itens_disponiveis[$item_id])) {
+                        throw new Exception('Um dos itens selecionados não pertence a este pedido.');
+                    }
+
+                    $item_db = $itens_disponiveis[$item_id];
+                    $quantidade_disponivel = max(0, (int) $item_db['quantidade'] - (int) $item_db['quantidade_reembolsada']);
+                    if ($quantidade > $quantidade_disponivel) {
+                        throw new Exception('A quantidade solicitada para reembolso é maior que a disponível em um dos itens.');
+                    }
+
+                    $valor_item = round($quantidade * (float) $item_db['preco_unitario'], 2);
+                    $valor_itens_reembolso += $valor_item;
+                    $total_itens_reembolsados_apos += $quantidade;
+
+                    $itens_para_reembolso[] = [
+                        'item_pedido_id' => $item_id,
+                        'produto_id' => (int) $item_db['produto_id'],
+                        'variacao_id' => $item_db['variacao_id'] !== null ? (int) $item_db['variacao_id'] : null,
+                        'quantidade' => $quantidade,
+                        'valor_unitario' => (float) $item_db['preco_unitario'],
+                        'valor_total' => $valor_item,
+                        'produto_nome' => $item_db['produto_nome']
+                    ];
+                }
+
+                $valor_frete_reembolso = $incluir_frete ? round((float) ($pedido['valor_frete'] ?? 0), 2) : 0.0;
+                if (empty($itens_para_reembolso) && $valor_frete_reembolso <= 0) {
+                    throw new Exception('Selecione ao menos um item ou inclua o frete no reembolso.');
+                }
+
+                $valor_total_reembolso = round($valor_itens_reembolso + $valor_frete_reembolso, 2);
+                $tipo_reembolso = ($total_itens_pedido > 0 && $total_itens_reembolsados_apos >= $total_itens_pedido) ? 'total' : 'parcial';
+
+                $reembolso_stmt = mysqli_prepare($conexao, "
+                    INSERT INTO pedidos_reembolsos (pedido_id, tipo, incluir_frete, valor_frete_reembolsado, valor_total_reembolso, observacoes, usuario_alteracao)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ");
+                if (!$reembolso_stmt) {
+                    throw new Exception('Erro ao registrar reembolso.');
+                }
+                mysqli_stmt_bind_param($reembolso_stmt, 'isiddss', $pedido_id, $tipo_reembolso, $incluir_frete, $valor_frete_reembolso, $valor_total_reembolso, $observacoes_reembolso, $usuario_log);
+                mysqli_stmt_execute($reembolso_stmt);
+                $reembolso_id = mysqli_insert_id($conexao);
+                mysqli_stmt_close($reembolso_stmt);
+
+                $item_reembolso_stmt = mysqli_prepare($conexao, "
+                    INSERT INTO pedidos_reembolso_itens (reembolso_id, item_pedido_id, produto_id, variacao_id, quantidade, valor_unitario, valor_total)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ");
+                if (!$item_reembolso_stmt) {
+                    throw new Exception('Erro ao registrar itens do reembolso.');
+                }
+
+                foreach ($itens_para_reembolso as $item_reembolso) {
+                    mysqli_stmt_bind_param(
+                        $item_reembolso_stmt,
+                        'iiiiidd',
+                        $reembolso_id,
+                        $item_reembolso['item_pedido_id'],
+                        $item_reembolso['produto_id'],
+                        $item_reembolso['variacao_id'],
+                        $item_reembolso['quantidade'],
+                        $item_reembolso['valor_unitario'],
+                        $item_reembolso['valor_total']
+                    );
+                    mysqli_stmt_execute($item_reembolso_stmt);
+
+                    if (!empty($item_reembolso['variacao_id'])) {
+                        $estoque_stmt = mysqli_prepare($conexao, "UPDATE produto_variacoes SET estoque = estoque + ? WHERE id = ?");
+                        if ($estoque_stmt) {
+                            mysqli_stmt_bind_param($estoque_stmt, 'ii', $item_reembolso['quantidade'], $item_reembolso['variacao_id']);
+                            mysqli_stmt_execute($estoque_stmt);
+                            mysqli_stmt_close($estoque_stmt);
+                        }
+                    } else {
+                        $estoque_stmt = mysqli_prepare($conexao, "UPDATE produtos SET estoque = estoque + ? WHERE id = ?");
+                        if ($estoque_stmt) {
+                            mysqli_stmt_bind_param($estoque_stmt, 'ii', $item_reembolso['quantidade'], $item_reembolso['produto_id']);
+                            mysqli_stmt_execute($estoque_stmt);
+                            mysqli_stmt_close($estoque_stmt);
+                        }
+                    }
+                }
+                mysqli_stmt_close($item_reembolso_stmt);
+
+                $resumo_itens = [];
+                foreach ($itens_para_reembolso as $item_reembolso) {
+                    $resumo_itens[] = $item_reembolso['produto_nome'] . ' x' . $item_reembolso['quantidade'];
+                }
+                if ($valor_frete_reembolso > 0) {
+                    $resumo_itens[] = 'frete';
+                }
+                $resumo_texto = 'Reembolso ' . $tipo_reembolso . ' registrado: ' . implode(', ', $resumo_itens) . '. Valor: R$ ' . number_format($valor_total_reembolso, 2, ',', '.');
+                if ($observacoes_reembolso !== '') {
+                    $resumo_texto .= ' Obs: ' . $observacoes_reembolso;
+                }
+
+                $nova_observacao = trim((string) ($pedido['observacoes'] ?? ''));
+                $nova_observacao = $nova_observacao !== '' ? $nova_observacao . "\n" . $resumo_texto : $resumo_texto;
+
+                if ($tipo_reembolso === 'total') {
+                    $status_final = 'Estornado';
+                    $pedido_upd = mysqli_prepare($conexao, "UPDATE pedidos SET status = ?, observacoes = ? WHERE id = ?");
+                    if ($pedido_upd) {
+                        mysqli_stmt_bind_param($pedido_upd, 'ssi', $status_final, $nova_observacao, $pedido_id);
+                        mysqli_stmt_execute($pedido_upd);
+                        mysqli_stmt_close($pedido_upd);
+                    }
+                } else {
+                    $pedido_upd = mysqli_prepare($conexao, "UPDATE pedidos SET observacoes = ? WHERE id = ?");
+                    if ($pedido_upd) {
+                        mysqli_stmt_bind_param($pedido_upd, 'si', $nova_observacao, $pedido_id);
+                        mysqli_stmt_execute($pedido_upd);
+                        mysqli_stmt_close($pedido_upd);
+                    }
+                }
+
+                $status_anterior = $pedido['status'] ?? 'Pedido';
+                $status_novo = $tipo_reembolso === 'total' ? 'Estornado' : $status_anterior;
+                $historico_stmt = mysqli_prepare($conexao, "
+                    INSERT INTO pedidos_historico_status (pedido_id, status_anterior, status_novo, usuario_alteracao, observacoes, email_enviado)
+                    VALUES (?, ?, ?, ?, ?, 0)
+                ");
+                if ($historico_stmt) {
+                    mysqli_stmt_bind_param($historico_stmt, 'issss', $pedido_id, $status_anterior, $status_novo, $usuario_log, $resumo_texto);
+                    mysqli_stmt_execute($historico_stmt);
+                    mysqli_stmt_close($historico_stmt);
+                }
+
+                mysqli_commit($conexao);
+                echo json_encode([
+                    'success' => true,
+                    'message' => $tipo_reembolso === 'total' ? 'Reembolso total registrado com sucesso.' : 'Reembolso parcial registrado com sucesso.',
+                    'tipo_reembolso' => $tipo_reembolso,
+                    'valor_total' => $valor_total_reembolso
+                ], JSON_UNESCAPED_UNICODE);
+            } catch (Exception $e) {
+                mysqli_rollback($conexao);
+                error_log('Erro ao processar reembolso detalhado: ' . $e->getMessage());
+                echo json_encode(['success' => false, 'message' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
+            }
+            exit;
+
         case 'processar_reembolso':
             $pedido_id = intval($_POST['pedido_id'] ?? 0);
             
@@ -1949,6 +2235,101 @@ try {
             background: #28a745;
             color: white;
         }
+
+        .btn-warning {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .modal-medium {
+            max-width: 980px;
+        }
+
+        .refund-modal-content {
+            max-height: 90vh;
+            overflow: hidden;
+        }
+
+        .refund-modal-body {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .refund-summary-box,
+        .refund-total-box,
+        .refund-extra-options,
+        .refund-observacoes-wrap {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 1rem;
+        }
+
+        .refund-items-wrap {
+            max-height: 320px;
+            overflow: auto;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+        }
+
+        .refund-items-table input[type="number"] {
+            width: 90px;
+            padding: 0.45rem;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+        }
+
+        .refund-checkbox-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .refund-checkbox-main {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .refund-checkbox-main input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: #C6A75E;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+
+        .refund-observacoes-wrap textarea {
+            width: 100%;
+            margin-top: 0.65rem;
+            padding: 0.8rem;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            resize: vertical;
+        }
+
+        .refund-total-box {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 1rem;
+        }
+
+        .btn:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
         
         .btn:hover {
             transform: translateY(-2px);
@@ -2572,9 +2953,19 @@ try {
                                 <strong>Transportadora:</strong>
                                 <span id="transportadora">-</span>
                             </div>
-                            <div class="info-row">
+                            <div class="info-row" style="align-items:flex-start;flex-direction:column;gap:6px;">
                                 <strong>Código de Rastreio:</strong>
-                                <span id="codigo-rastreio">-</span>
+                                <div style="display:flex;gap:8px;width:100%;align-items:center;">
+                                    <input type="text" id="codigo-rastreio-input"
+                                        placeholder="Informe o código de rastreio"
+                                        style="flex:1;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:0.9rem;background:#fff;color:#333;"
+                                        maxlength="100">
+                                    <button onclick="salvarCodigoRastreio()" id="btn-salvar-rastreio"
+                                        style="padding:6px 14px;background:#C6A75E;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.85rem;white-space:nowrap;">
+                                        Salvar
+                                    </button>
+                                </div>
+                                <span id="codigo-rastreio-msg" style="font-size:0.8rem;display:none;"></span>
                             </div>
                             <div class="info-row">
                                 <strong>Previsão de Entrega:</strong>
@@ -2651,6 +3042,14 @@ try {
             
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="fecharModal()">Fechar</button>
+                <button class="btn btn-warning" id="btn-cancelar-pedido" onclick="atualizarStatusDireto('Pedido Cancelado', 'cancelar')">
+                    <span class="material-symbols-sharp">cancel</span>
+                    Cancelar Pedido
+                </button>
+                <button class="btn btn-danger" id="btn-reembolsar-pedido" onclick="abrirModalReembolso()">
+                    <span class="material-symbols-sharp">reply</span>
+                    Reembolsar Pedido
+                </button>
                 <button class="btn btn-primary" onclick="imprimirPedido()">
                     <span class="material-symbols-sharp">print</span>
                     Imprimir
@@ -2658,6 +3057,60 @@ try {
                 <button class="btn btn-success" onclick="enviarEmail()">
                     <span class="material-symbols-sharp">email</span>
                     Enviar E-mail
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="refundModal" class="modal">
+        <div class="modal-content modal-medium refund-modal-content">
+            <div class="modal-header">
+                <h2>Reembolso do Pedido <span id="refund-modal-title-id">#</span></h2>
+                <span class="close" onclick="fecharModalReembolso()">&times;</span>
+            </div>
+            <div class="modal-body refund-modal-body">
+                <div class="refund-summary-box">
+                    <div><strong>Tipo:</strong> parcial ou total</div>
+                    <div><strong>Selecione:</strong> produtos, quantidades e se inclui frete</div>
+                </div>
+                <div class="refund-items-wrap">
+                    <table class="items-table refund-items-table">
+                        <thead>
+                            <tr>
+                                <th>Produto</th>
+                                <th>Comprado</th>
+                                <th>Já reemb.</th>
+                                <th>Disponível</th>
+                                <th>Qtd. reemb.</th>
+                                <th>Valor</th>
+                            </tr>
+                        </thead>
+                        <tbody id="refund-items-body"></tbody>
+                    </table>
+                </div>
+                <div class="refund-extra-options">
+                    <label class="refund-checkbox-row" for="refund-incluir-frete">
+                        <span class="refund-checkbox-main">
+                            <input type="checkbox" id="refund-incluir-frete">
+                            <span>Incluir frete no reembolso</span>
+                        </span>
+                        <strong id="refund-frete-valor">R$ 0,00</strong>
+                    </label>
+                </div>
+                <div class="refund-observacoes-wrap">
+                    <label for="refund-observacoes"><strong>Observações do reembolso</strong></label>
+                    <textarea id="refund-observacoes" rows="3" placeholder="Motivo, detalhes internos ou observações para auditoria"></textarea>
+                </div>
+                <div class="refund-total-box">
+                    <span>Valor total do reembolso</span>
+                    <strong id="refund-total-valor">R$ 0,00</strong>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="fecharModalReembolso()">Voltar</button>
+                <button class="btn btn-danger" id="btn-confirmar-reembolso" onclick="confirmarReembolsoDetalhado()">
+                    <span class="material-symbols-sharp">reply</span>
+                    Confirmar Reembolso
                 </button>
             </div>
         </div>
@@ -3425,6 +3878,7 @@ async function carregarDetalhesPedido(pedidoId) {
 // Função para preencher os detalhes no modal
 function preencherDetalhesPedido(pedido) {
     __noopLog('🔧 Preenchendo detalhes do pedido:', pedido);
+    window.pedidoAtualDados = pedido;
     
     // Dados do Cliente
     document.getElementById('cliente-nome').textContent = pedido.cliente_nome || 'Cliente não informado';
@@ -3500,6 +3954,7 @@ function preencherDetalhesPedido(pedido) {
             border: none;
         ">${pedido.status}</span>
     `;
+    atualizarAcoesRapidasPedido(pedido.id, pedido.status);
     
     // Preencher select de status
     const selectStatus = document.getElementById('novo-status');
@@ -3511,7 +3966,11 @@ function preencherDetalhesPedido(pedido) {
     
     // Informações de Entrega
     document.getElementById('transportadora').textContent = pedido.transportadora || 'Correios';
-    document.getElementById('codigo-rastreio').textContent = pedido.codigo_rastreio || 'Aguardando envio';
+    const rastreioInput = document.getElementById('codigo-rastreio-input');
+    rastreioInput.value = pedido.codigo_rastreio || '';
+    rastreioInput.dataset.pedidoId = pedido.id;
+    const msgRastreio = document.getElementById('codigo-rastreio-msg');
+    msgRastreio.style.display = 'none'; msgRastreio.textContent = '';
     document.getElementById('previsao-entrega').textContent = pedido.previsao_entrega || 'A calcular';
     document.getElementById('valor-frete').textContent = `R$ ${parseFloat(pedido.valor_frete || 0).toFixed(2).replace('.', ',')}`;
     
@@ -3531,6 +3990,286 @@ function preencherDetalhesPedido(pedido) {
     
     // Histórico de status (simulado)
     carregarHistoricoStatus(pedido);
+}
+
+function atualizarAcoesRapidasPedido(pedidoId, statusAtual) {
+    const btnCancelar = document.getElementById('btn-cancelar-pedido');
+    const btnReembolsar = document.getElementById('btn-reembolsar-pedido');
+    const statusNormalizado = String(statusAtual || '').trim().toUpperCase();
+    const bloqueado = ['PEDIDO CANCELADO', 'ESTORNADO'].includes(statusNormalizado);
+
+    if (btnCancelar) {
+        btnCancelar.dataset.pedidoId = pedidoId;
+        btnCancelar.disabled = bloqueado;
+        btnCancelar.title = bloqueado ? 'Pedido já está cancelado ou estornado' : 'Cancelar este pedido';
+    }
+
+    if (btnReembolsar) {
+        btnReembolsar.dataset.pedidoId = pedidoId;
+        btnReembolsar.disabled = bloqueado;
+        btnReembolsar.title = bloqueado ? 'Pedido já está cancelado ou estornado' : 'Reembolsar este pedido';
+    }
+}
+
+function abrirModalReembolso() {
+    const pedido = window.pedidoAtualDados;
+    if (!pedido || !Array.isArray(pedido.itens)) {
+        alert('Carregue os detalhes do pedido antes de abrir o reembolso.');
+        return;
+    }
+
+    const valorFretePedido = obterValorFretePedido(pedido);
+
+    document.getElementById('refund-modal-title-id').textContent = `#${pedido.id}`;
+    document.getElementById('refund-incluir-frete').checked = false;
+    document.getElementById('refund-observacoes').value = '';
+    document.getElementById('refund-frete-valor').textContent = `R$ ${valorFretePedido.toFixed(2).replace('.', ',')}`;
+
+    const tbody = document.getElementById('refund-items-body');
+    tbody.innerHTML = '';
+
+    pedido.itens.forEach(item => {
+        const quantidadeComprada = parseInt(item.quantidade || 0, 10);
+        const quantidadeReembolsada = parseInt(item.quantidade_reembolsada || 0, 10);
+        const quantidadeDisponivel = Math.max(0, quantidadeComprada - quantidadeReembolsada);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${item.produto_nome || 'Produto'}</td>
+            <td>${quantidadeComprada}</td>
+            <td>${quantidadeReembolsada}</td>
+            <td>${quantidadeDisponivel}</td>
+            <td>
+                <input
+                    type="number"
+                    min="0"
+                    max="${quantidadeDisponivel}"
+                    value="0"
+                    data-item-id="${item.id}"
+                    data-price="${parseFloat(item.preco_unitario || 0)}"
+                    data-max="${quantidadeDisponivel}"
+                    class="refund-qty-input"
+                    oninput="atualizarResumoReembolso()"
+                    ${quantidadeDisponivel === 0 ? 'disabled' : ''}
+                >
+            </td>
+            <td>R$ ${parseFloat(item.preco_unitario || 0).toFixed(2).replace('.', ',')}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    document.getElementById('refund-incluir-frete').onchange = atualizarResumoReembolso;
+    atualizarResumoReembolso();
+    document.getElementById('refundModal').style.display = 'block';
+}
+
+function fecharModalReembolso() {
+    document.getElementById('refundModal').style.display = 'none';
+}
+
+function obterValorFretePedido(pedido) {
+    const valorDireto = parseFloat(pedido?.valor_frete ?? pedido?.frete ?? 0);
+    if (!Number.isNaN(valorDireto) && valorDireto > 0) {
+        return valorDireto;
+    }
+
+    const fretePedidoEl = document.getElementById('frete-pedido');
+    if (fretePedidoEl) {
+        const texto = (fretePedidoEl.textContent || '').replace(/[^0-9,.-]/g, '').replace('.', '').replace(',', '.');
+        const valorTela = parseFloat(texto);
+        if (!Number.isNaN(valorTela) && valorTela > 0) {
+            return valorTela;
+        }
+    }
+
+    const valorEntregaEl = document.getElementById('valor-frete');
+    if (valorEntregaEl) {
+        const texto = (valorEntregaEl.textContent || '').replace(/[^0-9,.-]/g, '').replace('.', '').replace(',', '.');
+        const valorTela = parseFloat(texto);
+        if (!Number.isNaN(valorTela) && valorTela > 0) {
+            return valorTela;
+        }
+    }
+
+    return 0;
+}
+
+function atualizarResumoReembolso() {
+    const pedido = window.pedidoAtualDados;
+    const valorFretePedido = obterValorFretePedido(pedido);
+    let total = 0;
+
+    document.querySelectorAll('.refund-qty-input').forEach(input => {
+        const max = parseInt(input.dataset.max || '0', 10);
+        let quantidade = parseInt(input.value || '0', 10);
+        if (Number.isNaN(quantidade) || quantidade < 0) quantidade = 0;
+        if (quantidade > max) quantidade = max;
+        input.value = quantidade;
+        total += quantidade * parseFloat(input.dataset.price || '0');
+    });
+
+    if (document.getElementById('refund-incluir-frete').checked) {
+        total += valorFretePedido;
+    }
+
+    document.getElementById('refund-total-valor').textContent = `R$ ${total.toFixed(2).replace('.', ',')}`;
+}
+
+async function confirmarReembolsoDetalhado() {
+    const pedido = window.pedidoAtualDados;
+    if (!pedido) {
+        alert('Pedido não carregado.');
+        return;
+    }
+
+    const itens = [];
+    document.querySelectorAll('.refund-qty-input').forEach(input => {
+        const quantidade = parseInt(input.value || '0', 10);
+        if (quantidade > 0) {
+            itens.push({
+                item_pedido_id: parseInt(input.getAttribute('data-item-id') || '0', 10),
+                quantidade
+            });
+        }
+    });
+
+    const incluirFrete = document.getElementById('refund-incluir-frete').checked;
+    if (itens.length === 0 && !incluirFrete) {
+        alert('Selecione ao menos um item ou inclua o frete no reembolso.');
+        return;
+    }
+
+    if (!confirm('Confirma o reembolso selecionado?')) {
+        return;
+    }
+
+    const btn = document.getElementById('btn-confirmar-reembolso');
+    const textoOriginal = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="material-symbols-sharp">hourglass_top</span> Processando...';
+
+    try {
+        const body = new URLSearchParams();
+        body.set('action', 'processar_reembolso_detalhado');
+        body.set('pedido_id', String(pedido.id));
+        body.set('incluir_frete', incluirFrete ? '1' : '0');
+        body.set('observacoes', document.getElementById('refund-observacoes').value.trim());
+        body.set('itens', JSON.stringify(itens));
+
+        const response = await fetch('orders.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: body.toString()
+        });
+
+        const data = await response.json();
+        if (!data.success) {
+            throw new Error(data.message || 'Falha ao processar reembolso.');
+        }
+
+        mostrarNotificacao(data.message || 'Reembolso processado com sucesso.', 'success');
+        fecharModalReembolso();
+        await carregarDetalhesPedido(pedido.id);
+        filtrarPedidos();
+    } catch (error) {
+        console.error('Erro ao confirmar reembolso:', error);
+        alert(error.message || 'Erro ao processar reembolso.');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = textoOriginal;
+    }
+}
+
+async function atualizarStatusDireto(statusDestino, acaoTexto) {
+    const pedidoId = window.pedidoAtualId;
+    if (!pedidoId) {
+        alert('Erro: ID do pedido não encontrado.');
+        return;
+    }
+
+    const mensagemConfirmacao = statusDestino === 'Estornado'
+        ? 'Tem certeza que deseja reembolsar este pedido? O status será alterado para Estornado.'
+        : `Tem certeza que deseja ${acaoTexto} este pedido? O status será alterado para ${statusDestino}.`;
+
+    if (!confirm(mensagemConfirmacao)) {
+        return;
+    }
+
+    const btnCancelar = document.getElementById('btn-cancelar-pedido');
+    const btnReembolsar = document.getElementById('btn-reembolsar-pedido');
+    const textoCancelar = btnCancelar ? btnCancelar.innerHTML : '';
+    const textoReembolsar = btnReembolsar ? btnReembolsar.innerHTML : '';
+
+    if (btnCancelar) btnCancelar.disabled = true;
+    if (btnReembolsar) btnReembolsar.disabled = true;
+
+    if (statusDestino === 'Pedido Cancelado' && btnCancelar) {
+        btnCancelar.innerHTML = '<span class="material-symbols-sharp">hourglass_top</span> Cancelando...';
+    }
+    if (statusDestino === 'Estornado' && btnReembolsar) {
+        btnReembolsar.innerHTML = '<span class="material-symbols-sharp">hourglass_top</span> Reembolsando...';
+    }
+
+    try {
+        const response = await fetch('orders.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `action=atualizar_status&pedido_id=${encodeURIComponent(pedidoId)}&novo_status=${encodeURIComponent(statusDestino)}`
+        });
+
+        const data = await response.json();
+        if (!data.success) {
+            throw new Error(data.message || 'Não foi possível atualizar o status do pedido.');
+        }
+
+        mostrarNotificacao(`Pedido atualizado para ${statusDestino}.`, 'success');
+        await carregarDetalhesPedido(pedidoId);
+        filtrarPedidos();
+    } catch (error) {
+        console.error('Erro ao atualizar status direto:', error);
+        alert(error.message || 'Erro ao atualizar status do pedido.');
+    } finally {
+        if (btnCancelar) {
+            btnCancelar.innerHTML = textoCancelar;
+        }
+        if (btnReembolsar) {
+            btnReembolsar.innerHTML = textoReembolsar;
+        }
+    }
+}
+
+// Função para salvar código de rastreio
+async function salvarCodigoRastreio() {
+    const input   = document.getElementById('codigo-rastreio-input');
+    const btn     = document.getElementById('btn-salvar-rastreio');
+    const msg     = document.getElementById('codigo-rastreio-msg');
+    const pedidoId = input.dataset.pedidoId;
+
+    if (!pedidoId) return;
+
+    btn.disabled = true;
+    btn.textContent = 'Salvando...';
+    msg.style.display = 'none';
+
+    try {
+        const response = await fetch('orders.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `action=atualizar_rastreio&pedido_id=${encodeURIComponent(pedidoId)}&codigo_rastreio=${encodeURIComponent(input.value.trim())}`
+        });
+        const data = await response.json();
+        msg.textContent = data.message || (data.success ? 'Salvo!' : 'Erro ao salvar.');
+        msg.style.color  = data.success ? '#27ae60' : '#e74c3c';
+        msg.style.display = 'block';
+    } catch (e) {
+        msg.textContent = 'Erro de comunicação.';
+        msg.style.color  = '#e74c3c';
+        msg.style.display = 'block';
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Salvar';
+    }
 }
 
 // Função para carregar itens do pedido

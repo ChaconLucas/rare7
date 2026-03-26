@@ -100,7 +100,7 @@ if ($isMenuLancamentos) {
         WHERE fp.section_key = 'launches'
           AND p.status = 'ativo'
     ";
-    
+
     $resultCountLancamentos = mysqli_query($conn, $queryCountLancamentos);
     $totalProdutos = mysqli_fetch_assoc($resultCountLancamentos)['total'];
     $totalPaginas = ceil($totalProdutos / $produtosPorPagina);

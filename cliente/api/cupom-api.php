@@ -57,6 +57,8 @@ try {
         case 'validate':
             $codigo = strtoupper(trim($input['codigo'] ?? ''));
             $subtotal = (float)($input['subtotal'] ?? 0);
+            $valorFrete = (float)($input['frete'] ?? 0);
+            $clienteId = intval($input['cliente_id'] ?? 0);
             $codigoNormalizado = normalizarCodigoCupom($codigo);
 
             $debug_log[] = "🎟️ Código: " . $codigo;
@@ -202,27 +204,57 @@ try {
                 jsonResponse(false, [], 'Cupom atingiu o limite de usos', $debug_log);
             }
 
+            // Validar limite por CPF/cliente
+            if (!empty($cupom['limite_uso_cpf']) && $clienteId > 0) {
+                $stmtUsoCliente = $pdo->prepare("SELECT COUNT(*) FROM pedidos WHERE cliente_id = ? AND cupom_codigo = ? AND status NOT IN ('Pedido Cancelado','Estornado')");
+                $stmtUsoCliente->execute([$clienteId, $cupom['codigo']]);
+                $usosCliente = (int)$stmtUsoCliente->fetchColumn();
+                if ($usosCliente >= (int)$cupom['limite_uso_cpf']) {
+                    $debug_log[] = "❌ Limite de uso por cliente atingido ({$usosCliente}/{$cupom['limite_uso_cpf']})";
+                    jsonResponse(false, [], 'Você já utilizou este cupom o número máximo de vezes permitido', $debug_log);
+                }
+            }
+
+            // Validar primeira compra
+            if (!empty($cupom['primeira_compra']) && $cupom['primeira_compra'] == 1) {
+                if ($clienteId > 0) {
+                    $stmtPC = $pdo->prepare("SELECT COUNT(*) FROM pedidos WHERE cliente_id = ? AND status NOT IN ('Pedido Cancelado','Estornado')");
+                    $stmtPC->execute([$clienteId]);
+                    if ((int)$stmtPC->fetchColumn() > 0) {
+                        $debug_log[] = "❌ Cupom de primeira compra - cliente já tem pedidos";
+                        jsonResponse(false, [], 'Este cupom é válido apenas para a primeira compra', $debug_log);
+                    }
+                } else {
+                    $debug_log[] = "⚠️ Cupom de primeira compra sem cliente logado - permitindo (validação final no checkout)";
+                }
+            }
+
             // Calcular desconto
             $valorDesconto = 0;
+            $freteGratis = false;
             
             // Buscar o tipo correto - pode ser 'tipo' ou 'tipo_desconto'
-            $tipoCupom = $cupom['tipo'] ?? $cupom['tipo_desconto'] ?? 'fixo';
+            $tipoCupom = $cupom['tipo_desconto'] ?? $cupom['tipo'] ?? 'fixo';
             $debug_log[] = "📊 Tipo do cupom: " . $tipoCupom;
             
-            // Aceitar 'percentual' ou 'porcentagem'
-            if ($tipoCupom === 'percentual' || $tipoCupom === 'porcentagem') {
-                $valorDesconto = ($subtotal * $cupom['valor']) / 100;
+            if ($tipoCupom === 'frete_gratis') {
+                $valorDesconto = $valorFrete;
+                $freteGratis = true;
+                $descontoTexto = 'Frete Grátis';
+                $debug_log[] = "🚚 Frete grátis aplicado: R$ " . number_format($valorDesconto, 2, ',', '.');
+            } elseif ($tipoCupom === 'percentual' || $tipoCupom === 'porcentagem') {
+                $valorDesconto = round(($subtotal * $cupom['valor']) / 100, 2);
                 $descontoTexto = $cupom['valor'] . '%';
                 $debug_log[] = "💯 Desconto percentual: {$cupom['valor']}% de R$ {$subtotal} = R$ " . number_format($valorDesconto, 2, ',', '.');
             } else {
-                // Desconto fixo
-                $valorDesconto = $cupom['valor'];
+                // valor_fixo / fixo / qualquer outro
+                $valorDesconto = min((float)$cupom['valor'], $subtotal);
                 $descontoTexto = 'R$ ' . number_format($cupom['valor'], 2, ',', '.');
                 $debug_log[] = "💵 Desconto fixo: R$ " . number_format($valorDesconto, 2, ',', '.');
             }
 
-            // Desconto não pode ser maior que o subtotal
-            if ($valorDesconto > $subtotal) {
+            // Desconto não pode ser maior que o subtotal (exceto frete_gratis)
+            if (!$freteGratis && $valorDesconto > $subtotal) {
                 $valorDesconto = $subtotal;
                 $debug_log[] = "⚠️ Desconto limitado ao subtotal";
             }
@@ -230,14 +262,15 @@ try {
             $debug_log[] = "✅ Valor final do desconto: R$ " . number_format($valorDesconto, 2, ',', '.');
 
             jsonResponse(true, [
-                'cupom_id' => $cupom['id'],
-                'codigo' => $cupom['codigo'],
-                'descricao' => $cupom['descricao'] ?? '',
-                'tipo' => $tipoCupom, // Tipo detectado corretamente
-                'valor' => (float)$cupom['valor'],
+                'cupom_id'        => $cupom['id'],
+                'codigo'          => $cupom['codigo'],
+                'descricao'       => $cupom['descricao'] ?? '',
+                'tipo'            => $tipoCupom,
+                'valor'           => (float)$cupom['valor'],
+                'frete_gratis'    => $freteGratis,
                 'desconto_aplicado' => round($valorDesconto, 2),
-                'desconto_texto' => $descontoTexto,
-                'novo_total' => round($subtotal - $valorDesconto, 2)
+                'desconto_texto'  => $descontoTexto,
+                'novo_total'      => round($subtotal - ($freteGratis ? 0 : $valorDesconto) + ($freteGratis ? 0 : 0), 2)
             ], 'Cupom aplicado com sucesso!', $debug_log);
             break;
 

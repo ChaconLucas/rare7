@@ -188,6 +188,11 @@ function createFreightSettingsTable() {
             maximum_freight_value DECIMAL(10,2) DEFAULT 999.99,
             fallback_enabled BOOLEAN DEFAULT TRUE,
             fallback_value DECIMAL(10,2) DEFAULT 15.00,
+            fallback_value_sudeste DECIMAL(10,2) DEFAULT 15.00,
+            fallback_value_sul DECIMAL(10,2) DEFAULT 15.00,
+            fallback_value_centro_oeste DECIMAL(10,2) DEFAULT 15.00,
+            fallback_value_nordeste DECIMAL(10,2) DEFAULT 15.00,
+            fallback_value_norte DECIMAL(10,2) DEFAULT 15.00,
             fallback_message TEXT DEFAULT 'Prazo de entrega: 3 a 7 dias úteis',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -204,9 +209,26 @@ function createFreightSettingsTable() {
     return null;
 }
 
+function ensureFreightSettingsRegionalColumns() {
+    global $conexao;
+
+    $alterQueries = [
+        "ALTER TABLE freight_settings ADD COLUMN IF NOT EXISTS fallback_value_sudeste DECIMAL(10,2) DEFAULT 15.00 AFTER fallback_value",
+        "ALTER TABLE freight_settings ADD COLUMN IF NOT EXISTS fallback_value_sul DECIMAL(10,2) DEFAULT 15.00 AFTER fallback_value_sudeste",
+        "ALTER TABLE freight_settings ADD COLUMN IF NOT EXISTS fallback_value_centro_oeste DECIMAL(10,2) DEFAULT 15.00 AFTER fallback_value_sul",
+        "ALTER TABLE freight_settings ADD COLUMN IF NOT EXISTS fallback_value_nordeste DECIMAL(10,2) DEFAULT 15.00 AFTER fallback_value_centro_oeste",
+        "ALTER TABLE freight_settings ADD COLUMN IF NOT EXISTS fallback_value_norte DECIMAL(10,2) DEFAULT 15.00 AFTER fallback_value_nordeste"
+    ];
+
+    foreach ($alterQueries as $query) {
+        $conexao->query($query);
+    }
+}
+
 // Criar tabelas e configurações
 createFreightIntegrationsTable();
 createFreightSettingsTable();
+ensureFreightSettingsRegionalColumns();
 createFreightServicesTable();
 configurarTokenMelhorEnvio();
 garantirServicosMelhorEnvio();
@@ -257,17 +279,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $maximum_freight_value = (float)$_POST['maximum_freight_value'];
         $fallback_enabled = isset($_POST['fallback_enabled']) ? 1 : 0;
         $fallback_value = (float)$_POST['fallback_value'];
+        $fallback_value_sudeste = (float)($_POST['fallback_value_sudeste'] ?? $fallback_value);
+        $fallback_value_sul = (float)($_POST['fallback_value_sul'] ?? $fallback_value);
+        $fallback_value_centro_oeste = (float)($_POST['fallback_value_centro_oeste'] ?? $fallback_value);
+        $fallback_value_nordeste = (float)($_POST['fallback_value_nordeste'] ?? $fallback_value);
+        $fallback_value_norte = (float)($_POST['fallback_value_norte'] ?? $fallback_value);
         $fallback_message = trim($_POST['fallback_message']);
         
         // Verificar se já existe configuração
         $check = $conexao->query("SELECT id FROM freight_settings WHERE id = 1");
         if ($check->num_rows > 0) {
-            $stmt = $conexao->prepare("UPDATE freight_settings SET origin_zipcode = ?, default_weight = ?, default_height = ?, default_width = ?, default_length = ?, margin_type = ?, margin_value = ?, currency = ?, rounding_type = ?, calculation_mode = ?, free_shipping_threshold = ?, minimum_order_value = ?, default_product_value = ?, maximum_freight_value = ?, fallback_enabled = ?, fallback_value = ?, fallback_message = ? WHERE id = 1");
+            $stmt = $conexao->prepare("UPDATE freight_settings SET origin_zipcode = ?, default_weight = ?, default_height = ?, default_width = ?, default_length = ?, margin_type = ?, margin_value = ?, currency = ?, rounding_type = ?, calculation_mode = ?, free_shipping_threshold = ?, minimum_order_value = ?, default_product_value = ?, maximum_freight_value = ?, fallback_enabled = ?, fallback_value = ?, fallback_value_sudeste = ?, fallback_value_sul = ?, fallback_value_centro_oeste = ?, fallback_value_nordeste = ?, fallback_value_norte = ?, fallback_message = ? WHERE id = 1");
         } else {
-            $stmt = $conexao->prepare("INSERT INTO freight_settings (id, origin_zipcode, default_weight, default_height, default_width, default_length, margin_type, margin_value, currency, rounding_type, calculation_mode, free_shipping_threshold, minimum_order_value, default_product_value, maximum_freight_value, fallback_enabled, fallback_value, fallback_message) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt = $conexao->prepare("INSERT INTO freight_settings (id, origin_zipcode, default_weight, default_height, default_width, default_length, margin_type, margin_value, currency, rounding_type, calculation_mode, free_shipping_threshold, minimum_order_value, default_product_value, maximum_freight_value, fallback_enabled, fallback_value, fallback_value_sudeste, fallback_value_sul, fallback_value_centro_oeste, fallback_value_nordeste, fallback_value_norte, fallback_message) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
         }
         
-        $stmt->bind_param("sdddssdsssddddids", $origin_zipcode, $default_weight, $default_height, $default_width, $default_length, $margin_type, $margin_value, $currency, $rounding_type, $calculation_mode, $free_shipping_threshold, $minimum_order_value, $default_product_value, $maximum_freight_value, $fallback_enabled, $fallback_value, $fallback_message);
+        $stmt->bind_param("sddddsdsssddddidddddds", $origin_zipcode, $default_weight, $default_height, $default_width, $default_length, $margin_type, $margin_value, $currency, $rounding_type, $calculation_mode, $free_shipping_threshold, $minimum_order_value, $default_product_value, $maximum_freight_value, $fallback_enabled, $fallback_value, $fallback_value_sudeste, $fallback_value_sul, $fallback_value_centro_oeste, $fallback_value_nordeste, $fallback_value_norte, $fallback_message);
         
         if ($stmt->execute()) {
             $_SESSION['mensagem'] = 'Configurações atualizadas com sucesso!';
@@ -1101,7 +1128,7 @@ $melhor_envio_services_message = garantirServicosMelhorEnvio();
                                         <div class="service-details">
                                             <?= htmlspecialchars($service['company_name']); ?>
                                             <?php if ($service['service_code']): ?>
-                                                �?� Código: <?= htmlspecialchars($service['service_code']); ?>
+                                                �?� Código: <?= htmlspecialchars($service['service_code']); ?>
                                             <?php endif; ?>
                                         </div>
                                     </label>
@@ -1247,14 +1274,50 @@ $melhor_envio_services_message = garantirServicosMelhorEnvio();
                 </div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="fallback_value">Valor Fixo do Frete de Emergência</label>
+                        <label for="fallback_value">Valor Padrão do Frete de Emergência</label>
                         <input type="number" name="fallback_value" id="fallback_value" step="0.01" min="0"
                                value="<?= $settings['fallback_value'] ?? '15.00'; ?>">
+                        <small>Usado quando não houver valor específico para a região</small>
                     </div>
                     <div class="form-group">
                         <label for="fallback_message">Mensagem Personalizada</label>
                         <textarea name="fallback_message" id="fallback_message" 
                                   placeholder="Mensagem exibida quando usar frete de emergência"><?= htmlspecialchars($settings['fallback_message'] ?? 'Prazo de entrega: 3 a 7 dias úteis'); ?></textarea>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="fallback_value_sudeste">Sudeste</label>
+                        <input type="number" name="fallback_value_sudeste" id="fallback_value_sudeste" step="0.01" min="0"
+                               value="<?= $settings['fallback_value_sudeste'] ?? $settings['fallback_value'] ?? '15.00'; ?>">
+                    </div>
+                    <div class="form-group">
+                        <label for="fallback_value_sul">Sul</label>
+                        <input type="number" name="fallback_value_sul" id="fallback_value_sul" step="0.01" min="0"
+                               value="<?= $settings['fallback_value_sul'] ?? $settings['fallback_value'] ?? '15.00'; ?>">
+                    </div>
+                    <div class="form-group">
+                        <label for="fallback_value_centro_oeste">Centro-Oeste</label>
+                        <input type="number" name="fallback_value_centro_oeste" id="fallback_value_centro_oeste" step="0.01" min="0"
+                               value="<?= $settings['fallback_value_centro_oeste'] ?? $settings['fallback_value'] ?? '15.00'; ?>">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="fallback_value_nordeste">Nordeste</label>
+                        <input type="number" name="fallback_value_nordeste" id="fallback_value_nordeste" step="0.01" min="0"
+                               value="<?= $settings['fallback_value_nordeste'] ?? $settings['fallback_value'] ?? '15.00'; ?>">
+                    </div>
+                    <div class="form-group">
+                        <label for="fallback_value_norte">Norte</label>
+                        <input type="number" name="fallback_value_norte" id="fallback_value_norte" step="0.01" min="0"
+                               value="<?= $settings['fallback_value_norte'] ?? $settings['fallback_value'] ?? '15.00'; ?>">
+                    </div>
+                    <div class="form-group">
+                        <label>Exemplo de regra</label>
+                        <div style="padding: 0.9rem 1rem; border: 1px solid var(--color-light); border-radius: 0.8rem; min-height: 52px; display:flex; align-items:center; color: var(--color-dark-variant);">
+                            Sudeste R$ 20, Nordeste/Norte R$ 50
+                        </div>
                     </div>
                 </div>
 
@@ -1451,7 +1514,7 @@ $melhor_envio_services_message = garantirServicosMelhorEnvio();
                             <div style="margin-bottom: 1.5rem;">
                                 <strong>Encontradas ${result.total_opcoes} opções disponíveis para esta rota:</strong>
                                 <div style="font-size: 0.9em; color: var(--color-info-dark); margin-top: 0.5rem;">
-                                    <em>�"�️ A API só retorna serviços realmente disponíveis para o CEP de destino informado</em>
+                                    <em>�"�️ A API só retorna serviços realmente disponíveis para o CEP de destino informado</em>
                                 </div>
                             </div>
                         `;
@@ -1546,7 +1609,7 @@ $melhor_envio_services_message = garantirServicosMelhorEnvio();
                         } else {
                             html += `
                                 <div style="color: var(--color-success);">
-                                    <strong>Status:</strong> �o" Cálculo realizado com sucesso
+                                    <strong>Status:</strong> �o" Cálculo realizado com sucesso
                                 </div>
                             `;
                         }
@@ -1561,7 +1624,7 @@ $melhor_envio_services_message = garantirServicosMelhorEnvio();
                     // Erro no cálculo
                     let errorHtml = `
                         <div style="color: var(--color-danger);">
-                            <strong>�O Erro na Simulação:</strong><br>
+                            <strong>�O Erro na Simulação:</strong><br>
                             ${result.error || 'Não foi possível calcular o frete.'}
                         </div>
                     `;
@@ -1585,7 +1648,7 @@ $melhor_envio_services_message = garantirServicosMelhorEnvio();
                 console.error('Erro na requisição:', error);
                 contentDiv.innerHTML = `
                     <div style="color: var(--color-danger);">
-                        <strong>�O Erro de Conexão:</strong><br>
+                        <strong>�O Erro de Conexão:</strong><br>
                         Não foi possível conectar com o servidor.<br>
                         <em>Verifique sua conexão e tente novamente.</em>
                     </div>

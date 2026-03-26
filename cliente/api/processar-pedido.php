@@ -28,6 +28,43 @@ function jsonResponse($success, $message = '', $data = []) {
     exit;
 }
 
+function parseBoolish($value) {
+    if (is_bool($value)) {
+        return $value;
+    }
+
+    if (is_int($value) || is_float($value)) {
+        return (float) $value > 0;
+    }
+
+    $normalized = strtolower(trim((string) $value));
+    if ($normalized === '' || $normalized === '0' || $normalized === 'false' || $normalized === 'nao' || $normalized === 'não' || $normalized === 'off' || $normalized === 'no') {
+        return false;
+    }
+
+    return in_array($normalized, ['1', 'true', 'sim', 'on', 'yes'], true);
+}
+
+function parseMoneyLoose($value) {
+    if (is_int($value) || is_float($value)) {
+        return round((float) $value, 2);
+    }
+
+    $normalized = trim((string) $value);
+    if ($normalized === '') {
+        return 0.0;
+    }
+
+    $normalized = preg_replace('/[^0-9,.-]/', '', $normalized);
+
+    if (strpos($normalized, ',') !== false) {
+        $normalized = str_replace('.', '', $normalized);
+        $normalized = str_replace(',', '.', $normalized);
+    }
+
+    return round((float) $normalized, 2);
+}
+
 // Validar método POST
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     jsonResponse(false, 'Método não permitido');
@@ -124,14 +161,87 @@ try {
     foreach ($carrinho['items'] as $item) {
         $subtotal += ($item['price'] * $item['qty']);
     }
-    
-    $desconto = $carrinho['desconto'] ?? 0;
+
+    // ===== RE-VALIDAR CUPOM NO SERVIDOR (segurança) =====
+    $desconto = 0;
+    $cupomValidado = null;
+    $codigoCupom = $carrinho['cupom']['codigo'] ?? null;
+
+    if ($codigoCupom) {
+        $stmtReval = $pdo->prepare("SELECT * FROM cupons WHERE UPPER(codigo) = UPPER(?) LIMIT 1");
+        $stmtReval->execute([$codigoCupom]);
+        $cupomValidado = $stmtReval->fetch(PDO::FETCH_ASSOC);
+
+        if (!$cupomValidado || $cupomValidado['ativo'] != 1) {
+            $pdo->rollBack();
+            jsonResponse(false, 'Cupom inválido ou inativo.');
+        }
+
+        // Valida expiração
+        $hoje = date('Y-m-d');
+        if (!empty($cupomValidado['data_expiracao']) && $hoje > $cupomValidado['data_expiracao']) {
+            $pdo->rollBack();
+            jsonResponse(false, 'Cupom expirado.');
+        }
+        if (!empty($cupomValidado['data_fim']) && $hoje > $cupomValidado['data_fim']) {
+            $pdo->rollBack();
+            jsonResponse(false, 'Cupom expirado.');
+        }
+        if (!empty($cupomValidado['data_inicio']) && $hoje < $cupomValidado['data_inicio']) {
+            $pdo->rollBack();
+            jsonResponse(false, 'Cupom ainda não está válido.');
+        }
+
+        // Valida valor mínimo
+        if ($subtotal < (float)$cupomValidado['valor_minimo']) {
+            $pdo->rollBack();
+            jsonResponse(false, 'Valor mínimo do pedido não atingido para este cupom.');
+        }
+
+        // Valida limite de usos
+        if ($cupomValidado['usos_maximos'] !== null && (int)$cupomValidado['usos_realizados'] >= (int)$cupomValidado['usos_maximos']) {
+            $pdo->rollBack();
+            jsonResponse(false, 'Cupom atingiu o limite de usos.');
+        }
+
+        // Valida primeira compra
+        if (!empty($cupomValidado['primeira_compra']) && $cupomValidado['primeira_compra'] == 1 && isset($clienteId)) {
+            $stmtPC = $pdo->prepare("SELECT COUNT(*) FROM pedidos WHERE cliente_id = ? AND status NOT IN ('Pedido Cancelado','Estornado')");
+            $stmtPC->execute([$clienteId]);
+            if ((int)$stmtPC->fetchColumn() > 0) {
+                $pdo->rollBack();
+                jsonResponse(false, 'Este cupom é válido apenas para a primeira compra.');
+            }
+        }
+
+        // Calcula desconto server-side
+        $tipoCupom = $cupomValidado['tipo_desconto'] ?? $cupomValidado['tipo'] ?? 'valor_fixo';
+        if ($tipoCupom === 'frete_gratis') {
+            // desconto = valor do frete (calculado depois)
+            $desconto = 0; // será ajustado abaixo
+        } elseif ($tipoCupom === 'percentual' || $tipoCupom === 'porcentagem') {
+            $desconto = round(($subtotal * (float)$cupomValidado['valor']) / 100, 2);
+        } else {
+            $desconto = min((float)$cupomValidado['valor'], $subtotal);
+        }
+    }
     $valorFrete = 0;
     $freteGratis = false;
     
     if (isset($carrinho['frete'])) {
-        $freteGratis = $carrinho['frete']['gratis'] ?? false;
-        $valorFrete = $freteGratis ? 0 : ($carrinho['frete']['valor'] ??  0);
+        $freteGratis = parseBoolish($carrinho['frete']['gratis'] ?? false);
+        $valorFreteInformado = $carrinho['frete']['valor']
+            ?? $carrinho['frete']['preco']
+            ?? $carrinho['frete']['price']
+            ?? 0;
+        $valorFrete = $freteGratis ? 0 : parseMoneyLoose($valorFreteInformado);
+    }
+
+    // Cupom frete_gratis: zera o frete e aplica essa economia como desconto
+    if ($cupomValidado && ($cupomValidado['tipo_desconto'] ?? $cupomValidado['tipo'] ?? '') === 'frete_gratis') {
+        $desconto = (float)$valorFrete;
+        $valorFrete = 0;
+        $freteGratis = true;
     }
     
     $valorTotal = $subtotal - $desconto + $valorFrete;
@@ -241,16 +351,17 @@ try {
     }
     
     // ===== REGISTRAR USO DO CUPOM (se houver) =====
-    if (isset($carrinho['cupom']['codigo'])) {
+    if ($codigoCupom && $cupomValidado) {
         try {
             $stmtCupom = $pdo->prepare("
                 UPDATE cupons 
-                SET quantidade_usada = quantidade_usada + 1 
+                SET usos_realizados = usos_realizados + 1,
+                    quantidade_usada = quantidade_usada + 1,
+                    economia_gerada  = economia_gerada + ?
                 WHERE codigo = ?
             ");
-            $stmtCupom->execute([$carrinho['cupom']['codigo']]);
+            $stmtCupom->execute([$desconto, $codigoCupom]);
         } catch (Exception $e) {
-            // Ignorar erro de cupom
             error_log("Erro ao atualizar cupom: " . $e->getMessage());
         }
     }

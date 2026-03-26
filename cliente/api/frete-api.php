@@ -63,6 +63,48 @@ function montarOpcoesFallback($subtotal, $fallbackValue, $freteGratisLimite = 0)
     return $opcoes;
 }
 
+function mapearRegiaoPorUf($uf) {
+    $uf = strtoupper(trim((string) $uf));
+
+    $mapa = [
+        'NORTE' => ['AC', 'AP', 'AM', 'PA', 'RO', 'RR', 'TO'],
+        'NORDESTE' => ['AL', 'BA', 'CE', 'MA', 'PB', 'PE', 'PI', 'RN', 'SE'],
+        'CENTRO_OESTE' => ['DF', 'GO', 'MT', 'MS'],
+        'SUDESTE' => ['ES', 'MG', 'RJ', 'SP'],
+        'SUL' => ['PR', 'RS', 'SC']
+    ];
+
+    foreach ($mapa as $regiao => $ufs) {
+        if (in_array($uf, $ufs, true)) {
+            return $regiao;
+        }
+    }
+
+    return null;
+}
+
+function resolverFallbackRegional(array $settingsFrete, $uf, $fallbackPadrao) {
+    $regiao = mapearRegiaoPorUf($uf);
+    if (!$regiao) {
+        return (float) $fallbackPadrao;
+    }
+
+    $mapaCampos = [
+        'SUDESTE' => 'fallback_value_sudeste',
+        'SUL' => 'fallback_value_sul',
+        'CENTRO_OESTE' => 'fallback_value_centro_oeste',
+        'NORDESTE' => 'fallback_value_nordeste',
+        'NORTE' => 'fallback_value_norte'
+    ];
+
+    $campo = $mapaCampos[$regiao] ?? null;
+    if ($campo && isset($settingsFrete[$campo]) && $settingsFrete[$campo] !== null && $settingsFrete[$campo] !== '') {
+        return (float) $settingsFrete[$campo];
+    }
+
+    return (float) $fallbackPadrao;
+}
+
 // Validar CEP
 function validarCEP($cep) {
     $cep = preg_replace('/[^0-9]/', '', $cep);
@@ -220,14 +262,17 @@ try {
             $freteGratisLimite = (float)getFreteGratisThreshold($pdo);
 
             try {
-                $queryFreteSettings = "SELECT fallback_enabled, fallback_value, fallback_message FROM freight_settings WHERE id = 1 LIMIT 1";
+                $queryFreteSettings = "SELECT * FROM freight_settings WHERE id = 1 LIMIT 1";
                 $resultFreteSettings = mysqli_query($conn, $queryFreteSettings);
 
                 if ($resultFreteSettings && mysqli_num_rows($resultFreteSettings) > 0) {
                     $settingsFrete = mysqli_fetch_assoc($resultFreteSettings);
                     $fallbackEnabled = (int)($settingsFrete['fallback_enabled'] ?? 1);
-                    $fallbackValue = (float)($settingsFrete['fallback_value'] ?? 15.00);
+                    $fallbackValue = resolverFallbackRegional($settingsFrete, $endereco['uf'] ?? '', (float)($settingsFrete['fallback_value'] ?? 15.00));
                     $fallbackMessageDb = trim((string)($settingsFrete['fallback_message'] ?? ''));
+
+                    $debug_log[] = "🗺️ Região destino: " . (mapearRegiaoPorUf($endereco['uf'] ?? '') ?: 'não identificada');
+                    $debug_log[] = "💵 Fallback regional aplicado: R$ " . number_format($fallbackValue, 2, ',', '.');
 
                     if ($fallbackMessageDb !== '') {
                         $fallbackMessage = $fallbackMessageDb;

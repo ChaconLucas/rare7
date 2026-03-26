@@ -73,6 +73,63 @@ function buscarConfiguracoesFrete() {
     return ['settings' => $settings, 'integrations' => $integrations, 'active_services' => $active_services, 'active_services_details' => $active_services_details];
 }
 
+function buscarUfPorCep($cep) {
+    $cep = preg_replace('/\D/', '', (string) $cep);
+    if (strlen($cep) !== 8) {
+        return null;
+    }
+
+    $response = @file_get_contents("https://viacep.com.br/ws/{$cep}/json/");
+    if (!$response) {
+        return null;
+    }
+
+    $data = json_decode($response, true);
+    if (!is_array($data) || !empty($data['erro'])) {
+        return null;
+    }
+
+    return strtoupper(trim((string) ($data['uf'] ?? '')));
+}
+
+function mapearRegiaoPorUf($uf) {
+    $uf = strtoupper(trim((string) $uf));
+    $mapa = [
+        'NORTE' => ['AC', 'AP', 'AM', 'PA', 'RO', 'RR', 'TO'],
+        'NORDESTE' => ['AL', 'BA', 'CE', 'MA', 'PB', 'PE', 'PI', 'RN', 'SE'],
+        'CENTRO_OESTE' => ['DF', 'GO', 'MT', 'MS'],
+        'SUDESTE' => ['ES', 'MG', 'RJ', 'SP'],
+        'SUL' => ['PR', 'RS', 'SC']
+    ];
+
+    foreach ($mapa as $regiao => $ufs) {
+        if (in_array($uf, $ufs, true)) {
+            return $regiao;
+        }
+    }
+
+    return null;
+}
+
+function resolverFallbackRegional($settings, $uf) {
+    $fallbackPadrao = floatval($settings['fallback_value'] ?? 15.00);
+    $regiao = mapearRegiaoPorUf($uf);
+    $mapaCampos = [
+        'SUDESTE' => 'fallback_value_sudeste',
+        'SUL' => 'fallback_value_sul',
+        'CENTRO_OESTE' => 'fallback_value_centro_oeste',
+        'NORDESTE' => 'fallback_value_nordeste',
+        'NORTE' => 'fallback_value_norte'
+    ];
+
+    $campo = $mapaCampos[$regiao] ?? null;
+    if ($campo && isset($settings[$campo]) && $settings[$campo] !== null && $settings[$campo] !== '') {
+        return floatval($settings[$campo]);
+    }
+
+    return $fallbackPadrao;
+}
+
 // Função para calcular via Melhor Envio
 function calcularMelhorEnvio($token, $cep_origem, $cep_destino, $peso, $altura, $largura, $comprimento, $valor_declarado = 100.00) {
     $url = "https://www.melhorenvio.com.br/api/v2/me/shipment/calculate";
@@ -226,8 +283,9 @@ function aplicarConfiguracoes($valor, $settings) {
 }
 
 // Função de fallback
-function aplicarFallback($settings) {
-    $fallback_valor = floatval($settings['fallback_value'] ?? 15.00);
+function aplicarFallback($settings, $cepDestino = '') {
+    $uf = buscarUfPorCep($cepDestino);
+    $fallback_valor = resolverFallbackRegional($settings, $uf);
     $fallback_message = $settings['fallback_message'] ?? 'Prazo de entrega: 3 a 7 dias úteis';
     
     return [
@@ -384,7 +442,7 @@ try {
     // Se chegou aqui, todas as APIs falharam - usar fallback
     $fallback_enabled = intval($settings['fallback_enabled'] ?? 1);
     if ($fallback_enabled) {
-        $resultado_fallback = aplicarFallback($settings);
+        $resultado_fallback = aplicarFallback($settings, $cep_destino);
         $resultado_fallback['api_errors'] = $erro_apis;
         echo json_encode($resultado_fallback);
     } else {

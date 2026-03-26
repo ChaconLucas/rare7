@@ -50,11 +50,11 @@ if ($conexao) {
         $row = mysqli_fetch_assoc($checkRecords);
         if ($row['total'] == 0) {
             $defaultStatuses = [
-                ['nome' => 'Pedido Recebido', 'cor_hex' => '#C6A75E', 'ordem' => 1, 'notificar' => 1, 'mensagem_template' => 'Olá {nome_cliente}! Recebemos seu pedido #{numero_pedido}. Em breve você receberá novas atualizações.'],
-                ['nome' => 'Pagamento Confirmado', 'cor_hex' => '#41f1b6', 'ordem' => 2, 'notificar' => 1, 'mensagem_template' => 'Ótima notícia, {nome_cliente}! O pagamento do pedido #{numero_pedido} foi confirmado.'],
-                ['nome' => 'Em Preparação', 'cor_hex' => '#ffbb55', 'ordem' => 3, 'baixa_estoque' => 1, 'bloquear_edicao' => 1, 'mensagem_template' => 'Seu pedido #{numero_pedido} está em preparação. Nossa equipe está conferindo os itens.'],
-                ['nome' => 'Enviado', 'cor_hex' => '#007bff', 'ordem' => 4, 'gerar_logistica' => 1, 'notificar' => 1, 'mensagem_template' => 'Pedido #{numero_pedido} enviado! Acompanhe a entrega com seu código de rastreio.'],
-                ['nome' => 'Entregue', 'cor_hex' => '#28a745', 'ordem' => 5, 'notificar' => 1, 'mensagem_template' => 'Pedido #{numero_pedido} entregue. Esperamos que você curta sua nova camisa Rare7!']
+                ['nome' => 'Pedido Recebido',     'cor_hex' => '#C6A75E', 'ordem' => 1, 'notificar' => 1,                                        'mensagem_template' => 'Olá {nome_cliente}! Recebemos seu pedido #{numero_pedido}. Em breve você receberá novas atualizações.'],
+                ['nome' => 'Pagamento Confirmado', 'cor_hex' => '#41f1b6', 'ordem' => 2, 'notificar' => 1,                                        'mensagem_template' => 'Ótima notícia, {nome_cliente}! O pagamento do pedido #{numero_pedido} foi confirmado.'],
+                ['nome' => 'Em Preparação',        'cor_hex' => '#ffbb55', 'ordem' => 3, 'baixa_estoque' => 1, 'bloquear_edicao' => 1,            'mensagem_template' => 'Seu pedido #{numero_pedido} está em preparação. Nossa equipe está conferindo os itens.'],
+                ['nome' => 'Enviado',              'cor_hex' => '#007bff', 'ordem' => 4, 'gerar_logistica' => 1, 'notificar' => 1,                'mensagem_template' => 'Pedido #{numero_pedido} enviado! Acompanhe a entrega com seu código de rastreio.'],
+                ['nome' => 'Entregue',             'cor_hex' => '#28a745', 'ordem' => 5, 'notificar' => 1,                                        'mensagem_template' => 'Pedido #{numero_pedido} entregue. Esperamos que você curta sua nova camisa Rare7!']
             ];
             
             foreach ($defaultStatuses as $status) {
@@ -64,6 +64,187 @@ if ($conexao) {
                     mysqli_stmt_bind_param($stmt, "ssiiiisi", $status['nome'], $status['cor_hex'], $status['baixa_estoque'], $status['bloquear_edicao'], $status['gerar_logistica'], $status['notificar'], $status['mensagem_template'], $status['ordem']);
                     mysqli_stmt_execute($stmt);
                     mysqli_stmt_close($stmt);
+                }
+            }
+        }
+    }
+
+    // Garantir que os status padrão sempre existam com SLA e mensagem de e-mail completa
+    $statusPadrao = [
+        [
+            'nome'               => 'Pedido Recebido',
+            'cor_hex'            => '#C6A75E',
+            'baixa_estoque'      => 0,
+            'bloquear_edicao'    => 0,
+            'gerar_logistica'    => 0,
+            'notificar'          => 1,
+            'estornar_estoque'   => 0,
+            'gerar_link_cobranca'=> 0,
+            'sla_horas'          => 48,
+            'mensagem_template'  => 'Olá {nome_cliente}! Recebemos seu pedido #{numero_pedido}. Em breve você receberá novas atualizações.',
+            'mensagem_email'     => "Olá {nome_cliente}!\n\nRecebemos seu pedido #{numero_pedido} com sucesso.\n\nAssim que o pagamento for confirmado, nossa equipe já inicia a preparação da sua camisa.\n\nObrigado por comprar com a Rare7!",
+            'ordem'              => 1
+        ],
+        [
+            'nome'               => 'Pagamento Confirmado',
+            'cor_hex'            => '#41f1b6',
+            'baixa_estoque'      => 0,
+            'bloquear_edicao'    => 0,
+            'gerar_logistica'    => 0,
+            'notificar'          => 1,
+            'estornar_estoque'   => 0,
+            'gerar_link_cobranca'=> 0,
+            'sla_horas'          => 24,
+            'mensagem_template'  => 'Ótima notícia, {nome_cliente}! O pagamento do pedido #{numero_pedido} foi confirmado.',
+            'mensagem_email'     => "Ótima notícia, {nome_cliente}!\n\nO pagamento do pedido #{numero_pedido}, no valor de R$ {valor_total}, foi confirmado com sucesso.\n\nNossa equipe já iniciará a preparação da sua camisa.\n\nObrigado por comprar com a Rare7!",
+            'ordem'              => 2
+        ],
+        [
+            'nome'               => 'Em Preparação',
+            'cor_hex'            => '#ffbb55',
+            'baixa_estoque'      => 1,
+            'bloquear_edicao'    => 1,
+            'gerar_logistica'    => 0,
+            'notificar'          => 1,
+            'estornar_estoque'   => 0,
+            'gerar_link_cobranca'=> 0,
+            'sla_horas'          => 72,
+            'mensagem_template'  => 'Seu pedido #{numero_pedido} está em preparação. Nossa equipe está conferindo os itens.',
+            'mensagem_email'     => "Olá {nome_cliente}!\n\nSeu pedido #{numero_pedido} está sendo preparado com todo cuidado pela nossa equipe.\n\nEstamos separando e conferindo cada item para garantir que tudo chegue perfeito até você.\n\nAssim que for enviado, avisaremos com os detalhes de rastreio.",
+            'ordem'              => 3
+        ],
+        [
+            'nome'               => 'Enviado',
+            'cor_hex'            => '#007bff',
+            'baixa_estoque'      => 0,
+            'bloquear_edicao'    => 1,
+            'gerar_logistica'    => 1,
+            'notificar'          => 1,
+            'estornar_estoque'   => 0,
+            'gerar_link_cobranca'=> 0,
+            'sla_horas'          => 0,
+            'mensagem_template'  => 'Pedido #{numero_pedido} enviado! Acompanhe a entrega com seu código de rastreio.',
+            'mensagem_email'     => "Olá {nome_cliente}!\n\nSeu pedido #{numero_pedido} foi enviado e já está a caminho!\n\nUse o código de rastreio fornecido para acompanhar a entrega em tempo real.\n\nQualquer dúvida, estamos à disposição.\n\nEquipe Rare7",
+            'ordem'              => 4
+        ],
+        [
+            'nome'               => 'Entregue',
+            'cor_hex'            => '#28a745',
+            'baixa_estoque'      => 0,
+            'bloquear_edicao'    => 1,
+            'gerar_logistica'    => 0,
+            'notificar'          => 1,
+            'estornar_estoque'   => 0,
+            'gerar_link_cobranca'=> 0,
+            'sla_horas'          => 0,
+            'mensagem_template'  => 'Pedido #{numero_pedido} entregue. Esperamos que você curta sua nova camisa Rare7!',
+            'mensagem_email'     => "Pedido entregue, {nome_cliente}!\n\nSeu pedido #{numero_pedido} chegou com sucesso.\n\nEsperamos que você curta muito sua nova camisa Rare7. Adoraríamos ver você usando — marque-nos nas redes sociais!\n\nConte sempre com a Rare7.",
+            'ordem'              => 5
+        ]
+    ];
+
+    foreach ($statusPadrao as $sp) {
+        $chk = mysqli_prepare($conexao, "SELECT id FROM status_fluxo WHERE nome = ? LIMIT 1");
+        if ($chk) {
+            mysqli_stmt_bind_param($chk, 's', $sp['nome']);
+            mysqli_stmt_execute($chk);
+            mysqli_stmt_store_result($chk);
+            if (mysqli_stmt_num_rows($chk) > 0) {
+                // Atualiza SLA e mensagem_email se ainda não estiverem definidos
+                mysqli_stmt_bind_result($chk, $existingId);
+                mysqli_stmt_fetch($chk);
+                mysqli_stmt_close($chk);
+                $upd = mysqli_prepare($conexao, "UPDATE status_fluxo SET sla_horas = ?, mensagem_email = ?, notificar = ? WHERE id = ? AND (sla_horas = 0 OR sla_horas IS NULL OR mensagem_email = '' OR mensagem_email IS NULL)");
+                if ($upd) {
+                    mysqli_stmt_bind_param($upd, 'isii', $sp['sla_horas'], $sp['mensagem_email'], $sp['notificar'], $existingId);
+                    mysqli_stmt_execute($upd);
+                    mysqli_stmt_close($upd);
+                }
+            } else {
+                mysqli_stmt_close($chk);
+                $ins = mysqli_prepare($conexao, "INSERT INTO status_fluxo (nome, cor_hex, baixa_estoque, bloquear_edicao, gerar_logistica, notificar, estornar_estoque, gerar_link_cobranca, sla_horas, mensagem_template, mensagem_email, ordem) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                if ($ins) {
+                    mysqli_stmt_bind_param($ins, 'ssiiiiiiissi',
+                        $sp['nome'], $sp['cor_hex'],
+                        $sp['baixa_estoque'], $sp['bloquear_edicao'],
+                        $sp['gerar_logistica'], $sp['notificar'],
+                        $sp['estornar_estoque'], $sp['gerar_link_cobranca'],
+                        $sp['sla_horas'], $sp['mensagem_template'],
+                        $sp['mensagem_email'], $sp['ordem']
+                    );
+                    mysqli_stmt_execute($ins);
+                    mysqli_stmt_close($ins);
+                }
+            }
+        }
+    }
+    $statusEspeciais = [
+        [
+            'nome'              => 'Pagamento Pendente',
+            'cor_hex'           => '#ff9800',
+            'baixa_estoque'     => 0,
+            'bloquear_edicao'   => 0,
+            'gerar_logistica'   => 0,
+            'notificar'         => 1,
+            'estornar_estoque'  => 0,
+            'gerar_link_cobranca' => 1,
+            'sla_horas'         => 24,
+            'mensagem_template' => 'Olá {nome_cliente}! Identificamos que o pagamento do pedido #{numero_pedido} está pendente. Acesse o link abaixo para concluir o pagamento e garantir seu produto.',
+            'mensagem_email'    => "Olá {nome_cliente}!\n\nSeu pedido #{numero_pedido}, no valor de R$ {valor_total}, está aguardando confirmação de pagamento.\n\nPor favor, finalize o pagamento para que possamos iniciar a preparação do seu pedido.\n\nQualquer dúvida, estamos à disposição.\n\nRare7",
+            'ordem'             => 98
+        ],
+        [
+            'nome'              => 'Pedido Cancelado',
+            'cor_hex'           => '#f44336',
+            'baixa_estoque'     => 0,
+            'bloquear_edicao'   => 1,
+            'gerar_logistica'   => 0,
+            'notificar'         => 1,
+            'estornar_estoque'  => 1,
+            'gerar_link_cobranca' => 0,
+            'sla_horas'         => 0,
+            'mensagem_template' => 'Olá {nome_cliente}. Infelizmente seu pedido #{numero_pedido} foi cancelado. Se tiver dúvidas, entre em contato conosco.',
+            'mensagem_email'    => "Olá {nome_cliente},\n\nInformamos que seu pedido #{numero_pedido}, no valor de R$ {valor_total}, foi cancelado.\n\nCaso o cancelamento não tenha sido solicitado por você ou tenha dúvidas, entre em contato com nosso suporte.\n\nLamentamos o inconveniente.\n\nEquipe Rare7",
+            'ordem'             => 99
+        ],
+        [
+            'nome'              => 'Estornado',
+            'cor_hex'           => '#9c27b0',
+            'baixa_estoque'     => 0,
+            'bloquear_edicao'   => 1,
+            'gerar_logistica'   => 0,
+            'notificar'         => 1,
+            'estornar_estoque'  => 1,
+            'gerar_link_cobranca' => 0,
+            'sla_horas'         => 0,
+            'mensagem_template' => 'Olá {nome_cliente}. O reembolso do pedido #{numero_pedido} foi processado. O valor será creditado conforme a forma de pagamento utilizada.',
+            'mensagem_email'    => "Olá {nome_cliente},\n\nConfirmamos que o estorno do pedido #{numero_pedido}, no valor de R$ {valor_total}, foi processado com sucesso.\n\nO valor será creditado de acordo com a forma de pagamento utilizada (prazo do banco/operadora).\n\nAgradecemos a compreensão.\n\nEquipe Rare7",
+            'ordem'             => 100
+        ]
+    ];
+
+    foreach ($statusEspeciais as $status) {
+        $checkExiste = mysqli_prepare($conexao, "SELECT id FROM status_fluxo WHERE nome = ? LIMIT 1");
+        if ($checkExiste) {
+            mysqli_stmt_bind_param($checkExiste, 's', $status['nome']);
+            mysqli_stmt_execute($checkExiste);
+            mysqli_stmt_store_result($checkExiste);
+            $jaExiste = mysqli_stmt_num_rows($checkExiste) > 0;
+            mysqli_stmt_close($checkExiste);
+
+            if (!$jaExiste) {
+                $ins = mysqli_prepare($conexao, "INSERT INTO status_fluxo (nome, cor_hex, baixa_estoque, bloquear_edicao, gerar_logistica, notificar, estornar_estoque, gerar_link_cobranca, sla_horas, mensagem_template, mensagem_email, ordem) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                if ($ins) {
+                    mysqli_stmt_bind_param($ins, 'ssiiiiiiissi',
+                        $status['nome'], $status['cor_hex'],
+                        $status['baixa_estoque'], $status['bloquear_edicao'],
+                        $status['gerar_logistica'], $status['notificar'],
+                        $status['estornar_estoque'], $status['gerar_link_cobranca'],
+                        $status['sla_horas'], $status['mensagem_template'],
+                        $status['mensagem_email'], $status['ordem']
+                    );
+                    mysqli_stmt_execute($ins);
+                    mysqli_stmt_close($ins);
                 }
             }
         }
@@ -114,7 +295,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $insertQuery = "INSERT INTO status_fluxo (nome, cor_hex, baixa_estoque, bloquear_edicao, gerar_logistica, notificar, estornar_estoque, gerar_link_cobranca, sla_horas, mensagem_template, mensagem_email, ordem) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
                 $stmt = mysqli_prepare($conexao, $insertQuery);
                 if ($stmt) {
-                    mysqli_stmt_bind_param($stmt, "ssiiiiiiiissi", $nome, $cor_hex, $baixa_estoque, $bloquear_edicao, $gerar_logistica, $notificar, $estornar_estoque, $gerar_link_cobranca, $sla_horas, $mensagem_template, $mensagem_email, $nextOrder);
+                    mysqli_stmt_bind_param($stmt, "ssiiiiiiissi", $nome, $cor_hex, $baixa_estoque, $bloquear_edicao, $gerar_logistica, $notificar, $estornar_estoque, $gerar_link_cobranca, $sla_horas, $mensagem_template, $mensagem_email, $nextOrder);
                     if (mysqli_stmt_execute($stmt)) {
                         registrar_log($conexao, "Adicionou novo status de fluxo: $nome");
                         // Implementar PRG (Post-Redirect-Get) para evitar resubmissÃ£o
@@ -972,6 +1153,9 @@ function obterTemplatePadraoStatus($nomeStatus) {
                                 <button type="button" onclick="aplicarTemplatePreparando()" style="background: var(--color-warning); color: white; border: none; padding: 0.5rem 0.75rem; border-radius: var(--border-radius-1); font-size: 0.8rem; cursor: pointer;">Preparando Pedido</button>
                                 <button type="button" onclick="aplicarTemplateEnviado()" style="background: #007bff; color: white; border: none; padding: 0.5rem 0.75rem; border-radius: var(--border-radius-1); font-size: 0.8rem; cursor: pointer;">Pedido Enviado</button>
                                 <button type="button" onclick="aplicarTemplateEntregue()" style="background: var(--color-primary); color: white; border: none; padding: 0.5rem 0.75rem; border-radius: var(--border-radius-1); font-size: 0.8rem; cursor: pointer;">Pedido Entregue</button>
+                                <button type="button" onclick="aplicarTemplatePendente()" style="background: #ff9800; color: white; border: none; padding: 0.5rem 0.75rem; border-radius: var(--border-radius-1); font-size: 0.8rem; cursor: pointer;">Pagamento Pendente</button>
+                                <button type="button" onclick="aplicarTemplateCancelado()" style="background: #f44336; color: white; border: none; padding: 0.5rem 0.75rem; border-radius: var(--border-radius-1); font-size: 0.8rem; cursor: pointer;">Cancelado</button>
+                                <button type="button" onclick="aplicarTemplateEstornado()" style="background: #9c27b0; color: white; border: none; padding: 0.5rem 0.75rem; border-radius: var(--border-radius-1); font-size: 0.8rem; cursor: pointer;">Estornado</button>
                             </div>
                         </div>
 
@@ -1005,12 +1189,28 @@ function obterTemplatePadraoStatus($nomeStatus) {
 
         // FunÃ§Ãµes globais - devem estar disponÃ­veis para os botÃµes HTML
         function openAddModal() {
-            __noopLog('âz. Abrindo modal para adicionar');
+            __noopLog('✚ Abrindo modal para adicionar');
             resetModalForm();
             document.getElementById('modalTitle').textContent = 'Adicionar Novo Status';
             document.getElementById('formAction').value = 'add_status';
             document.getElementById('statusId').value = '';
             document.getElementById('submitText').textContent = 'Adicionar Status';
+
+            // Pré-definir notificação ativa e mensagem padrão
+            const notificarCheckbox = document.getElementById('notificar');
+            if (notificarCheckbox) {
+                notificarCheckbox.checked = true;
+                const regraNotificar = document.querySelector('[data-checkbox="notificar"]');
+                if (regraNotificar) updateCustomCheckboxVisual(regraNotificar, true);
+            }
+            const templateDiv = document.getElementById('mensagemTemplateDiv');
+            if (templateDiv) templateDiv.style.display = 'block';
+
+            const emailField = document.getElementById('mensagemEmail');
+            if (emailField && emailField.value === '') {
+                emailField.value = "Olá {nome_cliente}!\n\nSeu pedido #{numero_pedido} foi atualizado.\n\nSe tiver dúvidas, entre em contato conosco.\n\nObrigado por comprar com a Rare7.";
+            }
+
             document.getElementById('statusModal').style.display = 'flex';
         }
 
@@ -1394,6 +1594,27 @@ function obterTemplatePadraoStatus($nomeStatus) {
             }
         }
 
+        function aplicarTemplatePendente() {
+            const emailField = document.getElementById('mensagemEmail');
+            if (emailField) {
+                emailField.value = "Olá {nome_cliente}!\n\nIdentificamos que o pagamento do pedido #{numero_pedido}, no valor de R$ {valor_total}, ainda está pendente.\n\nPor favor, finalize o pagamento para que possamos iniciar a preparação do seu pedido.\n\nSe precisar de ajuda, entre em contato conosco.\n\nEquipe Rare7";
+            }
+        }
+
+        function aplicarTemplateCancelado() {
+            const emailField = document.getElementById('mensagemEmail');
+            if (emailField) {
+                emailField.value = "Olá {nome_cliente},\n\nInformamos que seu pedido #{numero_pedido}, no valor de R$ {valor_total}, foi cancelado.\n\nCaso o cancelamento não tenha sido solicitado por você ou tenha dúvidas, entre em contato com nosso suporte.\n\nLamentamos o inconveniente.\n\nEquipe Rare7";
+            }
+        }
+
+        function aplicarTemplateEstornado() {
+            const emailField = document.getElementById('mensagemEmail');
+            if (emailField) {
+                emailField.value = "Olá {nome_cliente},\n\nConfirmamos que o estorno do pedido #{numero_pedido}, no valor de R$ {valor_total}, foi processado com sucesso.\n\nO valor será creditado de acordo com a forma de pagamento utilizada (prazo do banco/operadora).\n\nAgradecemos a compreensão.\n\nEquipe Rare7";
+            }
+        }
+
         // Fechar modal clicando no fundo
         document.addEventListener('DOMContentLoaded', function() {
             const modal = document.getElementById('statusModal');
@@ -1414,6 +1635,12 @@ function obterTemplatePadraoStatus($nomeStatus) {
             }
         });
     </script>
+
+    <!-- Form oculto para exclusão de status -->
+    <form id="deleteForm" method="POST" action="gestao-fluxo.php" style="display:none;">
+        <input type="hidden" name="action" value="delete_status">
+        <input type="hidden" name="id" value="">
+    </form>
 </body>
 </html>
 

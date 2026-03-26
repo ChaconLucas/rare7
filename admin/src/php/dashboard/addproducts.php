@@ -369,6 +369,7 @@ if (mysqli_num_rows($table_exists) == 0) {
         preco_promocional DECIMAL(10,2) NULL,
         categoria VARCHAR(100),
         subcategoria VARCHAR(100),
+        liga VARCHAR(100),
         marca VARCHAR(100),
         sku VARCHAR(50) UNIQUE,
         estoque INT DEFAULT 0,
@@ -393,6 +394,7 @@ if (mysqli_num_rows($table_exists) == 0) {
         'categoria' => 'ALTER TABLE produtos ADD COLUMN categoria VARCHAR(100)',
         'categoria_id' => 'ALTER TABLE produtos ADD COLUMN categoria_id INT NULL',
         'subcategoria' => 'ALTER TABLE produtos ADD COLUMN subcategoria VARCHAR(100)',
+        'liga' => 'ALTER TABLE produtos ADD COLUMN liga VARCHAR(100)',
         'marca' => 'ALTER TABLE produtos ADD COLUMN marca VARCHAR(100)',
         'video_url' => 'ALTER TABLE produtos ADD COLUMN video_url VARCHAR(500)',
         'garantia' => 'ALTER TABLE produtos ADD COLUMN garantia VARCHAR(100)',
@@ -602,6 +604,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     }
     $subcategoria = trim($_POST['subcategoria'] ?? '');
+    $liga = trim($_POST['liga'] ?? '');
     $marca = trim($_POST['marca'] ?? '');
     $sku = trim($_POST['sku']);
     // Converter SKU vazio para NULL (evitar duplicatas de string vazia com UNIQUE constraint)
@@ -761,6 +764,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             'categoria' => $categoria,
             'categoria_id' => $categoria_id,
             'subcategoria' => $subcategoria,
+            'liga' => $liga,
             'marca' => $marca,
             'sku' => $sku,
             'estoque' => $estoque,
@@ -1049,6 +1053,54 @@ if (mysqli_num_rows($categorias_result) == 0) {
     natcasesort($listaSubcategorias);
     $subcategoriasPorCategoria[$categoriaId] = array_values($listaSubcategorias);
   }
+
+  $ligasDisponiveis = [];
+  $ligasSql = "
+    SELECT liga
+    FROM produtos
+    WHERE TRIM(COALESCE(liga, '')) <> ''
+    GROUP BY liga
+    ORDER BY liga
+  ";
+  $ligasResult = mysqli_query($conexao, $ligasSql);
+  if ($ligasResult) {
+    while ($row = mysqli_fetch_assoc($ligasResult)) {
+      $ligaNome = trim((string)($row['liga'] ?? ''));
+      if ($ligaNome === '') {
+        continue;
+      }
+
+      $jaExiste = false;
+      foreach ($ligasDisponiveis as $existente) {
+        if (mb_strtolower((string)$existente) === mb_strtolower($ligaNome)) {
+          $jaExiste = true;
+          break;
+        }
+      }
+
+      if (!$jaExiste) {
+        $ligasDisponiveis[] = $ligaNome;
+      }
+    }
+  }
+
+  if (!empty($produto['liga'])) {
+    $ligaAtual = trim((string)$produto['liga']);
+    $existeAtual = false;
+    foreach ($ligasDisponiveis as $existente) {
+      if (mb_strtolower((string)$existente) === mb_strtolower($ligaAtual)) {
+        $existeAtual = true;
+        break;
+      }
+    }
+
+    if (!$existeAtual) {
+      $ligasDisponiveis[] = $ligaAtual;
+    }
+  }
+
+  natcasesort($ligasDisponiveis);
+  $ligasDisponiveis = array_values($ligasDisponiveis);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -2899,6 +2951,31 @@ if (mysqli_num_rows($categorias_result) == 0) {
                   <div class="form-row">
                     <div class="form-group">
                       <label class="form-label">
+                        <span class="material-symbols-sharp">emoji_events</span>
+                        Liga
+                      </label>
+                      <select id="liga-select" class="form-input">
+                        <option value="">Selecione uma liga</option>
+                        <?php foreach ($ligasDisponiveis as $ligaOpcao): ?>
+                          <option value="<?php echo htmlspecialchars($ligaOpcao); ?>"><?php echo htmlspecialchars($ligaOpcao); ?></option>
+                        <?php endforeach; ?>
+                        <option value="__nova__">+ Criar nova liga</option>
+                      </select>
+                      <input type="hidden" name="liga" id="liga-hidden" value="<?php echo htmlspecialchars(($produto['liga'] ?? '')); ?>">
+
+                      <div id="nova-liga-container" style="display: none; margin-top: 10px;">
+                        <input type="text"
+                               id="nova-liga-input"
+                               class="form-input"
+                               placeholder="Digite o nome da liga"
+                               maxlength="100">
+                      </div>
+
+                      <div class="form-help">Escolha uma liga já cadastrada ou crie uma nova para reutilizar nos próximos produtos.</div>
+                    </div>
+
+                    <div class="form-group">
+                      <label class="form-label">
                         <span class="material-symbols-sharp">branding_watermark</span>
                         Marca
                       </label>
@@ -3276,8 +3353,14 @@ window.BASE_URL = '<?php echo BASE_URL; ?>';
 let variationCounter = 0;
 const subcategoriasPorCategoria = <?php echo json_encode($subcategoriasPorCategoria, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 const subcategoriaAtualInicial = <?php echo json_encode(($produto['subcategoria'] ?? ''), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+const ligasDisponiveis = <?php echo json_encode($ligasDisponiveis, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+const ligaAtualInicial = <?php echo json_encode(($produto['liga'] ?? ''), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 
 function normalizeSubcategoria(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function normalizeLiga(value) {
   return String(value || '').trim().toLowerCase();
 }
 
@@ -3362,6 +3445,54 @@ function setupSubcategoriaControl() {
   const categoriaSelect = document.getElementById('categoria-select');
   const categoriaInicial = categoriaSelect ? categoriaSelect.value : '';
   preencherSubcategorias(categoriaInicial, subcategoriaAtualInicial);
+}
+
+function setupLigaControl() {
+  const selectLiga = document.getElementById('liga-select');
+  const hiddenLiga = document.getElementById('liga-hidden');
+  const novaLigaContainer = document.getElementById('nova-liga-container');
+  const novaLigaInput = document.getElementById('nova-liga-input');
+
+  if (!selectLiga || !hiddenLiga || !novaLigaContainer || !novaLigaInput) {
+    return;
+  }
+
+  const lista = Array.isArray(ligasDisponiveis) ? ligasDisponiveis : [];
+  const valorInicial = String(ligaAtualInicial || hiddenLiga.value || '').trim();
+
+  if (valorInicial !== '') {
+    const existe = lista.some((liga) => normalizeLiga(liga) === normalizeLiga(valorInicial));
+    if (existe) {
+      selectLiga.value = lista.find((liga) => normalizeLiga(liga) === normalizeLiga(valorInicial));
+      hiddenLiga.value = selectLiga.value;
+      novaLigaContainer.style.display = 'none';
+      novaLigaInput.value = '';
+    } else {
+      selectLiga.value = '__nova__';
+      novaLigaContainer.style.display = 'block';
+      novaLigaInput.value = valorInicial;
+      hiddenLiga.value = valorInicial;
+    }
+  }
+
+  selectLiga.addEventListener('change', function() {
+    if (this.value === '__nova__') {
+      novaLigaContainer.style.display = 'block';
+      novaLigaInput.focus();
+      hiddenLiga.value = novaLigaInput.value.trim();
+      return;
+    }
+
+    novaLigaContainer.style.display = 'none';
+    novaLigaInput.value = '';
+    hiddenLiga.value = this.value;
+  });
+
+  novaLigaInput.addEventListener('input', function() {
+    if (selectLiga.value === '__nova__') {
+      hiddenLiga.value = this.value.trim();
+    }
+  });
 }
 
 function addVariation() {
@@ -4166,6 +4297,7 @@ document.addEventListener('DOMContentLoaded', function() {
   setupAutocomplete();
   setupValidation();
   setupSubcategoriaControl();
+  setupLigaControl();
   setupCategoriaControl();
   setupTagsControl();
   initializeTags();
