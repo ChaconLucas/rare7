@@ -22,6 +22,71 @@ $cms = new CMSProvider($conn);
 $footerData = $cms->getFooterData();
 $footerLinks = $cms->getFooterLinks();
 
+function normalizarStatusFluxoKey($status) {
+    $valor = trim((string) $status);
+    if ($valor === '') {
+        return '';
+    }
+
+    $valor = mb_strtolower($valor, 'UTF-8');
+    $valor = strtr($valor, [
+        'á' => 'a', 'à' => 'a', 'ã' => 'a', 'â' => 'a', 'ä' => 'a',
+        'é' => 'e', 'è' => 'e', 'ê' => 'e', 'ë' => 'e',
+        'í' => 'i', 'ì' => 'i', 'î' => 'i', 'ï' => 'i',
+        'ó' => 'o', 'ò' => 'o', 'õ' => 'o', 'ô' => 'o', 'ö' => 'o',
+        'ú' => 'u', 'ù' => 'u', 'û' => 'u', 'ü' => 'u',
+        'ç' => 'c',
+    ]);
+
+    return preg_replace('/[^a-z0-9]+/u', '', $valor);
+}
+
+function corTextoParaHex($hexColor) {
+    $hex = ltrim(trim((string) $hexColor), '#');
+    if (strlen($hex) === 3) {
+        $hex = $hex[0] . $hex[0] . $hex[1] . $hex[1] . $hex[2] . $hex[2];
+    }
+    if (!preg_match('/^[0-9a-fA-F]{6}$/', $hex)) {
+        return '#111111';
+    }
+
+    $r = hexdec(substr($hex, 0, 2));
+    $g = hexdec(substr($hex, 2, 2));
+    $b = hexdec(substr($hex, 4, 2));
+    $luminancia = (0.299 * $r) + (0.587 * $g) + (0.114 * $b);
+
+    return $luminancia > 165 ? '#111111' : '#ffffff';
+}
+
+$statusFluxoMap = [];
+$statusFluxoAliases = [
+    'pedidoconfirmado' => 'pagamentoconfirmado',
+    'pago' => 'pagamentoconfirmado',
+    'cancelado' => 'pedidocancelado',
+];
+try {
+    $stmtStatusFluxo = $pdo->query("SELECT nome, cor_hex FROM status_fluxo ORDER BY ordem ASC");
+    while ($rowStatusFluxo = $stmtStatusFluxo->fetch(PDO::FETCH_ASSOC)) {
+        $nomeStatusFluxo = trim((string) ($rowStatusFluxo['nome'] ?? ''));
+        $corStatusFluxo = trim((string) ($rowStatusFluxo['cor_hex'] ?? ''));
+        if ($nomeStatusFluxo === '') {
+            continue;
+        }
+
+        $statusKey = normalizarStatusFluxoKey($nomeStatusFluxo);
+        if ($statusKey === '') {
+            continue;
+        }
+
+        $statusFluxoMap[$statusKey] = [
+            'nome' => $nomeStatusFluxo,
+            'cor' => $corStatusFluxo !== '' ? $corStatusFluxo : '#C6A75E',
+        ];
+    }
+} catch (PDOException $e) {
+    error_log('Erro ao buscar status_fluxo em minha-conta: ' . $e->getMessage());
+}
+
 $sucesso = '';
 $erro = '';
 
@@ -1260,7 +1325,7 @@ $pageTitle = 'Minha Conta - RARE7';
 
         .order-header {
             display: grid;
-            grid-template-columns: auto 1fr auto;
+            grid-template-columns: 1fr auto;
             align-items: start;
             gap: 1.5rem;
             margin-bottom: 1rem;
@@ -1285,6 +1350,9 @@ $pageTitle = 'Minha Conta - RARE7';
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.05em;
+            width: fit-content;
+            max-width: 100%;
+            justify-self: end;
         }
 
         .status-delivered {
@@ -1322,13 +1390,22 @@ $pageTitle = 'Minha Conta - RARE7';
             font-size: 1.2rem;
             font-weight: 700;
             color: var(--gold);
+            margin-top: 0;
+        }
+
+        .order-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
             margin-top: 1rem;
+            flex-wrap: wrap;
         }
 
         .order-actions {
             display: flex;
             gap: 0.8rem;
-            margin-top: 1rem;
+            margin-top: 0;
         }
 
         .btn-sm {
@@ -1875,6 +1952,23 @@ $pageTitle = 'Minha Conta - RARE7';
                 gap: 0.8rem;
             }
 
+            .order-status-badge {
+                justify-self: start;
+            }
+
+            .order-footer {
+                align-items: flex-start;
+            }
+
+            .order-actions {
+                width: 100%;
+            }
+
+            .order-actions .btn-sm {
+                width: 100%;
+                justify-content: center;
+            }
+
             .address-grid {
                 grid-template-columns: 1fr;
             }
@@ -2032,14 +2126,19 @@ $pageTitle = 'Minha Conta - RARE7';
                             <?php
                                 $pedidoId = (int) ($pedido['id'] ?? 0);
                                 $numeroPedido = '#R7-' . str_pad((string) $pedidoId, 4, '0', STR_PAD_LEFT);
-                                $statusPedido = trim((string) ($pedido['status'] ?? 'Pendente'));
-                                $statusNormalizado = strtolower($statusPedido);
-                                $statusClasse = 'status-processing';
-                                if ($statusNormalizado === 'entregue') {
-                                    $statusClasse = 'status-delivered';
-                                } elseif (in_array($statusNormalizado, ['enviado', 'em transporte', 'em_transporte'], true)) {
-                                    $statusClasse = 'status-in-transit';
+                                $statusPedidoOriginal = trim((string) ($pedido['status'] ?? 'Pendente'));
+                                $statusKeyPedido = normalizarStatusFluxoKey($statusPedidoOriginal);
+                                if ($statusKeyPedido !== '' && isset($statusFluxoAliases[$statusKeyPedido])) {
+                                    $statusKeyPedido = $statusFluxoAliases[$statusKeyPedido];
                                 }
+
+                                $statusPedido = $statusPedidoOriginal;
+                                $statusCor = '#C6A75E';
+                                if ($statusKeyPedido !== '' && isset($statusFluxoMap[$statusKeyPedido])) {
+                                    $statusPedido = $statusFluxoMap[$statusKeyPedido]['nome'];
+                                    $statusCor = $statusFluxoMap[$statusKeyPedido]['cor'];
+                                }
+                                $statusCorTexto = corTextoParaHex($statusCor);
 
                                 $valorTotalPedido = (float) ($pedido['valor_total'] ?? 0);
                                 $itensPedido = is_array($pedido['itens'] ?? null) ? $pedido['itens'] : [];
@@ -2067,7 +2166,7 @@ $pageTitle = 'Minha Conta - RARE7';
                                         <div class="order-number"><?php echo htmlspecialchars($numeroPedido); ?></div>
                                         <div class="order-date"><?php echo htmlspecialchars($dataPedido); ?></div>
                                     </div>
-                                    <div class="order-status-badge <?php echo $statusClasse; ?>"><?php echo htmlspecialchars($statusPedido); ?></div>
+                                    <div class="order-status-badge" style="background: <?php echo htmlspecialchars($statusCor, ENT_QUOTES, 'UTF-8'); ?>; color: <?php echo htmlspecialchars($statusCorTexto, ENT_QUOTES, 'UTF-8'); ?>;"><?php echo htmlspecialchars($statusPedido); ?></div>
                                 </div>
                                 <div class="order-items">
                                     <?php if (!empty($itensPedido)): ?>
@@ -2083,9 +2182,11 @@ $pageTitle = 'Minha Conta - RARE7';
                                         <div class="item-pill">Itens nao informados</div>
                                     <?php endif; ?>
                                 </div>
-                                <div class="order-total">R$ <?php echo number_format($valorTotalPedido, 2, ',', '.'); ?></div>
-                                <div class="order-actions">
-                                    <button class="btn-secondary btn-sm" data-order-action="details" type="button">Ver Pedido</button>
+                                <div class="order-footer">
+                                    <div class="order-total">R$ <?php echo number_format($valorTotalPedido, 2, ',', '.'); ?></div>
+                                    <div class="order-actions">
+                                        <button class="btn-secondary btn-sm" data-order-action="details" type="button">Ver Pedido</button>
+                                    </div>
                                 </div>
                             </div>
                         <?php endforeach; ?>

@@ -66,3 +66,5 @@
         <span><?php echo htmlspecialchars($footerData['copyright_texto'] ?? '© 2026 Rare7. Todos os direitos reservados.'); ?></span>
     </div>
 </footer>
+
+<?php require_once __DIR__ . '/chat.php'; ?>

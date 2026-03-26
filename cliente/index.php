@@ -775,6 +775,8 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
         </div>
     </footer>
 
+    <?php require_once __DIR__ . '/includes/chat.php'; ?>
+
     <script>
     window.__RARE_PRODUCTS__ = <?php echo json_encode($vitrineProducts, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
     window.__RARE_LAUNCH_PRODUCTS__ = <?php echo json_encode($vitrineLaunchProducts, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;

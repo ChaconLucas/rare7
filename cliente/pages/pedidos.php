@@ -28,12 +28,48 @@ $cms = new CMSProvider($conn);
 $footerData = $cms->getFooterData();
 $footerLinks = $cms->getFooterLinks();
 
+function normalizarStatusKey($status) {
+    $valor = trim((string) $status);
+    if ($valor === '') {
+        return '';
+    }
+
+    $valor = mb_strtolower($valor, 'UTF-8');
+    $valor = strtr($valor, [
+        'á' => 'a', 'à' => 'a', 'ã' => 'a', 'â' => 'a', 'ä' => 'a',
+        'é' => 'e', 'è' => 'e', 'ê' => 'e', 'ë' => 'e',
+        'í' => 'i', 'ì' => 'i', 'î' => 'i', 'ï' => 'i',
+        'ó' => 'o', 'ò' => 'o', 'õ' => 'o', 'ô' => 'o', 'ö' => 'o',
+        'ú' => 'u', 'ù' => 'u', 'û' => 'u', 'ü' => 'u',
+        'ç' => 'c',
+    ]);
+
+    return preg_replace('/[^a-z0-9]+/u', '', $valor);
+}
+
 // Buscar cores dos status da gestão de fluxo
-$statusCores = [];
+$statusMap = [];
+$statusAliases = [
+    'pedidoconfirmado' => 'pagamentoconfirmado',
+    'pago' => 'pagamentoconfirmado',
+    'cancelado' => 'pedidocancelado',
+];
 try {
     $stmtStatus = $pdo->query("SELECT nome, cor_hex FROM status_fluxo ORDER BY ordem ASC");
     while ($row = $stmtStatus->fetch(PDO::FETCH_ASSOC)) {
-        $statusCores[$row['nome']] = $row['cor_hex'];
+        $nome = trim((string)($row['nome'] ?? ''));
+        $cor = trim((string)($row['cor_hex'] ?? ''));
+        if ($nome === '') {
+            continue;
+        }
+        $key = normalizarStatusKey($nome);
+        if ($key === '') {
+            continue;
+        }
+        $statusMap[$key] = [
+            'nome' => $nome,
+            'cor' => $cor !== '' ? $cor : '#757575',
+        ];
     }
 } catch (PDOException $e) {
     error_log("Erro ao buscar status: " . $e->getMessage());
@@ -84,28 +120,46 @@ try {
 
 // Função para traduzir status
 function traduzirStatus($status) {
-    return $status; // Já vem em português do banco
+    global $statusMap, $statusAliases;
+
+    $key = normalizarStatusKey($status);
+    if ($key !== '' && isset($statusAliases[$key])) {
+        $key = $statusAliases[$key];
+    }
+
+    if ($key !== '' && isset($statusMap[$key]['nome'])) {
+        return $statusMap[$key]['nome'];
+    }
+
+    return $status;
 }
 
 // Função para cor do status
 function corStatus($status) {
-    global $statusCores;
-    
-    // Primeiro tentar buscar da gestão de fluxo
-    if (isset($statusCores[$status])) {
-        return $statusCores[$status];
+    global $statusMap, $statusAliases;
+
+    $key = normalizarStatusKey($status);
+    if ($key !== '' && isset($statusAliases[$key])) {
+        $key = $statusAliases[$key];
     }
-    
-    // Fallback para cores padrão caso não encontre
+
+    // Primeiro tenta buscar exatamente as cores da gestão de fluxo do admin
+    if ($key !== '' && isset($statusMap[$key]['cor'])) {
+        return $statusMap[$key]['cor'];
+    }
+
+    // Fallback alinhado com os padrões do painel admin
     $cores = [
-        'Pedido Recebido' => '#ff00cc',
-        'Pagamento Pendente' => '#d4ff00',
-        'Pedido Confirmado' => '#00ff88',
-        'Em Preparação' => '#7dd87d',
+        'Pedido Recebido' => '#C6A75E',
+        'Pagamento Pendente' => '#ff9800',
+        'Pedido Confirmado' => '#41f1b6',
+        'Pagamento Confirmado' => '#41f1b6',
+        'Em Preparação' => '#ffbb55',
         'Enviado' => '#00BCD4',
-        'Entregue' => '#4CAF50',
-        'Estornado' => '#fd7e14',
-        'Cancelado' => '#F44336',
+        'Entregue' => '#28a745',
+        'Estornado' => '#9c27b0',
+        'Cancelado' => '#f44336',
+        'Pedido Cancelado' => '#f44336',
         'pendente' => '#757575'
     ];
     return $cores[$status] ?? '#757575';
