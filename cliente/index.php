@@ -118,6 +118,24 @@ function resolveLeagueLogoUrl(string $rawPath): string {
     return '../' . $normalized;
 }
 
+function resolveTestimonialAvatarUrl(string $rawPath): string {
+    $path = trim($rawPath);
+    if ($path === '') {
+        return '';
+    }
+
+    if (preg_match('/^https?:\/\//i', $path) || strpos($path, 'data:') === 0 || strpos($path, '//') === 0) {
+        return $path;
+    }
+
+    $normalized = ltrim($path, '/');
+    if (strpos($normalized, '../') === 0) {
+        return $normalized;
+    }
+
+    return '../' . $normalized;
+}
+
 if (empty($banners)) {
     $banners = [
         [
@@ -715,9 +733,35 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
                 </div>
                 <div class="testimonials-grid">
                     <?php foreach ($testimonials as $depoimento): ?>
+                    <?php
+                        $testimonialName = (string) ($depoimento['nome'] ?? 'Cliente Rare');
+                        $testimonialRole = (string) ($depoimento['cargo_empresa'] ?? '');
+                        $testimonialAvatar = resolveTestimonialAvatarUrl((string) ($depoimento['avatar_path'] ?? ''));
+                        $testimonialProductImage = resolveTestimonialAvatarUrl((string) ($depoimento['product_image_path'] ?? ''));
+                        $testimonialInitial = strtoupper(function_exists('mb_substr') ? mb_substr($testimonialName, 0, 1) : substr($testimonialName, 0, 1));
+                    ?>
                     <article class="testimonial-card reveal">
+                        <?php if ($testimonialProductImage !== ''): ?>
+                        <div class="testimonial-photo">
+                            <img src="<?php echo htmlspecialchars($testimonialProductImage); ?>" alt="Foto do produto no depoimento de <?php echo htmlspecialchars($testimonialName); ?>" loading="lazy">
+                        </div>
+                        <?php endif; ?>
                         <p class="testimonial-text"><?php echo htmlspecialchars($depoimento['texto'] ?? 'Excelente experiencia.'); ?></p>
-                        <p class="testimonial-name"><?php echo htmlspecialchars($depoimento['nome'] ?? 'Cliente Rare'); ?></p>
+                        <div class="testimonial-author">
+                            <div class="testimonial-avatar">
+                                <?php if ($testimonialAvatar !== ''): ?>
+                                <img src="<?php echo htmlspecialchars($testimonialAvatar); ?>" alt="Avatar de <?php echo htmlspecialchars($testimonialName); ?>" loading="lazy">
+                                <?php else: ?>
+                                <span><?php echo htmlspecialchars($testimonialInitial !== '' ? $testimonialInitial : 'R'); ?></span>
+                                <?php endif; ?>
+                            </div>
+                            <div class="testimonial-author-meta">
+                                <p class="testimonial-name"><?php echo htmlspecialchars($testimonialName); ?></p>
+                                <?php if ($testimonialRole !== ''): ?>
+                                <p class="testimonial-role"><?php echo htmlspecialchars($testimonialRole); ?></p>
+                                <?php endif; ?>
+                            </div>
+                        </div>
                         <p class="testimonial-stars"><?php echo str_repeat('★', max(1, min(5, (int)($depoimento['rating'] ?? 5)))); ?></p>
                     </article>
                     <?php endforeach; ?>
@@ -1398,7 +1442,7 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
             }
 
             function animateVitrinePage(nextPage, direction) {
-                if (!cardsRoot || !vitrineViewport || vitrineTransitionLock) {
+                if (!cardsRoot || vitrineTransitionLock) {
                     page = nextPage;
                     renderVitrine();
                     return;
@@ -1407,39 +1451,40 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
                 vitrineTransitionLock = true;
                 const state = getVitrineState(nextPage);
 
-                const incoming = document.createElement('div');
-                incoming.className = `vitrine-cards vitrine-cards-panel vitrine-cards-panel-enter-${direction}`;
-                incoming.innerHTML = buildVitrineCardsMarkup(state.current);
-                vitrineViewport.appendChild(incoming);
-                syncRenderedVitrine(incoming, state.current);
-                normalizeCardImages(incoming);
+                const clearSwapClasses = () => {
+                    cardsRoot.classList.remove(
+                        'is-swapping',
+                        'vitrine-swap-out-next',
+                        'vitrine-swap-out-prev',
+                        'vitrine-swap-in-next',
+                        'vitrine-swap-in-prev',
+                        'is-active'
+                    );
+                };
 
-                cardsRoot.classList.add('vitrine-cards-panel', `vitrine-cards-panel-leave-${direction}`);
-                incoming.classList.add('is-prepared');
-
-                requestAnimationFrame(() => {
-                    cardsRoot.classList.add('is-active');
-                    incoming.classList.add('is-active');
-                });
+                clearSwapClasses();
+                cardsRoot.classList.add('is-swapping', direction === 'next' ? 'vitrine-swap-out-next' : 'vitrine-swap-out-prev');
 
                 window.setTimeout(() => {
                     page = nextPage;
-                    cardsRoot.innerHTML = incoming.innerHTML;
+                    cardsRoot.innerHTML = buildVitrineCardsMarkup(state.current);
                     syncRenderedVitrine(cardsRoot, state.current);
                     normalizeCardImages(cardsRoot);
                     updateVitrineCounter(state.list, state.safeStart, state.current);
-
-                    cardsRoot.classList.remove(
-                      'vitrine-cards-panel',
-                      'vitrine-cards-panel-leave-next',
-                      'vitrine-cards-panel-leave-prev',
-                      'is-active'
-                    );
-
-                    incoming.remove();
                     updateVitrineViewportHeight();
-                    vitrineTransitionLock = false;
-                }, 360);
+
+                    clearSwapClasses();
+                    cardsRoot.classList.add('is-swapping', direction === 'next' ? 'vitrine-swap-in-next' : 'vitrine-swap-in-prev');
+
+                    requestAnimationFrame(() => {
+                        cardsRoot.classList.add('is-active');
+                    });
+
+                    window.setTimeout(() => {
+                        clearSwapClasses();
+                        vitrineTransitionLock = false;
+                    }, 180);
+                }, 170);
             }
 
             btnPrev.addEventListener('click', () => {

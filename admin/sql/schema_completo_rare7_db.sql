@@ -555,6 +555,7 @@ CREATE TABLE IF NOT EXISTS cms_testimonials (
     texto VARCHAR(600) NOT NULL,
     rating TINYINT NOT NULL DEFAULT 5,
     avatar_path VARCHAR(255),
+    product_image_path VARCHAR(255),
     ordem INT DEFAULT 0,
     ativo TINYINT(1) DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

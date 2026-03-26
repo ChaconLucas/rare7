@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS cms_testimonials (
     texto VARCHAR(600) NOT NULL COMMENT 'Texto do depoimento',
     rating TINYINT NOT NULL DEFAULT 5 COMMENT 'Avaliação de 1 a 5 estrelas',
     avatar_path VARCHAR(255) NULL COMMENT 'Caminho da foto do cliente (opcional)',
+    product_image_path VARCHAR(255) NULL COMMENT 'Caminho da foto do produto/camisa (opcional)',
     ordem INT DEFAULT 0 COMMENT 'Ordem de exibição',
     ativo TINYINT(1) DEFAULT 1 COMMENT 'Depoimento ativo/inativo',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

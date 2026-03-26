@@ -329,6 +329,16 @@ TODO - IMPLEMENTAR:
                     <small style="color: var(--color-dark-variant);">Formatos: JPG, PNG, WEBP (opcional - se vazio exibe inicial)</small>
                     <div id="avatar-preview" style="margin-top: 0.5rem;"></div>
                 </div>
+
+                <div style="margin-bottom: 1.5rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--color-dark);">
+                        Foto do Produto/Camisa (opcional)
+                    </label>
+                    <input type="file" id="input-product-image" name="product_image" accept="image/jpeg,image/jpg,image/png,image/webp"
+                           style="width: 100%; padding: 0.75rem; border: 1px solid var(--color-light); border-radius: var(--border-radius-1); font-size: 1rem;">
+                    <small style="color: var(--color-dark-variant);">Formatos: JPG, PNG, WEBP (opcional - aparece como foto principal no card)</small>
+                    <div id="product-image-preview" style="margin-top: 0.5rem;"></div>
+                </div>
                 
                 <div style="margin-bottom: 1.5rem;">
                     <label style="display: flex; align-items: center; cursor: pointer; user-select: none;">
@@ -445,6 +455,7 @@ TODO - IMPLEMENTAR:
                     <thead>
                         <tr style="border-bottom: 2px solid var(--color-light); text-align: left;">
                             <th style="padding: 1rem; font-weight: 600;">Cliente</th>
+                            <th style="padding: 1rem; font-weight: 600; text-align: center;">Foto Produto</th>
                             <th style="padding: 1rem; font-weight: 600;">Depoimento</th>
                             <th style="padding: 1rem; font-weight: 600; text-align: center;">Avaliação</th>
                             <th style="padding: 1rem; font-weight: 600; text-align: center;">Ordem</th>
@@ -460,6 +471,9 @@ TODO - IMPLEMENTAR:
                 const avatarHtml = dep.avatar_path 
                     ? `<img src="../../../../../${dep.avatar_path}" alt="${dep.nome}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; margin-right: 10px;">`
                     : `<div style="width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, var(--color-magenta), var(--color-magenta-dark)); color: white; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; margin-right: 10px;">${inicial}</div>`;
+                const productPhotoHtml = dep.product_image_path
+                    ? `<img src="../../../../../${dep.product_image_path}" alt="Foto do produto" style="width: 72px; height: 52px; border-radius: 8px; object-fit: cover; border: 1px solid var(--color-light);">`
+                    : `<span style="color: var(--color-dark-variant); font-size: 0.85rem;">Sem foto</span>`;
                 
                 html += `
                     <tr style="border-bottom: 1px solid var(--color-light);">
@@ -471,6 +485,9 @@ TODO - IMPLEMENTAR:
                                     ${dep.cargo_empresa ? `<small style="color: var(--color-dark-variant);">${dep.cargo_empresa}</small>` : ''}
                                 </div>
                             </div>
+                        </td>
+                        <td style="padding: 1rem; text-align: center;">
+                            ${productPhotoHtml}
                         </td>
                         <td style="padding: 1rem; color: var(--color-dark-variant); font-style: italic; max-width: 300px;">
                             "${truncateText(dep.texto, 100)}"
@@ -520,6 +537,7 @@ TODO - IMPLEMENTAR:
             form.reset();
             document.getElementById('char-count').textContent = '0 / 600 caracteres';
             document.getElementById('avatar-preview').innerHTML = '';
+            document.getElementById('product-image-preview').innerHTML = '';
             
             if (editandoId) {
                 const dep = depoimentos.find(d => d.id == editandoId);
@@ -538,6 +556,13 @@ TODO - IMPLEMENTAR:
                         document.getElementById('avatar-preview').innerHTML = `
                             <img src="../../../../../${dep.avatar_path}" style="width: 60px; height: 60px; border-radius: 50%; object-fit: cover; border: 2px solid var(--color-primary);">
                             <small style="display: block; margin-top: 0.5rem; color: var(--color-dark-variant);">Avatar atual</small>
+                        `;
+                    }
+
+                    if (dep.product_image_path) {
+                        document.getElementById('product-image-preview').innerHTML = `
+                            <img src="../../../../../${dep.product_image_path}" style="width: 140px; height: 90px; border-radius: 8px; object-fit: cover; border: 2px solid var(--color-primary);">
+                            <small style="display: block; margin-top: 0.5rem; color: var(--color-dark-variant);">Foto do produto atual</small>
                         `;
                     }
                 }
@@ -674,6 +699,21 @@ TODO - IMPLEMENTAR:
                         document.getElementById('avatar-preview').innerHTML = `
                             <img src="${e.target.result}" style="width: 60px; height: 60px; border-radius: 50%; object-fit: cover; border: 2px solid var(--color-primary);">
                             <small style="display: block; margin-top: 0.5rem; color: var(--color-success);">Novo avatar</small>
+                        `;
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+
+            // Preview de foto do produto
+            document.getElementById('input-product-image').addEventListener('change', function() {
+                const file = this.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        document.getElementById('product-image-preview').innerHTML = `
+                            <img src="${e.target.result}" style="width: 140px; height: 90px; border-radius: 8px; object-fit: cover; border: 2px solid var(--color-primary);">
+                            <small style="display: block; margin-top: 0.5rem; color: var(--color-success);">Nova foto do produto</small>
                         `;
                     };
                     reader.readAsDataURL(file);

@@ -1746,6 +1746,51 @@ if ($action === 'delete_metric') {
 // DEPOIMENTOS (TESTIMONIALS)
 // ====================================================================
 
+function cmsTestimonialsEnsureSchema($conexao) {
+    $columnCheck = mysqli_query($conexao, "SHOW COLUMNS FROM cms_testimonials LIKE 'product_image_path'");
+    if (!$columnCheck) {
+        throw new Exception('Erro ao validar estrutura de depoimentos: ' . mysqli_error($conexao));
+    }
+
+    if (mysqli_num_rows($columnCheck) === 0) {
+        $alter = mysqli_query(
+            $conexao,
+            "ALTER TABLE cms_testimonials ADD COLUMN product_image_path VARCHAR(255) NULL AFTER avatar_path"
+        );
+
+        if (!$alter) {
+            throw new Exception('Erro ao atualizar estrutura de depoimentos: ' . mysqli_error($conexao));
+        }
+    }
+}
+
+function cmsTestimonialsUploadImage($file, $prefix = 'img_') {
+    if (!isset($file) || !is_array($file) || ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+        return null;
+    }
+
+    $upload_dir = __DIR__ . '/../../../../../uploads/testimonials/';
+    if (!file_exists($upload_dir)) {
+        mkdir($upload_dir, 0755, true);
+    }
+
+    $file_extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    $allowed_extensions = ['jpg', 'jpeg', 'png', 'webp'];
+
+    if (!in_array($file_extension, $allowed_extensions, true)) {
+        throw new Exception('Formato de imagem inválido. Use JPG, PNG ou WEBP');
+    }
+
+    $filename = uniqid($prefix, true) . '.' . $file_extension;
+    $upload_path = $upload_dir . $filename;
+
+    if (!move_uploaded_file($file['tmp_name'], $upload_path)) {
+        throw new Exception('Não foi possível enviar a imagem. Tente novamente.');
+    }
+
+    return 'uploads/testimonials/' . $filename;
+}
+
 if ($action === 'list_testimonials') {
     try {
         // Verificar se a tabela existe
@@ -1759,6 +1804,8 @@ if ($action === 'list_testimonials') {
             ]);
             exit();
         }
+
+        cmsTestimonialsEnsureSchema($conexao);
         
         $result = mysqli_query($conexao, 
             "SELECT * FROM cms_testimonials ORDER BY ordem ASC, id DESC"
@@ -1808,6 +1855,8 @@ if ($action === 'add_testimonial') {
         $rating = intval($_POST['rating'] ?? 5);
         $ordem = intval($_POST['ordem'] ?? 0);
         $ativo = isset($_POST['ativo']) ? 1 : 0;
+
+        cmsTestimonialsEnsureSchema($conexao);
         
         // Validações
         if (empty($nome)) {
@@ -1835,41 +1884,21 @@ if ($action === 'add_testimonial') {
             exit();
         }
         
-        // Upload de avatar (opcional)
-        $avatar_path = null;
-        if (isset($_FILES['avatar']) && $_FILES['avatar']['error'] === UPLOAD_ERR_OK) {
-            $upload_dir = __DIR__ . '/../../../../../uploads/testimonials/';
-            if (!file_exists($upload_dir)) {
-                mkdir($upload_dir, 0755, true);
-            }
-            
-            $file_extension = strtolower(pathinfo($_FILES['avatar']['name'], PATHINFO_EXTENSION));
-            $allowed_extensions = ['jpg', 'jpeg', 'png', 'webp'];
-            
-            if (!in_array($file_extension, $allowed_extensions)) {
-                echo json_encode(['success' => false, 'message' => 'Formato de imagem inválido. Use JPG, PNG ou WEBP']);
-                exit();
-            }
-            
-            $filename = uniqid('avatar_') . '.' . $file_extension;
-            $upload_path = $upload_dir . $filename;
-            
-            if (move_uploaded_file($_FILES['avatar']['tmp_name'], $upload_path)) {
-                $avatar_path = 'uploads/testimonials/' . $filename;
-            }
-        }
+        // Uploads opcionais
+        $avatar_path = cmsTestimonialsUploadImage($_FILES['avatar'] ?? null, 'avatar_');
+        $product_image_path = cmsTestimonialsUploadImage($_FILES['product_image'] ?? null, 'produto_');
         
         $stmt = mysqli_prepare($conexao,
-            "INSERT INTO cms_testimonials (nome, cargo_empresa, texto, rating, avatar_path, ordem, ativo) 
-             VALUES (?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO cms_testimonials (nome, cargo_empresa, texto, rating, avatar_path, product_image_path, ordem, ativo) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
         );
         
         if (!$stmt) {
             throw new Exception('Tabela cms_testimonials não encontrada.');
         }
         
-        mysqli_stmt_bind_param($stmt, 'sssissi', 
-            $nome, $cargo_empresa, $texto, $rating, $avatar_path, $ordem, $ativo
+        mysqli_stmt_bind_param($stmt, 'sssissii', 
+            $nome, $cargo_empresa, $texto, $rating, $avatar_path, $product_image_path, $ordem, $ativo
         );
         
         if (mysqli_stmt_execute($stmt)) {
@@ -1898,6 +1927,8 @@ if ($action === 'update_testimonial') {
         $rating = intval($_POST['rating'] ?? 5);
         $ordem = intval($_POST['ordem'] ?? 0);
         $ativo = isset($_POST['ativo']) ? 1 : 0;
+
+        cmsTestimonialsEnsureSchema($conexao);
         
         if ($id <= 0) {
             echo json_encode(['success' => false, 'message' => 'ID inválido']);
@@ -1920,39 +1951,33 @@ if ($action === 'update_testimonial') {
             exit();
         }
         
-        // Buscar avatar existente
-        $result = mysqli_query($conexao, "SELECT avatar_path FROM cms_testimonials WHERE id = $id");
+        // Buscar imagens existentes
+        $result = mysqli_query($conexao, "SELECT avatar_path, product_image_path FROM cms_testimonials WHERE id = $id");
         $existing = mysqli_fetch_assoc($result);
-        $avatar_path = $existing['avatar_path'];
+        $avatar_path = $existing['avatar_path'] ?? null;
+        $product_image_path = $existing['product_image_path'] ?? null;
         
         // Upload de novo avatar (se enviado)
-        if (isset($_FILES['avatar']) && $_FILES['avatar']['error'] === UPLOAD_ERR_OK) {
-            $upload_dir = __DIR__ . '/../../../../../uploads/testimonials/';
-            if (!file_exists($upload_dir)) {
-                mkdir($upload_dir, 0755, true);
+        $newAvatarPath = cmsTestimonialsUploadImage($_FILES['avatar'] ?? null, 'avatar_');
+        if ($newAvatarPath !== null) {
+            if ($avatar_path && file_exists(__DIR__ . '/../../../../../' . $avatar_path)) {
+                unlink(__DIR__ . '/../../../../../' . $avatar_path);
             }
-            
-            $file_extension = strtolower(pathinfo($_FILES['avatar']['name'], PATHINFO_EXTENSION));
-            $allowed_extensions = ['jpg', 'jpeg', 'png', 'webp'];
-            
-            if (in_array($file_extension, $allowed_extensions)) {
-                // Remover avatar antigo se existir
-                if ($avatar_path && file_exists(__DIR__ . '/../../../../../' . $avatar_path)) {
-                    unlink(__DIR__ . '/../../../../../' . $avatar_path);
-                }
-                
-                $filename = uniqid('avatar_') . '.' . $file_extension;
-                $upload_path = $upload_dir . $filename;
-                
-                if (move_uploaded_file($_FILES['avatar']['tmp_name'], $upload_path)) {
-                    $avatar_path = 'uploads/testimonials/' . $filename;
-                }
+            $avatar_path = $newAvatarPath;
+        }
+
+        // Upload de nova foto do produto (se enviada)
+        $newProductImagePath = cmsTestimonialsUploadImage($_FILES['product_image'] ?? null, 'produto_');
+        if ($newProductImagePath !== null) {
+            if ($product_image_path && file_exists(__DIR__ . '/../../../../../' . $product_image_path)) {
+                unlink(__DIR__ . '/../../../../../' . $product_image_path);
             }
+            $product_image_path = $newProductImagePath;
         }
         
         $stmt = mysqli_prepare($conexao,
             "UPDATE cms_testimonials 
-             SET nome = ?, cargo_empresa = ?, texto = ?, rating = ?, avatar_path = ?, ordem = ?, ativo = ?, updated_at = NOW()
+             SET nome = ?, cargo_empresa = ?, texto = ?, rating = ?, avatar_path = ?, product_image_path = ?, ordem = ?, ativo = ?, updated_at = NOW()
              WHERE id = ?"
         );
         
@@ -1960,8 +1985,8 @@ if ($action === 'update_testimonial') {
             throw new Exception('Tabela cms_testimonials não encontrada.');
         }
         
-        mysqli_stmt_bind_param($stmt, 'sssisiii', 
-            $nome, $cargo_empresa, $texto, $rating, $avatar_path, $ordem, $ativo, $id
+        mysqli_stmt_bind_param($stmt, 'sssissiii', 
+            $nome, $cargo_empresa, $texto, $rating, $avatar_path, $product_image_path, $ordem, $ativo, $id
         );
         
         if (mysqli_stmt_execute($stmt)) {
@@ -2029,8 +2054,10 @@ if ($action === 'delete_testimonial') {
             exit();
         }
         
-        // Buscar avatar para deletar arquivo
-        $result = mysqli_query($conexao, "SELECT avatar_path FROM cms_testimonials WHERE id = $id");
+        cmsTestimonialsEnsureSchema($conexao);
+
+        // Buscar imagens para deletar arquivos
+        $result = mysqli_query($conexao, "SELECT avatar_path, product_image_path FROM cms_testimonials WHERE id = $id");
         $row = mysqli_fetch_assoc($result);
         
         $stmt = mysqli_prepare($conexao, "DELETE FROM cms_testimonials WHERE id = ?");
@@ -2042,11 +2069,18 @@ if ($action === 'delete_testimonial') {
         mysqli_stmt_bind_param($stmt, 'i', $id);
         
         if (mysqli_stmt_execute($stmt)) {
-            // Remover arquivo de avatar se existir
+            // Remover arquivos de imagem se existirem
             if ($row && $row['avatar_path']) {
                 $file_path = __DIR__ . '/../../../../../' . $row['avatar_path'];
                 if (file_exists($file_path)) {
                     unlink($file_path);
+                }
+            }
+
+            if ($row && !empty($row['product_image_path'])) {
+                $product_file_path = __DIR__ . '/../../../../../' . $row['product_image_path'];
+                if (file_exists($product_file_path)) {
+                    unlink($product_file_path);
                 }
             }
             

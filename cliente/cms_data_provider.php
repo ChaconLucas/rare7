@@ -587,8 +587,18 @@ class CMSProvider {
     public function getTestimonials($limit = 3) {
         try {
             $limit = (int)$limit;
+            $hasProductImageColumn = false;
+            $columnCheck = mysqli_query($this->conn, "SHOW COLUMNS FROM cms_testimonials LIKE 'product_image_path'");
+            if ($columnCheck && mysqli_num_rows($columnCheck) > 0) {
+                $hasProductImageColumn = true;
+            }
+
+            $productImageSelect = $hasProductImageColumn
+                ? "product_image_path"
+                : "NULL AS product_image_path";
+
             $query = "
-                SELECT nome, cargo_empresa, texto, rating, avatar_path
+                SELECT nome, cargo_empresa, texto, rating, avatar_path, {$productImageSelect}
                 FROM cms_testimonials
                 WHERE ativo = 1
                 ORDER BY ordem ASC, id DESC
