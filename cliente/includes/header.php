@@ -3593,6 +3593,7 @@
     </style>
     
     <!-- CSS da Loja -->
-    <link rel="stylesheet" href="<?php echo (strpos($_SERVER['PHP_SELF'], '/pages/') !== false) ? '../' : ''; ?>css/loja.css">
+    <?php $isSubdir = strpos($_SERVER['PHP_SELF'], '/pages/') !== false; ?>
+    <link rel="stylesheet" href="<?php echo $isSubdir ? '../' : ''; ?>css/loja.css?v=<?php echo filemtime(__DIR__ . ($isSubdir ? '/../' : '/') . 'css/loja.css'); ?>">
 </head>
 <body>

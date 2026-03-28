@@ -87,7 +87,7 @@ $boletoDisponivel = in_array('Boleto', $formasPagamento, true);
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Cinzel:wght@500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Sharp:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
-    <link rel="stylesheet" href="../css/loja.css">
+    <link rel="stylesheet" href="../css/loja.css?v=<?php echo filemtime(__DIR__ . '/../css/loja.css'); ?>">
 
     <style>
         :root {

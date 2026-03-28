@@ -439,7 +439,7 @@ $pageTitle = 'Minha Conta - RARE7';
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Sharp:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
     
     <!-- Link para css/loja.css que contém a base -->
-    <link rel="stylesheet" href="../css/loja.css">
+    <link rel="stylesheet" href="../css/loja.css?v=<?php echo filemtime(__DIR__ . '/../css/loja.css'); ?>">
     
     <style>
         :root {

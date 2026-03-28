@@ -5567,3 +5567,58 @@ body.tracking-page {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ===== Mobile Compact Fit (v2) ===== */
+@media (max-width: 760px) {
+  .container-shell, .rare-products-shell { width: min(100%, calc(100% - 0.8rem)); }
+  .vitrine-cards, .product-grid, .rare-products-editorial-list, .rare-related-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.5rem !important;
+  }
+  .vitrine-card, .product-card, .rare-product-row, .rare-related-card { border-radius: 0.9rem; padding: 0.45rem; }
+  .vitrine-card .product-image-wrap, .product-card .product-image-wrap,
+  .rare-product-row.product-card .product-image-wrap, .rare-related-card.product-card .product-image-wrap,
+  .rare-product-row-media, .rare-related-media {
+    height: 120px !important; min-height: 120px !important; max-height: 120px !important; border-radius: 0.7rem;
+  }
+  .vitrine-card .vitrine-body, .product-card .product-info,
+  .rare-product-row.product-card .product-info, .rare-related-card.product-card .product-info,
+  .rare-product-row-content, .rare-related-copy { padding: 0.5rem 0.55rem 0.55rem; gap: 0.25rem; }
+  .vitrine-card .vitrine-body h3, .product-card .product-info h3,
+  .rare-product-row h3, .rare-related-copy h3 { font-size: 0.86rem; min-height: 2.15em; line-height: 1.2; }
+  .vitrine-card .vitrine-body p, .product-card .product-info p,
+  .rare-product-row .rare-product-description, .rare-related-copy p { display: none; }
+  .vitrine-size-selector, .rare-product-row .vitrine-size-selector, .rare-product-hero .vitrine-size-selector {
+    display: flex; flex-wrap: wrap; gap: 0.22rem; margin: 0.18rem 0 0.16rem; padding-bottom: 1px;
+  }
+  .vitrine-size-chip { width: auto; min-width: 1.35rem; height: 1.35rem; font-size: 0.56rem; line-height: 1; flex: 0 0 auto; }
+  .price-line, .rare-product-row .rare-product-price-block { margin: 0.2rem 0 0.15rem; gap: 0.3rem; }
+  .gold-price, .rare-product-row .rare-price-current { font-size: 0.95rem; }
+  .old-price, .rare-product-row .rare-price-old { font-size: 0.74rem; }
+  .vitrine-actions, .rare-product-cta.compact,
+  .rare-product-row-footer .vitrine-actions, .rare-related-actions {
+    grid-template-columns: 1fr 1fr !important; gap: 0.28rem;
+  }
+  .vitrine-more, .vitrine-buy, .buy-btn, .rare-btn {
+    min-height: 1.75rem; padding: 0.3rem 0.32rem; font-size: 0.68rem; line-height: 1; white-space: nowrap;
+  }
+  .rare-product-hero { padding: 0.62rem; gap: 0.6rem; border-radius: 1.15rem; }
+  .rare-product-hero-media { min-height: 170px; max-height: 170px; border-radius: 0.9rem; }
+  .rare-product-hero-media img { object-fit: cover; object-position: center top; transform: scale(1.08); width: 100%; height: 100%; }
+  .rare-product-hero .rare-product-description, .rare-product-hero .rare-product-category { display: none; }
+  .rare-product-hero h2 { font-size: 1.08rem; line-height: 1.15; margin: 0; }
+  .rare-product-hero .rare-product-cta { display: grid; grid-template-columns: 1fr 1fr; gap: 0.3rem; }
+  .rare-product-hero .rare-btn { min-height: 2rem; font-size: 0.75rem; padding: 0.38rem 0.4rem; }
+  .benefit-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 0.5rem;
+  }
+  .benefit-card { min-height: 140px; padding: 0.9rem; }
+  .benefit-icon { font-size: 1.8rem; margin-bottom: 0.5rem; }
+  .benefit-card h3 { font-size: 0.95rem; margin-bottom: 0.3rem; }
+  .benefit-card p { font-size: 0.82rem; }
+}
+@media (max-width: 330px) {
+  .vitrine-cards, .product-grid, .rare-products-editorial-list, .rare-related-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
