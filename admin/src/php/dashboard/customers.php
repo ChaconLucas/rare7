@@ -80,6 +80,80 @@ if (isset($_SESSION['error_msg'])) {
 // Processar ações POST
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $action = $_POST['action'] ?? '';
+
+    if ($action === 'get_client_history') {
+        header('Content-Type: application/json; charset=utf-8');
+
+        $clientId = intval($_POST['client_id'] ?? 0);
+        if ($clientId <= 0) {
+            echo json_encode(['success' => false, 'message' => 'Cliente inválido'], JSON_UNESCAPED_UNICODE);
+            exit();
+        }
+
+        $orders = [];
+        $summary = [
+            'total_pedidos' => 0,
+            'valor_total' => 0,
+            'ultimo_pedido' => null
+        ];
+
+        $historyQuery = "
+            SELECT 
+                p.id,
+                p.valor_total,
+                p.status,
+                p.forma_pagamento,
+                p.codigo_rastreio,
+                p.data_pedido,
+                COUNT(ip.id) AS total_itens,
+                GROUP_CONCAT(DISTINCT COALESCE(NULLIF(ip.nome_produto, ''), pr.nome) SEPARATOR ' | ') AS itens_nomes
+            FROM pedidos p
+            LEFT JOIN itens_pedido ip ON ip.pedido_id = p.id
+            LEFT JOIN produtos pr ON pr.id = ip.produto_id
+            WHERE p.cliente_id = ?
+            GROUP BY p.id, p.valor_total, p.status, p.forma_pagamento, p.codigo_rastreio, p.data_pedido
+            ORDER BY p.data_pedido DESC
+        ";
+
+        $historyStmt = mysqli_prepare($conexao, $historyQuery);
+        if (!$historyStmt) {
+            echo json_encode(['success' => false, 'message' => 'Erro ao preparar histórico'], JSON_UNESCAPED_UNICODE);
+            exit();
+        }
+
+        mysqli_stmt_bind_param($historyStmt, 'i', $clientId);
+        mysqli_stmt_execute($historyStmt);
+        $historyResult = mysqli_stmt_get_result($historyStmt);
+
+        while ($row = mysqli_fetch_assoc($historyResult)) {
+            $summary['total_pedidos']++;
+            $summary['valor_total'] += (float) ($row['valor_total'] ?? 0);
+
+            if ($summary['ultimo_pedido'] === null && !empty($row['data_pedido'])) {
+                $summary['ultimo_pedido'] = $row['data_pedido'];
+            }
+
+            $orders[] = [
+                'id' => (int) $row['id'],
+                'numero' => '#' . str_pad((string) $row['id'], 6, '0', STR_PAD_LEFT),
+                'valor_total' => (float) ($row['valor_total'] ?? 0),
+                'status' => $row['status'] ?? 'Sem status',
+                'forma_pagamento' => $row['forma_pagamento'] ?? 'Não informado',
+                'codigo_rastreio' => $row['codigo_rastreio'] ?? '',
+                'data_pedido' => $row['data_pedido'] ?? null,
+                'total_itens' => (int) ($row['total_itens'] ?? 0),
+                'itens_nomes' => $row['itens_nomes'] ?? ''
+            ];
+        }
+        mysqli_stmt_close($historyStmt);
+
+        echo json_encode([
+            'success' => true,
+            'summary' => $summary,
+            'orders' => $orders
+        ], JSON_UNESCAPED_UNICODE);
+        exit();
+    }
     
     switch ($action) {
         case 'add_cliente':
@@ -104,7 +178,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             
             // Validações
             if (empty($nome) || empty($email)) {
-                $_SESSION['error_msg'] = "�O Nome e email são obrigatórios!";
+                $_SESSION['error_msg'] = "�O Nome e email são obrigatórios!";
                 header('Location: customers.php');
                 exit();
             }
@@ -118,7 +192,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $result = mysqli_stmt_get_result($stmt);
                 
                 if (mysqli_num_rows($result) > 0) {
-                    $_SESSION['error_msg'] = "�O Este email já está cadastrado!";
+                    $_SESSION['error_msg'] = "�O Este email já está cadastrado!";
                     mysqli_stmt_close($stmt);
                     header('Location: customers.php');
                     exit();
@@ -137,7 +211,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     if (mysqli_stmt_execute($stmt)) {
                         registrar_log($conexao, "Adicionou novo cliente: $nome");
                         
-                        // �Ys? DISPARAR EMAIL DE BOAS-VINDAS AUTOMATICAMENTE
+                        // �Ys? DISPARAR EMAIL DE BOAS-VINDAS AUTOMATICAMENTE
                         $cliente_id = mysqli_insert_id($conexao);
                         enviarEmailAutomatico('novo_cliente', [
                             'cliente_id' => $cliente_id,
@@ -145,9 +219,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             'email' => $email
                         ]);
                         
-                        $_SESSION['success_msg'] = "�o. Cliente '$nome' adicionado com sucesso! Email de boas-vindas enviado.";
+                        $_SESSION['success_msg'] = "�o. Cliente '$nome' adicionado com sucesso! Email de boas-vindas enviado.";
                     } else {
-                        $_SESSION['error_msg'] = "�O Erro ao adicionar cliente: " . mysqli_error($conexao);
+                        $_SESSION['error_msg'] = "�O Erro ao adicionar cliente: " . mysqli_error($conexao);
                     }
                     
                     mysqli_stmt_close($stmt);
@@ -167,9 +241,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 
                 if ($stmt && mysqli_stmt_execute($stmt)) {
                     registrar_log($conexao, "Atualizou cliente: $nome (ID: $id)");
-                    $_SESSION['success_msg'] = "�o. Cliente '$nome' atualizado com sucesso!";
+                    $_SESSION['success_msg'] = "�o. Cliente '$nome' atualizado com sucesso!";
                 } else {
-                    $_SESSION['error_msg'] = "�O Erro ao atualizar cliente: " . mysqli_error($conexao);
+                    $_SESSION['error_msg'] = "�O Erro ao atualizar cliente: " . mysqli_error($conexao);
                 }
                 
                 if ($stmt) mysqli_stmt_close($stmt);
@@ -202,9 +276,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     mysqli_stmt_bind_param($stmt, "i", $id);
                     if (mysqli_stmt_execute($stmt)) {
                         registrar_log($conexao, "Removeu cliente: $clienteName (ID: $id)");
-                        $_SESSION['success_msg'] = "�o. Cliente removido com sucesso!";
+                        $_SESSION['success_msg'] = "�o. Cliente removido com sucesso!";
                     } else {
-                        $_SESSION['error_msg'] = "�O Erro ao remover cliente: " . mysqli_error($conexao);
+                        $_SESSION['error_msg'] = "�O Erro ao remover cliente: " . mysqli_error($conexao);
                     }
                     mysqli_stmt_close($stmt);
                 }
@@ -1002,24 +1076,19 @@ try {
                             </div>
                             <div style="background: rgba(59, 130, 246, 0.1); padding: 1rem; border-radius: var(--border-radius-1); border-left: 4px solid #3b82f6;">
                                 <p style="margin: 0; font-size: 0.9rem; color: var(--color-dark);">
-                                    <strong>�Y'� Dica:</strong> Use este espaço para registrar informações importantes que podem ajudar no atendimento futuro.
+                                    <strong>�Y'� Dica:</strong> Use este espaço para registrar informações importantes que podem ajudar no atendimento futuro.
                                 </p>
                             </div>
                         </div>
 
                         <!-- Aba Histórico -->
                         <div id="historico" class="tab-content">
-                            <div style="text-align: center; padding: 3rem 1rem; color: var(--color-info-dark);">
-                                <span class="material-symbols-sharp" style="font-size: 4rem; margin-bottom: 1rem; display: block; opacity: 0.5;">history</span>
-                                <h3 style="margin: 0 0 0.5rem 0;">Histórico de Pedidos</h3>
-                                <p style="margin: 0 0 1.5rem 0;">Esta seção será implementada em breve e mostrará:</p>
-                                <ul style="text-align: left; max-width: 400px; margin: 0 auto; color: var(--color-info-dark);">
-                                    <li>Histórico completo de pedidos</li>
-                                    <li>Valores totais de compras</li>
-                                    <li>Produtos mais comprados</li>
-                                    <li>Frequência de compras</li>
-                                    <li>Status dos pedidos em andamento</li>
-                                </ul>
+                            <div id="clientHistoryContent" style="display: flex; flex-direction: column; gap: 1rem;">
+                                <div style="text-align: center; padding: 2.5rem 1rem; color: var(--color-info-dark);">
+                                    <span class="material-symbols-sharp" style="font-size: 4rem; margin-bottom: 1rem; display: block; opacity: 0.5;">history</span>
+                                    <h3 style="margin: 0 0 0.5rem 0;">Histórico de Pedidos</h3>
+                                    <p style="margin: 0;">Abra um cliente para carregar os pedidos reais.</p>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1045,7 +1114,7 @@ let currentClientId = null;
 
 // Aplicar tema salvo
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('�Ys? Gestão de Clientes carregada');
+    console.log('�Ys? Gestão de Clientes carregada');
     
     const savedTheme = localStorage.getItem('darkTheme');
     if (savedTheme === 'true') {
@@ -1074,6 +1143,10 @@ function switchTab(tabName) {
     // Ativar aba selecionada
     document.querySelector(`[onclick="switchTab('${tabName}')"]`).classList.add('active');
     document.getElementById(tabName).classList.add('active');
+
+    if (tabName === 'historico' && currentClientId) {
+        loadClientHistory(currentClientId);
+    }
 }
 
 // Abrir modal
@@ -1127,8 +1200,144 @@ function editClient(id) {
             
             switchTab('dados-pessoais');
             document.getElementById('clientModal').style.display = 'flex';
+            loadClientHistory(id);
         }
     <?php endforeach; ?>
+}
+
+function renderClientHistoryLoading() {
+    const container = document.getElementById('clientHistoryContent');
+    if (!container) return;
+
+    container.innerHTML = `
+        <div style="text-align: center; padding: 2.5rem 1rem; color: var(--color-info-dark);">
+            <span class="material-symbols-sharp" style="font-size: 3rem; margin-bottom: 1rem; display: block; opacity: 0.6;">sync</span>
+            <p style="margin: 0;">Carregando histórico real de pedidos...</p>
+        </div>
+    `;
+}
+
+function renderClientHistoryEmpty() {
+    const container = document.getElementById('clientHistoryContent');
+    if (!container) return;
+
+    container.innerHTML = `
+        <div style="text-align: center; padding: 2.5rem 1rem; color: var(--color-info-dark);">
+            <span class="material-symbols-sharp" style="font-size: 3.5rem; margin-bottom: 1rem; display: block; opacity: 0.5;">shopping_bag</span>
+            <h3 style="margin: 0 0 0.5rem 0;">Nenhum pedido encontrado</h3>
+            <p style="margin: 0;">Este cliente ainda não possui pedidos vinculados.</p>
+        </div>
+    `;
+}
+
+function renderClientHistoryError(message) {
+    const container = document.getElementById('clientHistoryContent');
+    if (!container) return;
+
+    container.innerHTML = `
+        <div style="text-align: center; padding: 2.5rem 1rem; color: #b91c1c;">
+            <span class="material-symbols-sharp" style="font-size: 3rem; margin-bottom: 1rem; display: block; opacity: 0.7;">error</span>
+            <p style="margin: 0;">${message}</p>
+        </div>
+    `;
+}
+
+function renderClientHistory(data) {
+    const container = document.getElementById('clientHistoryContent');
+    if (!container) return;
+
+    const orders = data.orders || [];
+    if (!orders.length) {
+        renderClientHistoryEmpty();
+        return;
+    }
+
+    const summary = data.summary || {};
+    const totalValue = Number(summary.valor_total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const lastOrder = summary.ultimo_pedido
+        ? new Date(summary.ultimo_pedido).toLocaleDateString('pt-BR')
+        : 'Sem pedidos';
+
+    container.innerHTML = `
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem;">
+            <div style="background: var(--color-white); border: 1px solid var(--color-light); border-radius: var(--border-radius-2); padding: 1rem;">
+                <div style="font-size: 0.8rem; color: var(--color-info-dark); margin-bottom: 0.35rem;">Total de pedidos</div>
+                <div style="font-size: 1.4rem; font-weight: 700; color: var(--color-dark);">${summary.total_pedidos || 0}</div>
+            </div>
+            <div style="background: var(--color-white); border: 1px solid var(--color-light); border-radius: var(--border-radius-2); padding: 1rem;">
+                <div style="font-size: 0.8rem; color: var(--color-info-dark); margin-bottom: 0.35rem;">Valor acumulado</div>
+                <div style="font-size: 1.4rem; font-weight: 700; color: var(--color-dark);">${totalValue}</div>
+            </div>
+            <div style="background: var(--color-white); border: 1px solid var(--color-light); border-radius: var(--border-radius-2); padding: 1rem;">
+                <div style="font-size: 0.8rem; color: var(--color-info-dark); margin-bottom: 0.35rem;">Último pedido</div>
+                <div style="font-size: 1.1rem; font-weight: 700; color: var(--color-dark);">${lastOrder}</div>
+            </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 0.9rem;">
+            ${orders.map(order => {
+                const orderDate = order.data_pedido
+                    ? new Date(order.data_pedido).toLocaleString('pt-BR')
+                    : 'Data não informada';
+                const orderValue = Number(order.valor_total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                return `
+                    <div style="background: var(--color-white); border: 1px solid var(--color-light); border-radius: var(--border-radius-2); padding: 1rem;">
+                        <div style="display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; flex-wrap: wrap; margin-bottom: 0.75rem;">
+                            <div>
+                                <div style="font-weight: 700; color: var(--color-dark); margin-bottom: 0.25rem;">${order.numero}</div>
+                                <div style="font-size: 0.85rem; color: var(--color-info-dark);">${orderDate}</div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-weight: 700; color: var(--color-dark); margin-bottom: 0.25rem;">${orderValue}</div>
+                                <div style="font-size: 0.85rem; color: var(--color-info-dark);">${order.forma_pagamento || 'Não informado'}</div>
+                            </div>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.75rem;">
+                            <div style="font-size: 0.9rem; color: var(--color-dark);">
+                                <strong>Status:</strong> ${order.status || 'Sem status'}
+                            </div>
+                            <div style="font-size: 0.9rem; color: var(--color-dark);">
+                                <strong>Itens:</strong> ${order.total_itens || 0}
+                            </div>
+                        </div>
+                        <div style="font-size: 0.9rem; color: var(--color-dark); margin-bottom: 0.5rem;">
+                            <strong>Produtos:</strong> ${order.itens_nomes || 'Itens não identificados'}
+                        </div>
+                        <div style="font-size: 0.9rem; color: var(--color-dark);">
+                            <strong>Rastreio:</strong> ${order.codigo_rastreio || 'Aguardando rastreio'}
+                        </div>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `;
+}
+
+async function loadClientHistory(clientId) {
+    if (!clientId) return;
+
+    renderClientHistoryLoading();
+
+    try {
+        const formData = new FormData();
+        formData.append('action', 'get_client_history');
+        formData.append('client_id', clientId);
+
+        const response = await fetch('customers.php', {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await response.json();
+        if (!data.success) {
+            renderClientHistoryError(data.message || 'Erro ao carregar histórico do cliente.');
+            return;
+        }
+
+        renderClientHistory(data);
+    } catch (error) {
+        renderClientHistoryError('Erro ao carregar histórico do cliente.');
+        console.error('Erro ao buscar histórico do cliente:', error);
+    }
 }
 
 // Excluir cliente
@@ -1176,6 +1385,16 @@ function fillFormWithData(data) {
 function resetForm() {
     document.getElementById('clientForm').reset();
     document.getElementById('clientId').value = '';
+    const historyContent = document.getElementById('clientHistoryContent');
+    if (historyContent) {
+        historyContent.innerHTML = `
+            <div style="text-align: center; padding: 2.5rem 1rem; color: var(--color-info-dark);">
+                <span class="material-symbols-sharp" style="font-size: 4rem; margin-bottom: 1rem; display: block; opacity: 0.5;">history</span>
+                <h3 style="margin: 0 0 0.5rem 0;">Histórico de Pedidos</h3>
+                <p style="margin: 0;">Abra um cliente para carregar os pedidos reais.</p>
+            </div>
+        `;
+    }
 }
 
 // Fechar modal

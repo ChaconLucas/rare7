@@ -342,6 +342,7 @@ try {
 
     $colunasPedido = [
         'id',
+        'numero_pedido',
         'valor_total',
         'status',
         'data_pedido',
@@ -2020,6 +2021,7 @@ $pageTitle = 'Minha Conta - RARE7';
                     <div class="user-greeting">Olá, <?php echo isset($nomeUsuario) ? htmlspecialchars($nomeUsuario) : 'Cliente'; ?></div>
                     <a href="minha-conta.php">Minha conta</a>
                     <a href="minha-conta.php?tab=pedidos">Meus pedidos</a>
+                    <a href="rastreio.php">Rastrear pedido</a>
                     <a href="logout.php">Sair</a>
                 </div>
             </div>
@@ -2125,7 +2127,7 @@ $pageTitle = 'Minha Conta - RARE7';
                         <?php foreach ($pedidos as $pedido): ?>
                             <?php
                                 $pedidoId = (int) ($pedido['id'] ?? 0);
-                                $numeroPedido = '#R7-' . str_pad((string) $pedidoId, 4, '0', STR_PAD_LEFT);
+                                $numeroPedido = '#' . str_pad((string) $pedidoId, 6, '0', STR_PAD_LEFT);
                                 $statusPedidoOriginal = trim((string) ($pedido['status'] ?? 'Pendente'));
                                 $statusKeyPedido = normalizarStatusFluxoKey($statusPedidoOriginal);
                                 if ($statusKeyPedido !== '' && isset($statusFluxoAliases[$statusKeyPedido])) {

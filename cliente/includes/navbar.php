@@ -40,6 +40,7 @@ if (in_array(($currentPage ?? ''), ['login', 'register', 'cart'], true)):
                     <div class="user-greeting">Olá, <?php echo htmlspecialchars($nomeUsuario); ?></div>
                     <a href="<?php echo $basePath; ?>pages/minha-conta.php">Minha conta</a>
                     <a href="<?php echo $basePath; ?>pages/minha-conta.php?tab=pedidos">Meus pedidos</a>
+                    <a href="<?php echo $basePath; ?>pages/rastreio.php">Rastrear pedido</a>
                     <a href="<?php echo $basePath; ?>pages/logout.php">Sair</a>
                 </div>
             </div>
@@ -307,6 +308,7 @@ endif;
                         <div class="user-greeting">Olá, <?php echo isset($nomeUsuario) ? $nomeUsuario : 'Cliente'; ?></div>
                         <a href="<?php echo $basePath; ?>pages/minha-conta.php">Minha conta</a>
                         <a href="<?php echo $basePath; ?>pages/minha-conta.php?tab=pedidos">Meus pedidos</a>
+                        <a href="<?php echo $basePath; ?>pages/rastreio.php">Rastrear pedido</a>
                         <a href="<?php echo $basePath; ?>pages/logout.php">Sair</a>
                     </div>
                 </div>

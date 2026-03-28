@@ -171,6 +171,7 @@ function buscarPedidos($conexao, $filtros = []) {
     $sql = "
         SELECT 
             p.id, 
+            p.numero_pedido,
             p.data_pedido, 
             p.valor_total,
             p.valor_subtotal,
@@ -289,6 +290,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
             $sql_com_produtos = "
                 SELECT 
                     p.id,
+                    p.numero_pedido,
                     p.data_pedido, 
                     p.valor_total,
                     p.status,
@@ -655,8 +657,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                     $sql = "
                         SELECT 
                             p.*,
-                            c.nome as cliente_nome,
-                            c.email as cliente_email
+                            COALESCE(NULLIF(c.nome, ''), NULLIF(p.cliente_nome, ''), 'Cliente não encontrado') AS cliente_nome,
+                            COALESCE(NULLIF(c.email, ''), NULLIF(p.cliente_email, '')) AS cliente_email,
+                            COALESCE(NULLIF(c.whatsapp, ''), NULLIF(c.telefone, '')) AS cliente_telefone,
+                            COALESCE(NULLIF(c.cpf_cnpj, ''), NULLIF(c.cpf, '')) AS cliente_documento,
+                            COALESCE(
+                                NULLIF(p.endereco_entrega, ''),
+                                NULLIF(CONCAT_WS(', ', NULLIF(c.rua, ''), NULLIF(c.numero, '')), ''),
+                                NULLIF(c.endereco, '')
+                            ) AS endereco_exibicao,
+                            COALESCE(NULLIF(p.cidade, ''), NULLIF(c.cidade, '')) AS cidade_exibicao,
+                            COALESCE(NULLIF(p.estado, ''), NULLIF(c.estado, ''), NULLIF(c.uf, '')) AS estado_exibicao,
+                            COALESCE(NULLIF(p.cep, ''), NULLIF(c.cep, '')) AS cep_exibicao,
+                            COALESCE(NULLIF(c.complemento, ''), '') AS complemento_exibicao,
+                            COALESCE(NULLIF(c.bairro, ''), '') AS bairro_cliente
                         FROM pedidos p 
                         LEFT JOIN clientes c ON p.cliente_id = c.id 
                         WHERE p.id = ?
@@ -3472,7 +3486,7 @@ function renderizarPedidos(pedidos) {
         
         return `
             <tr>
-                <td><span class="order-id">#${pedido.id}</span></td>
+                <td><span class="order-id">#${String(pedido.id).padStart(6, '0')}</span></td>
                 <td>
                     <span class="order-date">${data}</span><br>
                     <span class="order-time">${hora}</span>
@@ -3879,6 +3893,9 @@ async function carregarDetalhesPedido(pedidoId) {
 function preencherDetalhesPedido(pedido) {
     __noopLog('🔧 Preenchendo detalhes do pedido:', pedido);
     window.pedidoAtualDados = pedido;
+
+    const pedidoNumero = `#${String(parseInt(pedido.id || 0, 10)).padStart(6, '0')}`;
+    document.getElementById('modal-title').textContent = `Detalhes do Pedido ${pedidoNumero}`;
     
     // Dados do Cliente
     document.getElementById('cliente-nome').textContent = pedido.cliente_nome || 'Cliente não informado';
@@ -3887,13 +3904,13 @@ function preencherDetalhesPedido(pedido) {
     document.getElementById('cliente-documento').textContent = pedido.cliente_documento || pedido.documento || pedido.cpf || 'CPF/CNPJ não informado';
     
     // Endereço
-    document.getElementById('endereco-completo').textContent = pedido.cliente_endereco || pedido.endereco || 'Endereço não informado';
+    document.getElementById('endereco-completo').textContent = pedido.endereco_exibicao || pedido.endereco_entrega || pedido.cliente_endereco || pedido.endereco || 'Endereço não informado';
     document.getElementById('cidade-estado').textContent = 
-        (pedido.cliente_cidade || pedido.cidade) && (pedido.cliente_estado || pedido.estado)
-        ? `${pedido.cliente_cidade || pedido.cidade}/${pedido.cliente_estado || pedido.estado}` 
-        : (pedido.cliente_cidade || pedido.cidade || 'Cidade não informada');
-    document.getElementById('endereco-cep').textContent = pedido.cliente_cep || pedido.cep || 'CEP não informado';
-    document.getElementById('endereco-complemento').textContent = pedido.endereco_complemento || pedido.complemento || 'Sem complemento';
+        (pedido.cidade_exibicao || pedido.cliente_cidade || pedido.cidade) && (pedido.estado_exibicao || pedido.cliente_estado || pedido.estado)
+        ? `${pedido.cidade_exibicao || pedido.cliente_cidade || pedido.cidade}/${pedido.estado_exibicao || pedido.cliente_estado || pedido.estado}` 
+        : (pedido.cidade_exibicao || pedido.cliente_cidade || pedido.cidade || 'Cidade não informada');
+    document.getElementById('endereco-cep').textContent = pedido.cep_exibicao || pedido.cliente_cep || pedido.cep || 'CEP não informado';
+    document.getElementById('endereco-complemento').textContent = pedido.complemento_exibicao || pedido.endereco_complemento || pedido.complemento || 'Sem complemento';
     
     // Informações do Pedido
     let dataPedido;

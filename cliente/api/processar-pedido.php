@@ -102,6 +102,16 @@ if (empty($pagamento['forma'])) {
 try {
     // Iniciar transação
     $pdo->beginTransaction();
+
+    $telefoneCliente = trim((string) ($cliente['telefone'] ?? ''));
+    $cpfCnpjCliente = trim((string) ($cliente['cpf_cnpj'] ?? ''));
+    $estadoCliente = trim((string) ($endereco['estado'] ?? ''));
+    $cepCliente = trim((string) ($endereco['cep'] ?? ''));
+    $ruaCliente = trim((string) ($endereco['rua'] ?? ''));
+    $numeroCliente = trim((string) ($endereco['numero'] ?? ''));
+    $complementoCliente = trim((string) ($endereco['complemento'] ?? ''));
+    $bairroCliente = trim((string) ($endereco['bairro'] ?? ''));
+    $enderecoCliente = $ruaCliente . ', ' . $numeroCliente . ($complementoCliente ? ' - ' . $complementoCliente : '');
     
     // ===== CRIAR OU ATUALIZAR CLIENTE =====
     $clienteId = null;
@@ -115,16 +125,34 @@ try {
             $stmtUpdate = $pdo->prepare("
                 UPDATE clientes SET 
                     nome = ?, 
+                    whatsapp = ?,
                     telefone = ?,
+                    cpf_cnpj = ?,
                     endereco = ?,
-                    cidade = ?
+                    rua = ?,
+                    numero = ?,
+                    complemento = ?,
+                    bairro = ?,
+                    cidade = ?,
+                    estado = ?,
+                    uf = ?,
+                    cep = ?
                 WHERE id = ?
             ");
             $stmtUpdate->execute([
                 $cliente['nome'],
-                $cliente['telefone'],
-                $endereco['rua'] . ', ' . $endereco['numero'] . ($endereco['complemento'] ? ' - ' . $endereco['complemento'] : ''),
+                $telefoneCliente,
+                $telefoneCliente,
+                $cpfCnpjCliente !== '' ? $cpfCnpjCliente : null,
+                $enderecoCliente,
+                $ruaCliente !== '' ? $ruaCliente : null,
+                $numeroCliente !== '' ? $numeroCliente : null,
+                $complementoCliente !== '' ? $complementoCliente : null,
+                $bairroCliente !== '' ? $bairroCliente : null,
                 $endereco['cidade'],
+                $estadoCliente !== '' ? $estadoCliente : null,
+                $estadoCliente !== '' ? $estadoCliente : null,
+                $cepCliente !== '' ? $cepCliente : null,
                 $clienteId
             ]);
         } catch (PDOException $e) {
@@ -139,18 +167,68 @@ try {
         
         if ($clienteExistente) {
             $clienteId = $clienteExistente['id'];
+
+            try {
+                $stmtUpdate = $pdo->prepare("
+                    UPDATE clientes SET 
+                        nome = ?,
+                        whatsapp = ?,
+                        telefone = ?,
+                        cpf_cnpj = ?,
+                        endereco = ?,
+                        rua = ?,
+                        numero = ?,
+                        complemento = ?,
+                        bairro = ?,
+                        cidade = ?,
+                        estado = ?,
+                        uf = ?,
+                        cep = ?
+                    WHERE id = ?
+                ");
+                $stmtUpdate->execute([
+                    $cliente['nome'],
+                    $telefoneCliente,
+                    $telefoneCliente,
+                    $cpfCnpjCliente !== '' ? $cpfCnpjCliente : null,
+                    $enderecoCliente,
+                    $ruaCliente !== '' ? $ruaCliente : null,
+                    $numeroCliente !== '' ? $numeroCliente : null,
+                    $complementoCliente !== '' ? $complementoCliente : null,
+                    $bairroCliente !== '' ? $bairroCliente : null,
+                    $endereco['cidade'],
+                    $estadoCliente !== '' ? $estadoCliente : null,
+                    $estadoCliente !== '' ? $estadoCliente : null,
+                    $cepCliente !== '' ? $cepCliente : null,
+                    $clienteId
+                ]);
+            } catch (PDOException $e) {
+                error_log("Erro ao atualizar cliente existente por email: " . $e->getMessage());
+            }
         } else {
             // Criar novo cliente (usando apenas campos garantidos)
             $stmtCliente = $pdo->prepare("
-                INSERT INTO clientes (nome, email, telefone, endereco, cidade)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO clientes (
+                    nome, email, whatsapp, telefone, cpf_cnpj, endereco,
+                    rua, numero, complemento, bairro, cidade, estado, uf, cep
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
             $stmtCliente->execute([
                 $cliente['nome'],
                 $cliente['email'],
-                $cliente['telefone'],
-                $endereco['rua'] . ', ' . $endereco['numero'] . ($endereco['complemento'] ? ' - ' . $endereco['complemento'] : ''),
-                $endereco['cidade']
+                $telefoneCliente,
+                $telefoneCliente,
+                $cpfCnpjCliente !== '' ? $cpfCnpjCliente : null,
+                $enderecoCliente,
+                $ruaCliente !== '' ? $ruaCliente : null,
+                $numeroCliente !== '' ? $numeroCliente : null,
+                $complementoCliente !== '' ? $complementoCliente : null,
+                $bairroCliente !== '' ? $bairroCliente : null,
+                $endereco['cidade'],
+                $estadoCliente !== '' ? $estadoCliente : null,
+                $estadoCliente !== '' ? $estadoCliente : null,
+                $cepCliente !== '' ? $cepCliente : null
             ]);
             $clienteId = $pdo->lastInsertId();
         }
@@ -262,6 +340,7 @@ try {
     $stmtPedido = $pdo->prepare("
         INSERT INTO pedidos (
             cliente_id, 
+            numero_pedido,
             valor_subtotal,
             valor_desconto,
             valor_frete,
@@ -270,6 +349,7 @@ try {
             parcelas,
             valor_parcela,
             status,
+            status_entrega,
             endereco_entrega,
             cep,
             cidade,
@@ -277,7 +357,7 @@ try {
             cupom_codigo,
             observacoes,
             data_pedido
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
     ");
     
     $enderecoCompleto = sprintf(
@@ -290,6 +370,7 @@ try {
     
     $stmtPedido->execute([
         $clienteId,
+        null,
         $subtotal,
         $desconto,
         $valorFrete,
@@ -298,6 +379,7 @@ try {
         $parcelas,
         $valorParcela,
         'Pagamento Pendente', // Status inicial com nome do status do fluxo
+        'Aguardando postagem', // Status de entrega inicial
         $enderecoCompleto,
         $endereco['cep'],
         $endereco['cidade'],

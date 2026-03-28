@@ -78,7 +78,7 @@ try {
 // Buscar pedidos do cliente
 $pedidos = [];
 try {
-    $stmt = $pdo->prepare("SELECT p.id, p.valor_total, p.status, p.data_pedido, p.observacoes, p.forma_pagamento, p.parcelas, p.valor_parcela FROM pedidos p WHERE p.cliente_id = ? ORDER BY p.data_pedido DESC");
+    $stmt = $pdo->prepare("SELECT p.id, p.numero_pedido, p.valor_total, p.status, p.data_pedido, p.observacoes, p.forma_pagamento, p.parcelas, p.valor_parcela FROM pedidos p WHERE p.cliente_id = ? ORDER BY p.data_pedido DESC");
     
     if (!$stmt) {
         die("ERRO: prepare() falhou");
@@ -2092,6 +2092,7 @@ function corStatus($status) {
                             <div class="user-greeting">Olá, <?php echo $nomeUsuario; ?></div>
                             <a href="minha-conta.php">Minha conta</a>
                             <a href="minha-conta.php?tab=pedidos">Meus pedidos</a>
+                            <a href="rastreio.php">Rastrear pedido</a>
                             <a href="logout.php">Sair</a>
                         </div>
                     </div>
@@ -2143,7 +2144,7 @@ function corStatus($status) {
                 <?php foreach ($pedidos as $pedido): ?>
                     <div class="pedido-card">
                         <div class="pedido-info-compacta">
-                            <span class="pedido-numero">Pedido #<?php echo str_pad($pedido['id'], 6, '0', STR_PAD_LEFT); ?></span>
+                            <span class="pedido-numero">Pedido <?php echo '#' . str_pad($pedido['id'], 6, '0', STR_PAD_LEFT); ?></span>
                             <span class="pedido-status" style="background-color: <?php echo corStatus($pedido['status']); ?>">
                                 <?php echo traduzirStatus($pedido['status']); ?>
                             </span>

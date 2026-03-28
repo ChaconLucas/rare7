@@ -502,6 +502,7 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
                         <div class="user-greeting">Olá, <?php echo isset($nomeUsuario) ? htmlspecialchars($nomeUsuario) : 'Cliente'; ?></div>
                         <a href="pages/minha-conta.php">Minha conta</a>
                         <a href="pages/minha-conta.php?tab=pedidos">Meus pedidos</a>
+                        <a href="pages/rastreio.php">Rastrear pedido</a>
                         <a href="pages/logout.php">Sair</a>
                     </div>
                 </div>

@@ -44,23 +44,46 @@ if (isset($_GET['filtro_rapido'])) {
     }
 }
 
+  // Garantir colunas financeiras opcionais antes das consultas
+  $colunas_check = [
+    'desconto_frete' => 'DECIMAL(10,2) DEFAULT 0.00',
+    'desconto_cupom' => 'DECIMAL(10,2) DEFAULT 0.00',
+    'valor_subtotal' => 'DECIMAL(10,2) DEFAULT 0.00'
+  ];
+
+  foreach ($colunas_check as $coluna => $tipo) {
+    $check_query = "SHOW COLUMNS FROM pedidos LIKE '$coluna'";
+    $check_result = mysqli_query($conexao, $check_query);
+    if ($check_result && mysqli_num_rows($check_result) == 0) {
+      $add_query = "ALTER TABLE pedidos ADD COLUMN $coluna $tipo";
+      mysqli_query($conexao, $add_query);
+    }
+  }
+
+  $status_excluidos = "('Pedido Cancelado', 'Cancelado', 'Estornado')";
+
 // Buscar dados para KPIs
 $sql_kpis = "
 SELECT 
-    COUNT(p.id) as total_vendas,
+    COUNT(*) as total_vendas,
     COALESCE(SUM(p.valor_total), 0) as faturamento,
     COALESCE(AVG(p.valor_total), 0) as ticket_medio,
-    COALESCE(SUM(ip.quantidade), 0) as itens_vendidos,
+    COALESCE((
+      SELECT SUM(ip.quantidade)
+      FROM itens_pedido ip
+      INNER JOIN pedidos p2 ON p2.id = ip.pedido_id
+      WHERE DATE(p2.data_pedido) BETWEEN ? AND ?
+      AND COALESCE(p2.status, '') NOT IN $status_excluidos
+    ), 0) as itens_vendidos,
     COALESCE(SUM(p.desconto_frete), 0) as total_desconto_frete,
     COALESCE(SUM(p.desconto_cupom), 0) as total_desconto_cupom
-FROM pedidos p 
-LEFT JOIN itens_pedido ip ON p.id = ip.pedido_id
+  FROM pedidos p
 WHERE DATE(p.data_pedido) BETWEEN ? AND ?
-AND p.status IN ('Pedido Confirmado', 'Pagamento Pendente', 'Em Preparação', 'Pedido Recebido', 'Enviado', 'Entregue', 'Pago', 'Estornado')
+  AND COALESCE(p.status, '') NOT IN $status_excluidos
 ";
 
 $stmt_kpis = mysqli_prepare($conexao, $sql_kpis);
-mysqli_stmt_bind_param($stmt_kpis, 'ss', $data_inicio, $data_fim);
+  mysqli_stmt_bind_param($stmt_kpis, 'ssss', $data_inicio, $data_fim, $data_inicio, $data_fim);
 mysqli_stmt_execute($stmt_kpis);
 $result_kpis = mysqli_stmt_get_result($stmt_kpis);
 $kpis = mysqli_fetch_assoc($result_kpis);
@@ -85,7 +108,7 @@ SELECT
     COUNT(*) as pedidos
 FROM pedidos 
 WHERE DATE(data_pedido) BETWEEN ? AND ?
-AND status IN ('Pedido Confirmado', 'Pagamento Pendente', 'Em Preparação', 'Pedido Recebido', 'Enviado', 'Entregue', 'Pago', 'Estornado')
+AND COALESCE(status, '') NOT IN $status_excluidos
 GROUP BY DATE(data_pedido)
 ORDER BY data
 ";
@@ -111,9 +134,9 @@ SELECT
     SUM(ip.quantidade * ip.preco_unitario) as valor
 FROM pedidos p
 INNER JOIN itens_pedido ip ON p.id = ip.pedido_id
-INNER JOIN produtos pr ON ip.produto_id = pr.id
+LEFT JOIN produtos pr ON ip.produto_id = pr.id
 WHERE DATE(p.data_pedido) BETWEEN ? AND ?
-AND p.status IN ('Pedido Confirmado', 'Pagamento Pendente', 'Em Preparação', 'Pedido Recebido', 'Enviado', 'Entregue', 'Pago', 'Estornado')
+AND COALESCE(p.status, '') NOT IN $status_excluidos
 GROUP BY COALESCE(pr.categoria, 'Sem Categoria')
 ORDER BY valor DESC
 LIMIT 5
@@ -130,22 +153,6 @@ if (empty($dados_categorias)) {
     $dados_categorias = [
         ['categoria' => 'Sem dados', 'quantidade' => 0, 'valor' => 0]
     ];
-}
-
-// Adicionar colunas de desconto se não existirem
-$colunas_check = [
-    'desconto_frete' => 'DECIMAL(10,2) DEFAULT 0.00',
-    'desconto_cupom' => 'DECIMAL(10,2) DEFAULT 0.00',
-    'valor_subtotal' => 'DECIMAL(10,2) DEFAULT 0.00'
-];
-
-foreach ($colunas_check as $coluna => $tipo) {
-    $check_query = "SHOW COLUMNS FROM pedidos LIKE '$coluna'";
-    $check_result = mysqli_query($conexao, $check_query);
-    if (mysqli_num_rows($check_result) == 0) {
-        $add_query = "ALTER TABLE pedidos ADD COLUMN $coluna $tipo";
-        mysqli_query($conexao, $add_query);
-    }
 }
 
 // Buscar lista de pedidos com informações financeiras detalhadas
@@ -167,7 +174,7 @@ FROM pedidos p
 LEFT JOIN clientes c ON p.cliente_id = c.id
 LEFT JOIN itens_pedido ip ON p.id = ip.pedido_id
 WHERE DATE(p.data_pedido) BETWEEN ? AND ?
-AND p.status IN ('Pedido Confirmado', 'Pagamento Pendente', 'Em Preparação', 'Pedido Recebido', 'Enviado', 'Entregue', 'Pago', 'Estornado')
+AND COALESCE(p.status, '') NOT IN $status_excluidos
 GROUP BY p.id
 ORDER BY p.data_pedido DESC
 LIMIT 50
