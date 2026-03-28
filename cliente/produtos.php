@@ -1040,6 +1040,10 @@ $currentPage = 'cart';
         setSelectedSizes(map);
     }
 
+    function formatPrice(value) {
+        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value || 0));
+    }
+
     function parseMoneyValue(value) {
         const parsed = parseFloat(value);
         return Number.isFinite(parsed) ? parsed : 0;
