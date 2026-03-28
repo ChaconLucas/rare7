@@ -5,7 +5,7 @@ date_default_timezone_set('America/Sao_Paulo');
 define('HOST', '127.0.0.1');
 define('USUARIO', 'root');
 define('SENHA', '');
-define('DB', 'adm_rare');
+define('DB', 'rare7_db');
 
 $conexao = mysqli_connect(HOST, USUARIO, SENHA, DB) or die('Não foi possível conectar');
 

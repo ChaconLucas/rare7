@@ -69,7 +69,7 @@ file_put_contents($debugLogPath, $logEntry, FILE_APPEND);
 
 // ===== CONEXÃO COM BANCO DE DADOS =====
 try {
-    $dsn = "mysql:host=127.0.0.1;dbname=adm_rare;charset=utf8mb4";
+    $dsn = "mysql:host=127.0.0.1;dbname=rare7_db;charset=utf8mb4";
     $pdo = new PDO($dsn, 'root', '', [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
