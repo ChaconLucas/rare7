@@ -1891,63 +1891,176 @@ $pageTitle = 'Minha Conta - RARE7';
                 display: none;
             }
 
+            .floating-navbar {
+                top: 0.55rem;
+                width: calc(100% - 1rem);
+                padding: 0.7rem 0.85rem;
+                border-radius: 1rem;
+            }
+
+            .nav-wrap.container-shell {
+                width: 100%;
+            }
+
+            .nav-icons {
+                gap: 0.45rem;
+                flex-shrink: 0;
+            }
+
+            .nav-search.active {
+                width: min(8.75rem, calc(100vw - 10rem));
+            }
+
+            .nav-search input {
+                min-width: 0;
+                font-size: 0.82rem;
+            }
+
+            .client-area-hero {
+                padding: 4.9rem 1rem 1.2rem;
+                margin-top: 0;
+            }
+
+            .hero-header {
+                margin-bottom: 1.15rem;
+            }
+
+            .hero-title {
+                font-size: clamp(2.1rem, 8.2vw, 2.55rem);
+                line-height: 1.08;
+                max-width: 15ch;
+                margin-bottom: 0.7rem;
+            }
+
+            .hero-subtitle {
+                font-size: 0.95rem;
+                line-height: 1.55;
+                max-width: none;
+            }
+
+            .summary-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 0.75rem;
+                margin-top: 1rem;
+            }
+
+            .summary-card {
+                min-height: 0;
+                padding: 1rem 0.9rem;
+                border-radius: 1.1rem;
+            }
+
+            .summary-card-label {
+                font-size: 0.72rem;
+                margin-bottom: 0.35rem;
+            }
+
+            .summary-card-value {
+                font-size: 1.7rem;
+                line-height: 1;
+            }
+
+            .summary-card-desc {
+                font-size: 0.74rem;
+                margin-top: 0.4rem;
+            }
+
             .account-wrapper {
                 grid-template-columns: 1fr;
-                gap: 1.5rem;
+                gap: 1rem;
+                padding: 1.25rem 1rem 2rem;
             }
 
             .account-sidebar {
                 position: static;
+                gap: 1rem;
+            }
+
+            .profile-card {
+                padding: 1.25rem 1rem;
+            }
+
+            .profile-avatar {
+                width: 72px;
+                height: 72px;
+                font-size: 1.75rem;
+                margin-bottom: 0.85rem;
+            }
+
+            .profile-name {
+                font-size: 1.05rem;
+            }
+
+            .menu-tab {
+                padding: 0.95rem 0.9rem;
+                font-size: 0.94rem;
+            }
+
+            .menu-tab span:last-child,
+            .section-title,
+            .order-number,
+            .item-pill,
+            .order-modal-chip-value,
+            .order-modal-extra-value,
+            .order-item-name {
+                overflow-wrap: anywhere;
+            }
+
+            .content-section {
+                padding: 1.35rem 1rem;
+                border-radius: 1.25rem;
+            }
+
+            .section-header {
+                margin-bottom: 1.35rem;
+            }
+
+            .section-title {
+                font-size: clamp(1.8rem, 8vw, 2.15rem);
+                line-height: 1.15;
+            }
+
+            .alert {
+                padding: 0.85rem 1rem;
+                align-items: flex-start;
+            }
+
+            .form-grid {
+                gap: 1rem;
             }
 
             .form-row-2 {
                 grid-template-columns: 1fr;
+                gap: 1rem;
             }
 
-            .order-modal-dialog {
-                width: min(680px, 100%);
-                max-height: 88vh;
-                padding: 1.2rem;
+            .form-group input,
+            .form-group select,
+            .form-group textarea {
+                min-height: 54px;
+                padding: 0.8rem 0.9rem;
+                font-size: 0.97rem;
             }
 
-            .order-modal-summary {
-                grid-template-columns: 1fr;
+            .btn-group {
+                flex-direction: column;
+                gap: 0.75rem;
+                margin-top: 1.5rem;
             }
 
-            .order-modal-products-list li {
-                grid-template-columns: 56px 1fr;
-                gap: 0.6rem;
-            }
-
-            .order-item-thumb {
-                width: 56px;
-                height: 56px;
-            }
-
-            .order-item-price {
-                grid-column: 1 / -1;
-                font-size: 0.82rem;
-                margin-top: 0.15rem;
-            }
-
-            .order-modal-footer .btn-secondary {
-                width: 100%;
-            }
-
-            .address-modal-dialog {
-                width: min(680px, 100%);
-                max-height: 88vh;
-                padding: 1.2rem;
-            }
-
-            .address-modal-actions {
-                justify-content: stretch;
-            }
-
-            .address-modal-actions .btn-primary,
-            .address-modal-actions .btn-secondary {
+            .btn-group .btn-primary,
+            .btn-group .btn-secondary {
                 width: 100%;
                 justify-content: center;
+            }
+
+            .orders-list {
+                gap: 1rem;
+            }
+
+            .order-card {
+                padding: 1.1rem 1rem;
+                border-radius: 1.2rem;
             }
 
             .order-header {
@@ -1955,12 +2068,35 @@ $pageTitle = 'Minha Conta - RARE7';
                 gap: 0.8rem;
             }
 
+            .order-date {
+                font-size: 0.84rem;
+            }
+
             .order-status-badge {
                 justify-self: start;
+                font-size: 0.74rem;
+                line-height: 1.25;
+            }
+
+            .order-items {
+                gap: 0.45rem;
+                margin: 0.85rem 0;
+            }
+
+            .item-pill {
+                max-width: 100%;
+                padding: 0.38rem 0.7rem;
+                font-size: 0.78rem;
+            }
+
+            .order-total {
+                font-size: 1.1rem;
             }
 
             .order-footer {
-                align-items: flex-start;
+                flex-direction: column;
+                align-items: stretch;
+                gap: 0.85rem;
             }
 
             .order-actions {
@@ -1970,23 +2106,250 @@ $pageTitle = 'Minha Conta - RARE7';
             .order-actions .btn-sm {
                 width: 100%;
                 justify-content: center;
+                padding: 0.78rem 1rem;
+            }
+
+            .order-modal,
+            .address-modal {
+                padding: 0.65rem;
+            }
+
+            .order-modal-dialog {
+                width: 100%;
+                max-height: calc(100dvh - 1.3rem);
+                padding: 1rem;
+                border-radius: 1rem;
+            }
+
+            .order-modal-header,
+            .address-modal-header {
+                position: sticky;
+                top: 0;
+                z-index: 2;
+                background: linear-gradient(180deg, rgba(23, 23, 25, 0.99), rgba(23, 23, 25, 0.88));
+                padding-bottom: 0.75rem;
+            }
+
+            .order-modal-summary {
+                grid-template-columns: 1fr;
+            }
+
+            .order-modal-chip,
+            .order-modal-extra-item {
+                padding: 0.75rem 0.8rem;
+            }
+
+            .order-modal-products {
+                margin: 0.85rem 0;
+                padding: 0.85rem 0;
+            }
+
+            .order-modal-products-list {
+                gap: 0.7rem;
+            }
+
+            .order-modal-products-list li {
+                grid-template-columns: 52px minmax(0, 1fr);
+                align-items: start;
+                gap: 0.65rem;
+                padding: 0.65rem;
+            }
+
+            .order-item-thumb {
+                width: 52px;
+                height: 52px;
+            }
+
+            .order-item-info {
+                display: grid;
+                gap: 0.15rem;
+            }
+
+            .order-item-meta {
+                font-size: 0.78rem;
+            }
+
+            .order-item-price {
+                grid-column: 2;
+                font-size: 0.84rem;
+                margin-top: 0.2rem;
+                white-space: normal;
+            }
+
+            .order-modal-footer {
+                position: sticky;
+                bottom: 0;
+                padding-top: 0.85rem;
+                margin-top: 0.2rem;
+                background: linear-gradient(180deg, rgba(15, 15, 16, 0), rgba(15, 15, 16, 0.98) 35%);
+            }
+
+            .order-modal-footer .btn-secondary {
+                width: 100%;
             }
 
             .address-grid {
                 grid-template-columns: 1fr;
             }
 
+            .address-card {
+                padding: 1.15rem 1rem;
+                border-radius: 1.2rem;
+            }
+
+            .address-actions {
+                flex-direction: column;
+            }
+
+            .address-actions .btn-sm {
+                width: 100%;
+            }
+
+            .address-modal-dialog {
+                width: 100%;
+                max-height: calc(100dvh - 1.3rem);
+                padding: 1rem;
+                border-radius: 1rem;
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+            }
+
+            .address-modal .form-grid {
+                gap: 0.8rem;
+                flex: 1;
+                min-height: 0;
+                overflow-y: auto;
+                padding-right: 0.1rem;
+                padding-bottom: 0.3rem;
+            }
+
+            .address-modal-title {
+                font-size: 1.05rem;
+            }
+
+            .address-modal .form-group {
+                gap: 0.4rem;
+            }
+
+            .address-modal .form-group label {
+                font-size: 0.8rem;
+            }
+
+            .address-modal .form-group input {
+                min-height: 50px;
+                padding: 0.72rem 0.85rem;
+                font-size: 0.94rem;
+            }
+
+            .address-modal .form-row-2 {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 0.75rem;
+            }
+
+            .address-modal-actions {
+                flex-direction: column-reverse;
+                align-items: stretch;
+                justify-content: stretch;
+                position: sticky;
+                bottom: 0;
+                margin-top: 0;
+                padding-top: 0.85rem;
+                background: linear-gradient(180deg, rgba(15, 15, 16, 0), rgba(15, 15, 16, 0.98) 28%);
+            }
+
+            .address-modal-actions .btn-primary,
+            .address-modal-actions .btn-secondary {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .summary-grid .summary-card:last-child {
+                grid-column: 1 / -1;
+            }
+        }
+
+        @media (max-width: 420px) {
+            .floating-navbar {
+                padding: 0.6rem 0.75rem;
+            }
+
+            .nav-logo-text {
+                font-size: 0.74rem;
+                letter-spacing: 0.1em;
+            }
+
+            .nav-icons {
+                gap: 0.35rem;
+            }
+
+            .nav-icon-link,
+            .user-dropdown-btn,
+            .nav-search-toggle {
+                width: 1.9rem;
+                height: 1.9rem;
+            }
+
+            .nav-search.active {
+                width: min(7rem, calc(100vw - 9.25rem));
+            }
+
+            .client-area-hero {
+                padding-top: 4.7rem;
+            }
+
             .hero-title {
-                font-size: 1.5rem;
+                font-size: clamp(1.9rem, 9.8vw, 2.2rem);
+                max-width: 13ch;
+            }
+
+            .hero-subtitle {
+                font-size: 0.9rem;
             }
 
             .summary-grid {
                 grid-template-columns: 1fr;
             }
 
-            .client-area-hero {
-                padding: 2rem 1rem;
-                margin-top: 0;
+            .summary-grid .summary-card:last-child {
+                grid-column: auto;
+            }
+
+            .content-section {
+                padding: 1.15rem 0.85rem;
+            }
+
+            .section-title {
+                font-size: 1.65rem;
+            }
+
+            .order-card {
+                padding: 1rem 0.85rem;
+            }
+
+            .order-modal,
+            .address-modal {
+                padding: 0.4rem;
+            }
+
+            .order-modal-dialog,
+            .address-modal-dialog {
+                max-height: calc(100dvh - 0.8rem);
+                padding: 0.9rem;
+            }
+
+            .address-modal .form-row-2 {
+                grid-template-columns: 1fr;
+                gap: 0.8rem;
+            }
+
+            .address-modal .form-group input {
+                min-height: 48px;
+                font-size: 0.92rem;
+            }
+
+            .address-modal-actions {
+                padding-top: 0.75rem;
             }
         }
     </style>
