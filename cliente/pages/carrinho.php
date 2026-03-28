@@ -740,12 +740,16 @@ function mostrarOpcoesFreteMini(opcoes) {
     container.innerHTML = opcoes.map(function (opcao, index) {
         const isGratis = opcao.gratis || opcao.valor === 0;
         const valor = isGratis ? 'GRATIS' : `R$ ${formatarDinheiro(opcao.valor)}`;
+        const prazoTexto = (opcao.prazo_texto || '').trim();
+        const prazoLinha = prazoTexto !== ''
+            ? prazoTexto
+            : `Entrega em ${opcao.prazo_dias || opcao.prazo || '?'} dias uteis`;
 
         return `
             <div class="frete-option-mini" data-index="${index}" onclick="selecionarFreteMini(${index})">
                 <div class="frete-option-info">
                     <div class="frete-nome-mini">${opcao.nome}</div>
-                    <div class="frete-prazo-mini">Entrega em ${opcao.prazo_dias || opcao.prazo || '?'} dias uteis</div>
+                    <div class="frete-prazo-mini">${prazoLinha}</div>
                 </div>
                 <div class="frete-valor-mini ${isGratis ? 'gratis' : ''}">${valor}</div>
             </div>
@@ -775,6 +779,7 @@ function selecionarFreteMini(index) {
         nome: opcao.nome,
         gratis: opcao.gratis || opcao.valor === 0,
         prazo: opcao.prazo_dias || opcao.prazo,
+        prazo_texto: opcao.prazo_texto || '',
         cep: document.getElementById('cepInput').value.trim()
     };
 

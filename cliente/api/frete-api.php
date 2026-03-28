@@ -31,9 +31,29 @@ function jsonResponse($success, $data = [], $message = '', $debug = []) {
     exit;
 }
 
+function extrairPrazoDiasDeTexto($textoPrazo, $padrao = 7) {
+    $textoPrazo = trim((string) $textoPrazo);
+    if ($textoPrazo === '') {
+        return (int) $padrao;
+    }
+
+    preg_match_all('/\d+/', $textoPrazo, $matches);
+    $numeros = array_map('intval', $matches[0] ?? []);
+
+    if (empty($numeros)) {
+        return (int) $padrao;
+    }
+
+    $maior = max($numeros);
+    return $maior > 0 ? $maior : (int) $padrao;
+}
+
 // Monta opções de frete de fallback quando a integração externa não estiver disponível
-function montarOpcoesFallback($subtotal, $fallbackValue, $freteGratisLimite = 0) {
+function montarOpcoesFallback($subtotal, $fallbackValue, $freteGratisLimite = 0, $fallbackMessage = '') {
     $opcoes = [];
+    $fallbackMessage = trim((string) $fallbackMessage);
+    $prazoTextoFallback = $fallbackMessage !== '' ? $fallbackMessage : '3 a 7 dias úteis';
+    $prazoDiasFallback = extrairPrazoDiasDeTexto($prazoTextoFallback, 7);
 
     if ($freteGratisLimite > 0 && $subtotal >= $freteGratisLimite) {
         $opcoes[] = [
@@ -53,9 +73,9 @@ function montarOpcoesFallback($subtotal, $fallbackValue, $freteGratisLimite = 0)
         'nome' => 'Entrega Padrão',
         'empresa' => 'RARE7',
         'valor' => max(0, (float)$fallbackValue),
-        'prazo_dias' => 7,
-        'data_estimada' => date('d/m/Y', strtotime('+7 days')),
-        'prazo_texto' => '3 a 7 dias úteis',
+        'prazo_dias' => $prazoDiasFallback,
+        'data_estimada' => date('d/m/Y', strtotime('+' . $prazoDiasFallback . ' days')),
+        'prazo_texto' => $prazoTextoFallback,
         'gratis' => false,
         'fallback' => true
     ];
@@ -657,7 +677,7 @@ try {
 
                         if ($fallbackEnabled) {
                             $debug_log[] = "🛟 Aplicando fallback de frete por ausência de opções válidas";
-                            $opcoesFallback = montarOpcoesFallback($subtotal, $fallbackValue, $freteGratisLimite);
+                            $opcoesFallback = montarOpcoesFallback($subtotal, $fallbackValue, $freteGratisLimite, $fallbackMessage);
 
                             jsonResponse(true, [
                                 'cep' => $cepLimpo,
@@ -690,7 +710,7 @@ try {
 
                 if ($fallbackEnabled) {
                     $debug_log[] = "🛟 Aplicando fallback de frete sem integração ativa";
-                    $opcoesFallback = montarOpcoesFallback($subtotal, $fallbackValue, $freteGratisLimite);
+                    $opcoesFallback = montarOpcoesFallback($subtotal, $fallbackValue, $freteGratisLimite, $fallbackMessage);
 
                     jsonResponse(true, [
                         'cep' => $cepLimpo,

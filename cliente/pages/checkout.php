@@ -18,6 +18,15 @@ $clienteData = $usuarioLogado ? $_SESSION['cliente'] : null;
 $nomeUsuario = $usuarioLogado ? htmlspecialchars($clienteData['nome']) : '';
 
 $freteGratisValor = getFreteGratisThreshold($pdo);
+$fallbackPrazoMensagem = '';
+
+try {
+    $stmtFreightSettings = $pdo->query("SELECT fallback_message FROM freight_settings WHERE id = 1 LIMIT 1");
+    $freightSettings = $stmtFreightSettings ? $stmtFreightSettings->fetch(PDO::FETCH_ASSOC) : null;
+    $fallbackPrazoMensagem = trim((string)($freightSettings['fallback_message'] ?? ''));
+} catch (Throwable $e) {
+    $fallbackPrazoMensagem = '';
+}
 
 $clienteCompleto = null;
 if ($usuarioLogado && isset($clienteData['id'])) {
@@ -516,19 +525,307 @@ $boletoDisponivel = in_array('Boleto', $formasPagamento, true);
         @keyframes spin { to { transform: rotate(360deg); } }
 
         @media (max-width: 1100px) {
-            .checkout-grid { grid-template-columns: minmax(0, 1fr); }
-            .checkout-sidebar { position: static; }
+            .checkout-container { width: min(100%, calc(100% - 1.4rem)); }
+            .checkout-grid { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+            .checkout-sidebar { position: static; order: -1; }
+            .summary-items-list { max-height: none; }
         }
 
         @media (max-width: 760px) {
-            .checkout-header { grid-template-columns: minmax(0, 1fr); }
-            .checkout-container { width: min(100%, 96%); padding: 24px 0 40px; }
-            .checkout-section { padding: 18px; }
-            .inner-card { padding: 14px; }
-            .form-row, .form-row-3, .form-row-address, .payment-methods, .card-preview-grid { grid-template-columns: minmax(0, 1fr); }
-            .cep-input-wrap { width: 100%; }
-            .summary-item { grid-template-columns: 52px minmax(0,1fr); }
-            .summary-item-price { grid-column: 2; justify-self: end; }
+            body {
+                padding-top: 78px;
+            }
+
+            .checkout-header {
+                grid-template-columns: minmax(0, 1fr);
+                gap: 14px;
+                margin-bottom: 16px;
+            }
+
+            .checkout-container {
+                width: min(100%, calc(100% - 0.9rem));
+                padding: 16px 0 36px;
+            }
+
+            .checkout-breadcrumb {
+                flex-wrap: wrap;
+                gap: 6px;
+                font-size: .7rem;
+                letter-spacing: .12em;
+                margin-bottom: 8px;
+            }
+
+            .checkout-header h1 {
+                font-size: clamp(1.5rem, 8vw, 2rem);
+                line-height: 1.15;
+            }
+
+            .checkout-grid {
+                gap: 14px;
+            }
+
+            .checkout-main {
+                gap: 14px;
+            }
+
+            .checkout-section {
+                padding: 16px 14px;
+                border-radius: 16px;
+            }
+
+            .section-title {
+                gap: 8px;
+                margin-bottom: 14px;
+                font-size: 1rem;
+                line-height: 1.25;
+            }
+
+            .customer-wrap {
+                gap: 12px;
+            }
+
+            .inner-card {
+                padding: 13px;
+                border-radius: 13px;
+            }
+
+            .inner-card h3 {
+                margin-bottom: 10px;
+                font-size: .82rem;
+            }
+
+            .form-row,
+            .form-row-3,
+            .form-row-address,
+            .card-preview-grid {
+                grid-template-columns: minmax(0, 1fr);
+                gap: 9px;
+                margin-bottom: 9px;
+            }
+
+            .payment-methods {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 9px;
+            }
+
+            .form-group {
+                gap: 5px;
+            }
+
+            .form-group label {
+                font-size: .72rem;
+            }
+
+            .form-group input,
+            .form-group select,
+            .coupon-field input {
+                min-height: 48px;
+                padding: 11px 12px;
+                border-radius: 10px;
+                font-size: .95rem;
+            }
+
+            .cep-input-wrap {
+                width: 100%;
+                display: grid;
+                grid-template-columns: minmax(0, 1fr) 104px;
+                gap: 8px;
+            }
+
+            .cep-input-wrap input {
+                min-width: 0;
+            }
+
+            .btn-inline {
+                min-height: 48px;
+                padding: 0 12px;
+                font-size: .7rem;
+            }
+
+            .payment-method {
+                padding: 11px;
+                border-radius: 12px;
+                align-items: flex-start;
+            }
+
+            .payment-method-name {
+                font-size: .75rem;
+                line-height: 1.2;
+            }
+
+            .payment-method-desc {
+                font-size: .74rem;
+                line-height: 1.3;
+            }
+
+            .payment-method-icon {
+                font-size: 1.15rem;
+            }
+
+            .payment-extra {
+                padding: 13px;
+                border-radius: 11px;
+                font-size: .84rem;
+            }
+
+            #cardPaymentBrick_container,
+            #pixContainer,
+            #boletoContainer {
+                padding: 13px;
+                border-radius: 12px;
+            }
+
+            .checkout-sidebar {
+                order: 0;
+            }
+
+            .order-summary {
+                padding-top: 15px;
+            }
+
+            .summary-items-list {
+                gap: 9px;
+                margin-bottom: 12px;
+                padding-right: 0;
+            }
+
+            .summary-item {
+                grid-template-columns: 48px minmax(0,1fr);
+                gap: 8px;
+                align-items: start;
+            }
+
+            .summary-item-image {
+                width: 48px;
+                height: 48px;
+                border-radius: 9px;
+            }
+
+            .summary-item-name {
+                font-size: .78rem;
+                white-space: normal;
+                overflow: visible;
+                text-overflow: initial;
+                line-height: 1.3;
+            }
+
+            .summary-item-qty {
+                font-size: .7rem;
+            }
+
+            .summary-item-price {
+                grid-column: 2;
+                justify-self: start;
+                font-size: .8rem;
+                margin-top: 2px;
+            }
+
+            .coupon-field {
+                margin-bottom: 12px;
+            }
+
+            .coupon-badge-wrap {
+                min-height: 42px;
+                padding: 7px 9px;
+            }
+
+            .coupon-badge {
+                max-width: 100%;
+                font-size: .72rem;
+                padding: 7px 10px;
+            }
+
+            .summary-totals {
+                gap: 7px;
+            }
+
+            .summary-row {
+                font-size: .82rem;
+                align-items: flex-start;
+            }
+
+            .summary-row .value {
+                max-width: 52%;
+                overflow-wrap: anywhere;
+            }
+
+            .summary-row.total {
+                padding-top: 10px;
+                font-size: 1.02rem;
+            }
+
+            .summary-row.total .value {
+                font-size: 1.2rem;
+            }
+
+            .installment-info {
+                font-size: .76rem;
+                line-height: 1.4;
+                margin-bottom: 12px;
+            }
+
+            .btn {
+                min-height: 48px;
+                padding: 12px 13px;
+                font-size: .8rem;
+                letter-spacing: .06em;
+            }
+
+            .btn-secondary {
+                margin-top: 8px;
+            }
+
+            .alert {
+                padding: 10px 11px;
+                font-size: .84rem;
+            }
+        }
+
+        @media (max-width: 520px) {
+            body {
+                padding-top: 72px;
+            }
+
+            .checkout-container {
+                width: min(100%, calc(100% - 0.65rem));
+                padding-top: 12px;
+            }
+
+            .checkout-section {
+                padding: 14px 12px;
+            }
+
+            .inner-card {
+                padding: 12px;
+            }
+
+            .payment-methods {
+                grid-template-columns: minmax(0, 1fr);
+            }
+
+            .cep-input-wrap {
+                grid-template-columns: 1fr;
+            }
+
+            .btn-inline {
+                width: 100%;
+            }
+
+            .summary-row {
+                font-size: .8rem;
+            }
+
+            .summary-row .value {
+                max-width: 56%;
+            }
+
+            .summary-row.total .value {
+                font-size: 1.12rem;
+            }
+
+            .btn {
+                font-size: .77rem;
+            }
         }
     </style>
 
@@ -893,6 +1190,7 @@ $boletoDisponivel = in_array('Boleto', $formasPagamento, true);
         const GATEWAY_CONFIGURADO = <?php echo $gatewayConfigurado ? 'true' : 'false'; ?>;
         const USUARIO_LOGADO = <?php echo $usuarioLogado ? 'true' : 'false'; ?>;
         const CLIENTE_ID = <?php echo $usuarioLogado && isset($clienteData['id']) ? $clienteData['id'] : 'null'; ?>;
+        const FRETE_FALLBACK_PRAZO_TEXTO = <?php echo json_encode($fallbackPrazoMensagem, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
         
         // Dados do carrinho
         let carrinho = {
@@ -943,6 +1241,65 @@ $boletoDisponivel = in_array('Boleto', $formasPagamento, true);
                 installmentsEl.textContent = 'Parcelamento disponível apenas no cartão de crédito.';
             }
         }
+
+        function extrairCampoVariacao(texto, campo) {
+            if (!texto) return '';
+            const regex = new RegExp(campo + '\\s*:\\s*([^|]+)', 'i');
+            const match = String(texto).match(regex);
+            return match ? String(match[1]).trim() : '';
+        }
+
+        function ajustarImagemItemCheckout(imagemOriginal) {
+            if (!imagemOriginal) return '../assets/images/logo.png';
+
+            const imagem = String(imagemOriginal).trim();
+            if (!imagem) return '../assets/images/logo.png';
+            if (imagem.startsWith('http://') || imagem.startsWith('https://') || imagem.startsWith('data:')) {
+                return imagem;
+            }
+
+            const rootPrefix = window.location.pathname.includes('/cliente/')
+                ? window.location.pathname.split('/cliente/')[0]
+                : '';
+            const cleaned = imagem.replace(/^\.\//, '');
+
+            if (cleaned.startsWith('/')) {
+                return cleaned;
+            }
+            if (cleaned.startsWith('../../admin/')) {
+                return rootPrefix + '/' + cleaned.replace(/^\.\.\/\.\.\//, '');
+            }
+            if (cleaned.startsWith('../admin/')) {
+                return rootPrefix + '/' + cleaned.replace(/^\.\.\//, '');
+            }
+            if (cleaned.startsWith('admin/')) {
+                return rootPrefix + '/' + cleaned;
+            }
+            if (cleaned.startsWith('../')) {
+                return rootPrefix + '/cliente/' + cleaned.replace(/^\.\.\//, '');
+            }
+            if (cleaned.startsWith('images/')) {
+                return rootPrefix + '/cliente/' + cleaned;
+            }
+            return rootPrefix + '/cliente/' + cleaned;
+        }
+
+        function normalizarItemCheckout(item) {
+            const quantidade = parseInt(item.qty ?? item.quantidade ?? 1, 10) || 1;
+            const preco = parseFloat(item.price ?? item.preco ?? 0) || 0;
+            const nome = String(item.name ?? item.nome ?? 'Produto');
+            const variacaoTexto = String(item.variacao_texto || '');
+            const tamanho = String(item.size ?? extrairCampoVariacao(variacaoTexto, 'tamanho') ?? '').trim();
+
+            return {
+                ...item,
+                qty: quantidade,
+                price: preco,
+                name: nome,
+                size: tamanho,
+                image: ajustarImagemItemCheckout(item.image ?? item.imagem ?? '')
+            };
+        }
         
         /**
          * Carregar dados do carrinho do localStorage
@@ -960,7 +1317,10 @@ $boletoDisponivel = in_array('Boleto', $formasPagamento, true);
             }
             
             // Parse dos dados
-            carrinho.items = JSON.parse(cartData);
+            const itensBrutos = JSON.parse(cartData);
+            carrinho.items = Array.isArray(itensBrutos)
+                ? itensBrutos.map(normalizarItemCheckout)
+                : [];
             
             // Calcular subtotal
             carrinho.subtotal = carrinho.items.reduce((sum, item) => {
@@ -977,6 +1337,18 @@ $boletoDisponivel = in_array('Boleto', $formasPagamento, true);
             // Processar frete
             if (freteData) {
                 const frete = JSON.parse(freteData);
+
+                // Compatibilidade com fretes antigos no localStorage sem prazo_texto.
+                if (
+                    frete &&
+                    (!frete.prazo_texto || String(frete.prazo_texto).trim() === '') &&
+                    FRETE_FALLBACK_PRAZO_TEXTO &&
+                    String(frete.nome || '').toLowerCase().includes('entrega padrão')
+                ) {
+                    frete.prazo_texto = FRETE_FALLBACK_PRAZO_TEXTO;
+                    localStorage.setItem('dz_frete', JSON.stringify(frete));
+                }
+
                 carrinho.frete = frete;
                 
                 // Preencher CEP automaticamente se disponÃ­vel
@@ -1105,11 +1477,16 @@ $boletoDisponivel = in_array('Boleto', $formasPagamento, true);
                 if (carrinho.frete.nome) {
                     freteTexto += ` (${carrinho.frete.nome})`;
                 }
-                if (carrinho.frete.prazo) {
+                const prazoTextoFrete = String(carrinho.frete.prazo_texto || carrinho.frete.prazoTexto || '').trim();
+                if (prazoTextoFrete) {
+                    freteTexto += ` - ${prazoTextoFrete}`;
+                } else if (carrinho.frete.prazo) {
                     freteTexto += ` - ${carrinho.frete.prazo} dias`;
                 }
                 
-                document.getElementById('summaryFrete').textContent = freteTexto;
+                const freteEl = document.getElementById('summaryFrete');
+                freteEl.textContent = freteTexto;
+                freteEl.style.color = '';
             } else {
                 document.getElementById('summaryFrete').textContent = 'A calcular';
                 document.getElementById('summaryFrete').style.color = '#f59e0b';

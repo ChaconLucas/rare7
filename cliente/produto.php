@@ -1112,7 +1112,10 @@ $pageTitle = htmlspecialchars($produto['nome']) . ' | RARE7';
             }
 
             const opcao = data.data.opcoes[0];
-            const prazo = opcao.prazo || '3 a 5 dias úteis';
+            const prazo = (opcao.prazo_texto || '').trim()
+                || (opcao.prazo_dias ? `${opcao.prazo_dias} dias úteis` : '')
+                || opcao.prazo
+                || '3 a 5 dias úteis';
             const valor = typeof opcao.valor === 'number' ? formatBRL(opcao.valor) : 'A consultar';
 
             result.innerHTML = '<p><strong>Entrega padrão</strong> -> ' + prazo + '</p><p><strong>Valor estimado</strong> -> ' + valor + '</p>';
