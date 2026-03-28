@@ -214,8 +214,8 @@ try {
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="stylesheet" href="../../css/dashboard.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />    <link rel="icon" type="image/png" href="../../../../image/logo_png.png" sizes="any">
+    <link rel="apple-touch-icon" href="../../../../image/logo_png.png">    <link rel="stylesheet" href="../../css/dashboard.css" />
     <link rel="stylesheet" href="../../css/dashboard-sections.css" />
     <link
       href="https://fonts.googleapis.com/css2?family=Material+Symbols+Sharp"

@@ -1107,7 +1107,8 @@ if (mysqli_num_rows($categorias_result) == 0) {
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" type="image/png" href="<?php echo BASE_URL; ?>admin/assets/images/logo_png.png">
+    <link rel="icon" type="image/png" href="../../../../image/logo_png.png" sizes="any">
+    <link rel="apple-touch-icon" href="../../../../image/logo_png.png">
     <link rel="stylesheet" href="../../css/dashboard.css">
 
      <link

@@ -198,7 +198,8 @@ if ($trackingResult !== null) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Rastrear Pedido - RARE7</title>
-    <link rel="icon" type="image/png" href="../../image/logo_png.png">
+    <link rel="icon" type="image/png" href="../../image/logo_png.png" sizes="any">
+    <link rel="apple-touch-icon" href="../../image/logo_png.png">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

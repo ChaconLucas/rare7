@@ -410,6 +410,8 @@ $melhor_envio_services_message = garantirServicosMelhorEnvio();
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" href="../../../../image/logo_png.png" sizes="any">
+    <link rel="apple-touch-icon" href="../../../../image/logo_png.png">
     <link rel="stylesheet" href="../../css/dashboard.css">
 
      <link

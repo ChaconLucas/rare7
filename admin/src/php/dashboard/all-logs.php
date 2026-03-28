@@ -115,8 +115,8 @@ $total_pages = ceil($total_logs / $per_page);
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Todos os Logs - Rare7 Admin</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">    <link rel="icon" type="image/png" href="../../../../image/logo_png.png" sizes="any">
+    <link rel="apple-touch-icon" href="../../../../image/logo_png.png">    <title>Todos os Logs - Rare7 Admin</title>
     <link rel="stylesheet" href="../../css/dashboard.css">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Sharp" rel="stylesheet">
     <style>
@@ -559,7 +559,7 @@ $total_pages = ceil($total_logs / $per_page);
             </div>
             <div class="stat-card">
                 <div class="stat-number"><?php echo date('d/m/Y H:i'); ?></div>
-                <div class="stat-label">�sltima Atualização</div>
+                <div class="stat-label">�sltima Atualização</div>
             </div>
         </div>
         
@@ -651,7 +651,7 @@ $total_pages = ceil($total_logs / $per_page);
                     <a href="?page=<?php echo $page + 1; ?><?php echo $search_param; ?>" title="Próxima página">
                         <span class="material-symbols-sharp">chevron_right</span>
                     </a>
-                    <a href="?page=<?php echo $total_pages; ?><?php echo $search_param; ?>" title="�sltima página">
+                    <a href="?page=<?php echo $total_pages; ?><?php echo $search_param; ?>" title="�sltima página">
                         <span class="material-symbols-sharp">last_page</span>
                     </a>
                 <?php endif; ?>
@@ -819,8 +819,8 @@ $total_pages = ceil($total_logs / $per_page);
         
         // Função para limpar todos os logs
         function clearAllLogs() {
-            if (confirm('�s�️ ATEN�?�fO �s�️\n\nDeseja EXCLUIR TODOS OS LOGS?\n\nTodos os registros de atividade serão perdidos permanentemente.\n\nEsta ação N�fO pode ser desfeita!')) {
-                if (confirm('�sltima confirmação:\n\nTem ABSOLUTA CERTEZA que quer limpar TODOS os logs do sistema?')) {
+            if (confirm('�s�️ ATEN�?�fO �s�️\n\nDeseja EXCLUIR TODOS OS LOGS?\n\nTodos os registros de atividade serão perdidos permanentemente.\n\nEsta ação N�fO pode ser desfeita!')) {
+                if (confirm('�sltima confirmação:\n\nTem ABSOLUTA CERTEZA que quer limpar TODOS os logs do sistema?')) {
                     const formData = new FormData();
                     formData.append('action', 'delete_all_logs');
                     formData.append('ajax', '1');

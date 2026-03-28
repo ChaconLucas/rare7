@@ -17,7 +17,8 @@
     <meta name="keywords" content="camisa de time, camisa de seleção, futebol, rare7, loja de camisas">
     
     <!-- Favicon -->
-    <link rel="icon" type="image/png" href="<?php echo $logoPath; ?>">
+    <link rel="icon" type="image/png" href="<?php echo $logoPath; ?>" sizes="any">
+    <link rel="icon" type="image/svg+xml" href="<?php echo $logoPath; ?>">
     
     <!-- Cores customizadas para o tema RARE7 -->
     <style>

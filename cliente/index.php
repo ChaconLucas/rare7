@@ -443,7 +443,8 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Rare7 | E-commerce Premium</title>
     <meta name="description" content="Rare7 - Futebol com estetica premium.">
-    <link rel="icon" type="image/png" href="../image/logo_png.png">
+    <link rel="icon" type="image/png" href="../image/logo_png.png" sizes="any">
+    <link rel="apple-touch-icon" href="../image/logo_png.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Cinzel:wght@500;700&display=swap" rel="stylesheet">

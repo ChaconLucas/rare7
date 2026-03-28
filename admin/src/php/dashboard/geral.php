@@ -81,19 +81,19 @@ if (isset($_GET['saved']) && !empty($_GET['saved'])) {
     switch ($_GET['saved']) {
         case 'success':
             if (isset($_GET['count']) && $_GET['count'] > 0) {
-                $message = "‚o. Todas as configura√ß√µes foram salvas com sucesso! (" . $_GET['count'] . " campos)";
+                $message = "ÔøΩo. Todas as configura√ß√µes foram salvas com sucesso! (" . $_GET['count'] . " campos)";
                 $message_type = "success";
             }
             break;
         case 'partial':
             if (isset($_GET['count']) && isset($_GET['total'])) {
-                $message = "‚s†Ô∏è Algumas configura√ß√µes foram salvas: " . $_GET['count'] . " de " . $_GET['total'] . " campos";
+                $message = "ÔøΩsÔøΩÔ∏è Algumas configura√ß√µes foram salvas: " . $_GET['count'] . " de " . $_GET['total'] . " campos";
                 $message_type = "error";
             }
             break;
         case 'error':
             if (isset($_GET['total'])) {
-                $message = "‚ùO Nenhuma configura√ß√£o foi salva. Total de campos: " . $_GET['total'];
+                $message = "ÔøΩO Nenhuma configura√ß√£o foi salva. Total de campos: " . $_GET['total'];
                 $message_type = "error";
             }
             break;
@@ -221,6 +221,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['loja_nome'])) {
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" href="../../../../image/logo_png.png" sizes="any">
+    <link rel="apple-touch-icon" href="../../../../image/logo_png.png">
     <link rel="stylesheet" href="../../css/dashboard.css">
 
      <link
@@ -735,7 +737,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['loja_nome'])) {
         
         <form method="POST" enctype="multipart/form-data" class="settings-form">
           
-          <!-- SE√?√fO 1: INFORMA√?√.ES DA LOJA -->
+          <!-- SEÔøΩ?ÔøΩfO 1: INFORMAÔøΩ?ÔøΩ.ES DA LOJA -->
           <div class="form-section">
             <h2><span class="material-symbols-sharp">store</span> Informa√ß√µes da Loja</h2>
             <div class="form-grid">
@@ -788,7 +790,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['loja_nome'])) {
             </div>
           </div>
 
-          <!-- SE√?√fO 2: ENDERE√?O DA LOJA -->
+          <!-- SEÔøΩ?ÔøΩfO 2: ENDEREÔøΩ?O DA LOJA -->
           <div class="form-section">
             <h2><span class="material-symbols-sharp">location_on</span> Endere√ßo da Loja</h2>
             <div class="form-grid">
@@ -841,7 +843,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['loja_nome'])) {
             </div>
           </div>
 
-          <!-- SE√?√fO 3: IDENTIDADE VISUAL -->
+          <!-- SEÔøΩ?ÔøΩfO 3: IDENTIDADE VISUAL -->
           <div class="form-section">
             <h2><span class="material-symbols-sharp">palette</span> Identidade Visual</h2>
             <div class="form-grid">
@@ -879,7 +881,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['loja_nome'])) {
             </div>
           </div>
 
-          <!-- SE√?√fO 4: CONFIGURA√?√.ES GERAIS -->
+          <!-- SEÔøΩ?ÔøΩfO 4: CONFIGURAÔøΩ?ÔøΩ.ES GERAIS -->
           <div class="form-section">
             <h2><span class="material-symbols-sharp">settings</span> Configura√ß√µes Gerais</h2>
             <div class="form-grid">
