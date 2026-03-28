@@ -1,4 +1,5 @@
 <?php
+header('Content-Type: text/html; charset=UTF-8');
 // Configurar frete grátis para o mini-cart
 if (!function_exists('getFreteGratisThreshold')) {
     include '../config.php';

@@ -5,6 +5,7 @@
  */
 
 session_start();
+header('Content-Type: text/html; charset=UTF-8');
 require_once '../config.php';
 require_once '../conexao.php';
 require_once '../cms_data_provider.php';
