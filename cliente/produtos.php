@@ -1,5 +1,5 @@
 ﻿<?php
-// E-commerce RARE7 - PÃ¡gina de Produtos
+// E-commerce RARE7 - Página de Produtos
 // Listagem com filtros por categoria e busca
 
 session_start();

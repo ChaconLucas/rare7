@@ -2,11 +2,8 @@
 <html lang="pt-BR">
 <head>
     <?php
-    $scriptName = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '');
-    $clientePos = strpos($scriptName, '/cliente/');
-    $faviconHref = $clientePos !== false
-        ? substr($scriptName, 0, $clientePos) . '/favicon.ico'
-        : '../favicon.ico';
+    $isSubdir = strpos($_SERVER['PHP_SELF'], '/pages/') !== false;
+    $logoPath = $isSubdir ? '../../image/logo_png.png' : '../image/logo_png.png';
     ?>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -20,7 +17,7 @@
     <meta name="keywords" content="camisa de time, camisa de seleção, futebol, rare7, loja de camisas">
     
     <!-- Favicon -->
-    <link rel="icon" type="image/png" href="../image/logo_png.png">
+    <link rel="icon" type="image/png" href="<?php echo $logoPath; ?>">
     
     <!-- Cores customizadas para o tema RARE7 -->
     <style>

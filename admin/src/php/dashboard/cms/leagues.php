@@ -79,7 +79,7 @@ $totalCadastradas = count($ligas);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CMS – Ligas em Destaque | Rare7 Admin</title>
-    <link rel="icon" type="image/x-icon" href="<?php echo BASE_URL; ?>admin/favicon.ico">
+    <link rel="icon" type="image/png" href="<?php echo BASE_URL; ?>admin/assets/images/logo_png.png">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Sharp" rel="stylesheet">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Sharp:opsz,wght,FILL,GRAD@48,400,0,0" />
     <link rel="stylesheet" href="../../../css/dashboard.css">

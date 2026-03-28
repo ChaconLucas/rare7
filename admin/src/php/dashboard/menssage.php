@@ -683,7 +683,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_critical_alerts' && isset
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" type="image/x-icon" href="<?php echo BASE_URL; ?>admin/favicon.ico">
+    <link rel="icon" type="image/png" href="<?php echo BASE_URL; ?>admin/assets/images/logo_png.png">
     <link rel="stylesheet" href="../../css/dashboard.css?v=<?php echo time(); ?>" />
     <link rel="stylesheet" href="../../css/modern-chat.css?v=<?php echo time(); ?>" />
     <link
