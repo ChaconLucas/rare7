@@ -1171,7 +1171,7 @@ try {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/png" href="../../../../image/logo_png.png" sizes="any">
     <link rel="apple-touch-icon" href="../../../../image/logo_png.png">
-    <link rel="stylesheet" href="../../css/dashboard.css">
+    <link rel="stylesheet" href="../../css/dashboard.css?v=<?php echo filemtime(__DIR__ . '/../../css/dashboard.css'); ?>">
 
      <link
       href="https://fonts.googleapis.com/css2?family=Material+Symbols+Sharp"
@@ -2351,20 +2351,113 @@ try {
             box-shadow: 0 4px 12px rgba(0,0,0,0.2);
         }
 
+        /* ==================== RESPONSIVO PEDIDOS ==================== */
+        /*
+         * Cobre todos os Mac 13":
+         *   MacBook Air M1/M2  → ~1280px CSS
+         *   MacBook Pro 13"    → ~1440px CSS
+         *   MacBook Air M3 scaled → ~1470px CSS
+         * Breakpoint único em 1500px pega todos.
+         */
+        @media (max-width: 1500px) {
+            /* Elimina o painel direito e dá largura total à tabela */
+            .container {
+                grid-template-columns: 7rem 1fr !important;
+                gap: 1rem !important;
+            }
+
+            .right {
+                display: none !important;
+            }
+
+            /* Filtros: 3 colunas compactas */
+            .filters-card {
+                max-width: none !important;
+                padding: 1.2rem 1.5rem !important;
+            }
+
+            .filters-row {
+                grid-template-columns: 155px 155px 1fr !important;
+                gap: 1rem !important;
+            }
+
+            /* Tabs compactos */
+            .tab {
+                padding: 0.85rem 1rem;
+                height: auto;
+            }
+
+            .tab-text {
+                font-size: 0.83rem;
+            }
+
+            /* Tabela: scroll horizontal e sem min-width */
+            .table-container {
+                overflow-x: auto !important;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .orders-table {
+                min-width: unset !important;
+                table-layout: auto !important;
+            }
+
+            /* Oculta colunas menos críticas */
+            .orders-table th:nth-child(1),
+            .orders-table td:nth-child(1) {
+                display: none !important;  /* ID */
+            }
+
+            .orders-table th:nth-child(4),
+            .orders-table td:nth-child(4) {
+                display: none !important;  /* Resumo do Pedido */
+            }
+
+            /* Células mais compactas */
+            .orders-table thead th,
+            .orders-table tbody td {
+                padding: 0.85rem 0.65rem;
+                font-size: 0.84rem;
+            }
+
+            .status-badge {
+                font-size: 0.78rem;
+                padding: 0.35rem 0.65rem;
+                white-space: nowrap;
+            }
+
+            .btn-details {
+                padding: 0.55rem 0.9rem;
+                font-size: 0.8rem;
+                white-space: nowrap;
+            }
+        }
+
+        @media (max-width: 1060px) {
+            .filters-row {
+                grid-template-columns: 1fr 1fr !important;
+            }
+
+            .search-group {
+                grid-column: 1 / -1;
+            }
+
+            .tab-count {
+                font-size: 0.72rem;
+                padding: 0.2rem 0.4rem;
+            }
+        }
+
         @media (max-width: 768px) {
             .filters-row {
-                flex-direction: column;
-                align-items: stretch;
+                grid-template-columns: 1fr !important;
+                gap: 0.75rem;
             }
-            
+
             .tabs {
                 flex-wrap: wrap;
             }
-            
-            .orders-table {
-                font-size: 0.8rem;
-            }
-            
+
             .orders-table th,
             .orders-table td {
                 padding: 0.5rem;

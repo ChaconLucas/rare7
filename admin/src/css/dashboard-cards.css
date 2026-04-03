@@ -187,3 +187,29 @@ main .insights .progress canvas {
     height: 180px !important;
   }
 }
+
+/* Wrapper de scroll para tabelas grandes em telas médias */
+@media screen and (max-width: 1280px) {
+  .table-responsive {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Padding menor nos cards de análise */
+  .right .sales-analytics .item .right .info small .number {
+    font-size: 1.4rem;
+  }
+}
+
+@media screen and (max-width: 1060px) {
+  /* Gráfico ocupa largura total quando o painel direito vai abaixo */
+  .chart-container {
+    grid-column: 1 / -1;
+  }
+
+  main .insights {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
