@@ -264,11 +264,14 @@ function corStatus($status) {
         }
         
         /* Esconder botão mobile por padrão */
+        .floating-mobile-toggle,
         .mobile-menu-toggle {
             display: none !important;
         }
         
         /* Esconder menu mobile e overlay por padrão */
+        .floating-mobile-menu,
+        .floating-mobile-overlay,
         .mobile-menu,
         .mobile-menu-overlay {
             display: none !important;
@@ -1812,6 +1815,29 @@ function corStatus($status) {
             0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
             30% { transform: translateY(-10px); opacity: 1; }
         }
+
+        @media (max-width: 900px) {
+            .nav-loja {
+                display: none !important;
+            }
+
+            .floating-mobile-toggle,
+            .mobile-menu-toggle {
+                display: flex !important;
+            }
+
+            .user-area .user-dropdown,
+            .user-area > a[aria-label="Perfil"] {
+                display: none !important;
+            }
+
+            .floating-mobile-menu,
+            .floating-mobile-overlay,
+            .mobile-menu,
+            .mobile-menu-overlay {
+                display: block !important;
+            }
+        }
     </style>
     <script>
         // Funções do Modal de Pedidos
@@ -2064,12 +2090,8 @@ function corStatus($status) {
                 <!-- Área do usuário -->
                 <div class="user-area">
                     <!-- Menu Mobile Toggle (apenas para mobile) -->
-                    <button class="mobile-menu-toggle" onclick="toggleMobileMenu(event)">
-                        <div class="hamburger">
-                            <span></span>
-                            <span></span>
-                            <span></span>
-                        </div>
+                    <button type="button" class="nav-icon-link floating-mobile-toggle" id="floatingMobileMenuToggle" onclick="toggleMobileMenu(event)" aria-label="Abrir menu" aria-expanded="false" aria-controls="floatingMobileMenu">
+                        <span class="material-symbols-sharp">menu</span>
                     </button>
                     
                     <button class="btn-icon btn-search" id="searchToggle" title="Pesquisar" aria-expanded="false" aria-controls="searchPanel">
@@ -2116,17 +2138,37 @@ function corStatus($status) {
     </header>
     
     <!-- Mobile Menu Overlay -->
-    <div class="mobile-menu-overlay" onclick="closeMobileMenu(event)"></div>
+    <div class="floating-mobile-overlay" id="floatingMobileOverlay" onclick="closeMobileMenu(event)"></div>
     
     <!-- Mobile Menu -->
-    <nav class="mobile-menu">
-        <ul>
-            <li><a href="../index.php#unhas" onclick="closeMobileMenu()">Unhas</a></li>
-            <li><a href="../index.php#cilios" onclick="closeMobileMenu()">Cílios</a></li>
-            <li><a href="../index.php#kits" onclick="closeMobileMenu()">Kits</a></li>
-            <li><a href="../index.php#novidades" onclick="closeMobileMenu()">Novidades</a></li>
-        </ul>
-    </nav>
+    <aside class="floating-mobile-menu" id="floatingMobileMenu" aria-hidden="true">
+        <div class="floating-mobile-menu-head">
+            <span>Menu</span>
+            <button type="button" class="nav-icon-link floating-mobile-close" id="floatingMobileMenuClose" onclick="closeMobileMenu(event)" aria-label="Fechar menu">
+                <span class="material-symbols-sharp">close</span>
+            </button>
+        </div>
+        <nav aria-label="Menu principal mobile">
+            <div class="floating-mobile-menu-section">
+                <p class="floating-mobile-menu-label">Loja</p>
+                <ul>
+                    <li><a href="../produtos.php" onclick="closeMobileMenu(event)">Todos Produtos</a></li>
+                    <li><a href="../produtos.php?tag=retro" onclick="closeMobileMenu(event)">Retro</a></li>
+                    <li><a href="../produtos.php?categoria=Times" onclick="closeMobileMenu(event)">Times</a></li>
+                    <li><a href="../produtos.php?categoria=Sele%C3%A7%C3%B5es" onclick="closeMobileMenu(event)">Seleções</a></li>
+                </ul>
+            </div>
+            <div class="floating-mobile-menu-section floating-mobile-menu-section-account">
+                <p class="floating-mobile-menu-label">Conta</p>
+                <ul>
+                    <li><a href="minha-conta.php" onclick="closeMobileMenu(event)">Minha conta</a></li>
+                    <li><a href="minha-conta.php?tab=pedidos" onclick="closeMobileMenu(event)">Meus pedidos</a></li>
+                    <li><a href="rastreio.php" onclick="closeMobileMenu(event)">Rastrear pedido</a></li>
+                    <li><a href="logout.php" onclick="closeMobileMenu(event)">Sair</a></li>
+                </ul>
+            </div>
+        </nav>
+    </aside>
 
     <div class="page-container">
         <div class="page-header">
@@ -2280,13 +2322,17 @@ function corStatus($status) {
             }
             
             const hamburger = document.querySelector('.hamburger');
-            const overlay = document.querySelector('.mobile-menu-overlay');
-            const menu = document.querySelector('.mobile-menu');
+            const overlay = document.getElementById('floatingMobileOverlay') || document.querySelector('.mobile-menu-overlay');
+            const menu = document.getElementById('floatingMobileMenu') || document.querySelector('.mobile-menu');
+            const toggleBtn = document.getElementById('floatingMobileMenuToggle');
             
             if (hamburger) hamburger.classList.remove('open');
             if (overlay) overlay.classList.remove('active');
             if (menu) menu.classList.remove('active');
+            if (menu) menu.setAttribute('aria-hidden', 'true');
+            if (toggleBtn) toggleBtn.setAttribute('aria-expanded', 'false');
             
+            document.body.classList.remove('floating-menu-open');
             document.body.style.overflow = '';
         }
         
@@ -2297,16 +2343,30 @@ function corStatus($status) {
             }
             
             const hamburger = document.querySelector('.hamburger');
-            const overlay = document.querySelector('.mobile-menu-overlay');
-            const menu = document.querySelector('.mobile-menu');
+            const overlay = document.getElementById('floatingMobileOverlay') || document.querySelector('.mobile-menu-overlay');
+            const menu = document.getElementById('floatingMobileMenu') || document.querySelector('.mobile-menu');
+            const toggleBtn = document.getElementById('floatingMobileMenuToggle');
+
+            if (!overlay || !menu) {
+                return;
+            }
             
-            hamburger.classList.toggle('open');
+            if (hamburger) {
+                hamburger.classList.toggle('open');
+            }
             overlay.classList.toggle('active');
             menu.classList.toggle('active');
+            const isActive = menu.classList.contains('active');
+            menu.setAttribute('aria-hidden', isActive ? 'false' : 'true');
+            if (toggleBtn) {
+                toggleBtn.setAttribute('aria-expanded', isActive ? 'true' : 'false');
+            }
             
-            if (menu.classList.contains('active')) {
+            if (isActive) {
+                document.body.classList.add('floating-menu-open');
                 document.body.style.overflow = 'hidden';
             } else {
+                document.body.classList.remove('floating-menu-open');
                 document.body.style.overflow = '';
             }
         }

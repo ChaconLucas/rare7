@@ -807,13 +807,16 @@ $pageTitle = 'Minha Conta - RARE7';
             color: #ff6b6b;
         }
 
+        .floating-mobile-toggle,
         .mobile-menu-toggle {
-            display: none;
+            display: none !important;
         }
 
+        .floating-mobile-menu,
+        .floating-mobile-overlay,
         .mobile-menu,
         .mobile-menu-overlay {
-            display: none;
+            display: none !important;
         }
 
         /* HERO / TOPO DA ÁREA DO CLIENTE */
@@ -2353,6 +2356,25 @@ $pageTitle = 'Minha Conta - RARE7';
                 padding-top: 0.75rem;
             }
         }
+
+        @media (max-width: 900px) {
+            .floating-mobile-toggle,
+            .mobile-menu-toggle {
+                display: inline-flex !important;
+            }
+
+            .nav-icons > .user-dropdown,
+            .nav-icons > a[aria-label="Perfil"] {
+                display: none !important;
+            }
+
+            .floating-mobile-menu,
+            .floating-mobile-overlay,
+            .mobile-menu,
+            .mobile-menu-overlay {
+                display: block !important;
+            }
+        }
     </style>
 </head>
 <body>
@@ -2391,12 +2413,45 @@ $pageTitle = 'Minha Conta - RARE7';
                     <a href="logout.php">Sair</a>
                 </div>
             </div>
+            <button type="button" class="nav-icon-link floating-mobile-toggle" id="floatingMobileMenuToggle" onclick="toggleMobileMenu(event)" aria-label="Abrir menu" aria-expanded="false" aria-controls="floatingMobileMenu">
+                <span class="material-symbols-sharp">menu</span>
+            </button>
             <a href="carrinho.php" class="nav-icon-link" data-open-mini-cart aria-label="Carrinho">
                 <span class="material-symbols-sharp">shopping_bag</span>
             </a>
         </div>
     </div>
 </header>
+
+<div class="floating-mobile-overlay" id="floatingMobileOverlay" onclick="closeMobileMenu(event)"></div>
+<aside class="floating-mobile-menu" id="floatingMobileMenu" aria-hidden="true">
+    <div class="floating-mobile-menu-head">
+        <span>Menu</span>
+        <button type="button" class="nav-icon-link floating-mobile-close" id="floatingMobileMenuClose" onclick="closeMobileMenu(event)" aria-label="Fechar menu">
+            <span class="material-symbols-sharp">close</span>
+        </button>
+    </div>
+    <nav aria-label="Menu principal mobile">
+        <div class="floating-mobile-menu-section">
+            <p class="floating-mobile-menu-label">Loja</p>
+            <ul>
+                <li><a href="../produtos.php" onclick="closeMobileMenu(event)">Todos Produtos</a></li>
+                <li><a href="../produtos.php?tag=retro" onclick="closeMobileMenu(event)">Retro</a></li>
+                <li><a href="../produtos.php?categoria=Times" onclick="closeMobileMenu(event)">Times</a></li>
+                <li><a href="../produtos.php?categoria=Sele%C3%A7%C3%B5es" onclick="closeMobileMenu(event)">Seleções</a></li>
+            </ul>
+        </div>
+        <div class="floating-mobile-menu-section floating-mobile-menu-section-account">
+            <p class="floating-mobile-menu-label">Conta</p>
+            <ul>
+                <li><a href="minha-conta.php" onclick="closeMobileMenu(event)">Minha conta</a></li>
+                <li><a href="minha-conta.php?tab=pedidos" onclick="closeMobileMenu(event)">Meus pedidos</a></li>
+                <li><a href="rastreio.php" onclick="closeMobileMenu(event)">Rastrear pedido</a></li>
+                <li><a href="logout.php" onclick="closeMobileMenu(event)">Sair</a></li>
+            </ul>
+        </div>
+    </nav>
+</aside>
 
 <!-- HERO / TOPO -->
 <section class="client-area-hero">
@@ -2879,29 +2934,41 @@ function toggleMobileMenu(event) {
         event.stopPropagation();
     }
 
-    const menu = document.querySelector('.mobile-menu');
-    const overlay = document.querySelector('.mobile-menu-overlay');
+    const menu = document.getElementById('floatingMobileMenu') || document.querySelector('.mobile-menu');
+    const overlay = document.getElementById('floatingMobileOverlay') || document.querySelector('.mobile-menu-overlay');
+    const toggleBtn = document.getElementById('floatingMobileMenuToggle');
 
     if (!menu || !overlay) return;
 
     menu.classList.toggle('active');
     overlay.classList.toggle('active');
-    document.body.style.overflow = menu.classList.contains('active') ? 'hidden' : '';
+    const isActive = menu.classList.contains('active');
+    menu.setAttribute('aria-hidden', isActive ? 'false' : 'true');
+    if (toggleBtn) {
+        toggleBtn.setAttribute('aria-expanded', isActive ? 'true' : 'false');
+    }
+    document.body.classList.toggle('floating-menu-open', isActive);
+    document.body.style.overflow = isActive ? 'hidden' : '';
 }
 
 function closeMobileMenu(event) {
     if (event) {
-        event.preventDefault();
         event.stopPropagation();
     }
 
-    const menu = document.querySelector('.mobile-menu');
-    const overlay = document.querySelector('.mobile-menu-overlay');
+    const menu = document.getElementById('floatingMobileMenu') || document.querySelector('.mobile-menu');
+    const overlay = document.getElementById('floatingMobileOverlay') || document.querySelector('.mobile-menu-overlay');
+    const toggleBtn = document.getElementById('floatingMobileMenuToggle');
 
     if (!menu || !overlay) return;
 
     menu.classList.remove('active');
     overlay.classList.remove('active');
+    menu.setAttribute('aria-hidden', 'true');
+    if (toggleBtn) {
+        toggleBtn.setAttribute('aria-expanded', 'false');
+    }
+    document.body.classList.remove('floating-menu-open');
     document.body.style.overflow = '';
 }
 
@@ -3053,7 +3120,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     window.addEventListener('resize', function() {
-        if (window.innerWidth > 768) {
+        if (window.innerWidth > 900) {
             closeMobileMenu();
         }
     });

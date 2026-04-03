@@ -254,12 +254,45 @@ if ($trackingResult !== null) {
                 <span class="material-symbols-sharp">person</span>
             </a>
             <?php endif; ?>
+            <button type="button" class="nav-icon-link floating-mobile-toggle" id="floatingMobileMenuToggle" aria-label="Abrir menu" aria-expanded="false" aria-controls="floatingMobileMenu">
+                <span class="material-symbols-sharp">menu</span>
+            </button>
             <a href="../pages/carrinho.php" class="nav-icon-link" aria-label="Carrinho" data-open-mini-cart>
                 <span class="material-symbols-sharp">shopping_bag</span>
             </a>
         </div>
     </div>
 </header>
+
+<div class="floating-mobile-overlay" id="floatingMobileOverlay"></div>
+<aside class="floating-mobile-menu" id="floatingMobileMenu" aria-hidden="true">
+    <div class="floating-mobile-menu-head">
+        <span>Menu</span>
+        <button type="button" class="nav-icon-link floating-mobile-close" id="floatingMobileMenuClose" aria-label="Fechar menu">
+            <span class="material-symbols-sharp">close</span>
+        </button>
+    </div>
+    <nav aria-label="Menu principal mobile">
+        <div class="floating-mobile-menu-section">
+            <p class="floating-mobile-menu-label">Loja</p>
+            <ul>
+                <li><a href="../produtos.php">Todos Produtos</a></li>
+                <li><a href="../produtos.php?tag=retro">Retro</a></li>
+                <li><a href="../produtos.php?categoria=Times">Times</a></li>
+                <li><a href="../produtos.php?categoria=Sele%C3%A7%C3%B5es">Seleções</a></li>
+            </ul>
+        </div>
+        <div class="floating-mobile-menu-section floating-mobile-menu-section-account">
+            <p class="floating-mobile-menu-label">Conta</p>
+            <ul>
+                <li><a href="minha-conta.php">Minha conta</a></li>
+                <li><a href="minha-conta.php?tab=pedidos">Meus pedidos</a></li>
+                <li><a href="rastreio.php">Rastrear pedido</a></li>
+                <li><a href="logout.php">Sair</a></li>
+            </ul>
+        </div>
+    </nav>
+</aside>
 
 <main class="tracking-shell section">
     <div class="container-shell">
@@ -430,6 +463,58 @@ if ($trackingResult !== null) {
     const navSearchForm = document.getElementById('navSearchForm');
     const navSearchInput = document.getElementById('navSearchInput');
     const navSearchToggle = document.getElementById('navSearchToggle');
+    const mobileMenuToggle = document.getElementById('floatingMobileMenuToggle');
+    const mobileMenu = document.getElementById('floatingMobileMenu');
+    const mobileOverlay = document.getElementById('floatingMobileOverlay');
+    const mobileMenuClose = document.getElementById('floatingMobileMenuClose');
+
+    const closeMobileMenu = () => {
+        if (!mobileMenu || !mobileOverlay || !mobileMenuToggle) return;
+        mobileMenu.classList.remove('active');
+        mobileOverlay.classList.remove('active');
+        mobileMenu.setAttribute('aria-hidden', 'true');
+        mobileMenuToggle.setAttribute('aria-expanded', 'false');
+        document.body.classList.remove('floating-menu-open');
+    };
+
+    const openMobileMenu = () => {
+        if (!mobileMenu || !mobileOverlay || !mobileMenuToggle) return;
+        mobileMenu.classList.add('active');
+        mobileOverlay.classList.add('active');
+        mobileMenu.setAttribute('aria-hidden', 'false');
+        mobileMenuToggle.setAttribute('aria-expanded', 'true');
+        document.body.classList.add('floating-menu-open');
+    };
+
+    if (mobileMenuToggle && mobileMenu && mobileOverlay) {
+        mobileMenuToggle.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            if (mobileMenu.classList.contains('active')) {
+                closeMobileMenu();
+            } else {
+                openMobileMenu();
+            }
+        });
+
+        if (mobileMenuClose) {
+            mobileMenuClose.addEventListener('click', (event) => {
+                event.preventDefault();
+                closeMobileMenu();
+            });
+        }
+
+        mobileOverlay.addEventListener('click', closeMobileMenu);
+        mobileMenu.querySelectorAll('a').forEach((link) => {
+            link.addEventListener('click', closeMobileMenu);
+        });
+
+        window.addEventListener('resize', () => {
+            if (window.innerWidth > 900) {
+                closeMobileMenu();
+            }
+        });
+    }
 
     if (navSearchForm && navSearchInput && navSearchToggle) {
         const closeSearch = () => navSearchForm.classList.remove('active');
@@ -473,6 +558,12 @@ if ($trackingResult !== null) {
             const btn = el.querySelector('.user-dropdown-btn');
             if (btn) btn.setAttribute('aria-expanded', 'false');
         });
+    });
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') {
+            closeMobileMenu();
+        }
     });
 })();
 </script>
