@@ -559,18 +559,43 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                         }
                         // ========== FIM CONTROLE COMPLETO DE ESTOQUE ==========
                         
-                        // Buscar dados do cliente para envio de email
-                        $cliente_query = "SELECT c.nome, c.email FROM clientes c JOIN pedidos p ON c.id = p.cliente_id WHERE p.id = ?";
+                        // Buscar dados completos do pedido e cliente para o email
+                        $cliente_query = "
+                            SELECT c.nome, c.email,
+                                   p.valor_total, p.valor_subtotal, p.valor_frete, p.valor_desconto,
+                                   p.data_pedido, p.forma_pagamento, p.numero_pedido,
+                                   COALESCE(p.endereco_entrega, CONCAT_WS(', ', c.rua, c.numero, c.bairro, c.cidade, c.estado)) as endereco
+                            FROM clientes c
+                            JOIN pedidos p ON c.id = p.cliente_id
+                            WHERE p.id = ?";
                         $cliente_stmt = mysqli_prepare($conexao, $cliente_query);
                         if ($cliente_stmt) {
                             mysqli_stmt_bind_param($cliente_stmt, 'i', $pedido_id);
                             mysqli_stmt_execute($cliente_stmt);
                             $cliente_result = mysqli_stmt_get_result($cliente_stmt);
                             $cliente = mysqli_fetch_assoc($cliente_result);
-                            
+
                             // Enviar email automático se cliente tem email
                             if ($cliente && !empty($cliente['email'])) {
+                                // Buscar itens do pedido
+                                $itens_email = [];
+                                $itens_query = "SELECT COALESCE(ip.nome_produto, pr.nome, 'Produto') as nome, ip.quantidade, ip.preco_unitario as preco
+                                                FROM itens_pedido ip
+                                                LEFT JOIN produtos pr ON ip.produto_id = pr.id
+                                                WHERE ip.pedido_id = ?";
+                                $itens_stmt2 = mysqli_prepare($conexao, $itens_query);
+                                if ($itens_stmt2) {
+                                    mysqli_stmt_bind_param($itens_stmt2, 'i', $pedido_id);
+                                    mysqli_stmt_execute($itens_stmt2);
+                                    $itens_result2 = mysqli_stmt_get_result($itens_stmt2);
+                                    while ($item = mysqli_fetch_assoc($itens_result2)) {
+                                        $itens_email[] = $item;
+                                    }
+                                    mysqli_stmt_close($itens_stmt2);
+                                }
+
                                 // Buscar mensagem personalizada da gestão de fluxo
+                                $mensagem = '';
                                 $mensagem_query = "SELECT mensagem_email FROM status_fluxo WHERE nome = ?";
                                 $mensagem_stmt = mysqli_prepare($conexao, $mensagem_query);
                                 if ($mensagem_stmt) {
@@ -578,51 +603,35 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                                     mysqli_stmt_execute($mensagem_stmt);
                                     $mensagem_result = mysqli_stmt_get_result($mensagem_stmt);
                                     $mensagem_row = mysqli_fetch_assoc($mensagem_result);
-                                    
-                                    // Usar mensagem personalizada ou padrão
                                     if (!empty($mensagem_row['mensagem_email'])) {
-                                        $mensagem = $mensagem_row['mensagem_email'];
-                                        
-                                        // Substituir variáveis na mensagem
-                                        $mensagem = str_replace('{nome_cliente}', $cliente['nome'], $mensagem);
-                                        $mensagem = str_replace('{numero_pedido}', $pedido_id, $mensagem);
-                                        
-                                        // Buscar valor total e data do pedido
-                                        $detalhes_query = "SELECT valor_total, data_pedido FROM pedidos WHERE id = ?";
-                                        $detalhes_stmt = mysqli_prepare($conexao, $detalhes_query);
-                                        if ($detalhes_stmt) {
-                                            mysqli_stmt_bind_param($detalhes_stmt, 'i', $pedido_id);
-                                            mysqli_stmt_execute($detalhes_stmt);
-                                            $detalhes_result = mysqli_stmt_get_result($detalhes_stmt);
-                                            $detalhes_row = mysqli_fetch_assoc($detalhes_result);
-                                            
-                                            if ($detalhes_row) {
-                                                $valor_total = $detalhes_row['valor_total'] ?? '0.00';
-                                                $data_pedido = date('d/m/Y', strtotime($detalhes_row['data_pedido']));
-                                                
-                                                $mensagem = str_replace('{valor_total}', 'R$ ' . number_format($valor_total, 2, ',', '.'), $mensagem);
-                                                $mensagem = str_replace('{data_pedido}', $data_pedido, $mensagem);
-                                                $mensagem = str_replace('{status_atual}', $novo_status, $mensagem);
-                                            }
-                                            mysqli_stmt_close($detalhes_stmt);
-                                        }
-                                    } else {
-                                        // Mensagem padrão caso não tenha personalizada
-                                        $mensagem = "Olá {$cliente['nome']},\n\n";
-                                        $mensagem .= "Seu pedido #$pedido_id teve o status atualizado para: $novo_status\n\n";
-                                        $mensagem .= "Você pode acompanhar seu pedido através do nosso sistema.\n\n";
-                                        $mensagem .= "Atenciosamente,\nEquipe Rare7";
+                                        $mensagem = str_replace(
+                                            ['{nome_cliente}', '{numero_pedido}', '{status_atual}'],
+                                            [$cliente['nome'], $pedido_id, $novo_status],
+                                            $mensagem_row['mensagem_email']
+                                        );
                                     }
-                                } else {
-                                    // Mensagem padrão em caso de erro
-                                    $mensagem = "Olá {$cliente['nome']},\n\n";
-                                    $mensagem .= "Seu pedido #$pedido_id teve o status atualizado para: $novo_status\n\n";
-                                    $mensagem .= "Atenciosamente,\nEquipe Rare7";
+                                    mysqli_stmt_close($mensagem_stmt);
                                 }
-                                
-                                $assunto = "📦 Atualização do Pedido #$pedido_id - Rare7";
-                                
-                                $email_enviado = enviarEmailAutomatico($cliente['email'], $cliente['nome'], $assunto, $mensagem);
+
+                                $assunto = "📦 Pedido #$pedido_id — {$novo_status} | Rare7 Jerseys";
+
+                                $dados_pedido = [
+                                    'nome_cliente'    => $cliente['nome'],
+                                    'numero_pedido'   => $cliente['numero_pedido'] ?: $pedido_id,
+                                    'data_pedido'     => date('d/m/Y H:i', strtotime($cliente['data_pedido'])),
+                                    'forma_pagamento' => $cliente['forma_pagamento'] ?? '',
+                                    'itens'           => $itens_email,
+                                    'subtotal'        => (float)($cliente['valor_subtotal'] ?? $cliente['valor_total'] ?? 0),
+                                    'frete'           => (float)($cliente['valor_frete']    ?? 0),
+                                    'desconto'        => (float)($cliente['valor_desconto'] ?? 0),
+                                    'total'           => (float)($cliente['valor_total']    ?? 0),
+                                    'endereco'        => $cliente['endereco'] ?? '',
+                                    'status'          => $novo_status,
+                                    'mensagem_extra'  => $mensagem,
+                                    'link_rastreio'   => 'http://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . '/rare7/cliente/pages/pedidos.php',
+                                ];
+
+                                $email_enviado = enviarEmailAutomatico($cliente['email'], $cliente['nome'], $assunto, $mensagem, $dados_pedido);
                             }
                         }
                         
@@ -1038,95 +1047,89 @@ if (isset($_GET['action']) && $_GET['action'] === 'listar_status') {
 }
 
 // Função para enviar email automático
-function enviarEmailAutomatico($email, $nome, $assunto, $mensagem) {
+function enviarEmailAutomatico($email, $nome, $assunto, $mensagem, $dados_pedido = []) {
     try {
-        // Carregar configurações de email da automação
+        // Carregar configurações de email
         $email_config = '../../../config/email-config.php';
         if (file_exists($email_config)) {
             require_once $email_config;
         }
-        
-        // Verificar se emails estão habilitados na automação
+
+        // Carregar templates
+        $templates_file = '../../../config/email-templates.php';
+        if (file_exists($templates_file)) {
+            require_once $templates_file;
+        }
+
+        // Verificar se emails estão habilitados
         if (!defined('EMAIL_ENABLED') || !EMAIL_ENABLED) {
-            error_log("📧 Emails desabilitados na automação - simulando envio para: $email");
+            error_log("📧 Emails desabilitados - simulando envio para: $email");
             return true;
         }
-        
-        // Verificar se há senha SMTP configurada
+
+        // Verificar senha SMTP
         if (!defined('SMTP_PASSWORD') || empty(SMTP_PASSWORD)) {
-            error_log("📧 Senha SMTP não configurada na automação - simulando envio para: $email");
+            error_log("📧 Senha SMTP não configurada - simulando envio para: $email");
             return true;
         }
-        
-        // Verificar se PHPMailer existe
-        if (file_exists('../../../phpmailer/src/PHPMailer.php')) {
-            require_once '../../../phpmailer/src/PHPMailer.php';
-            require_once '../../../phpmailer/src/SMTP.php';
-            require_once '../../../phpmailer/src/Exception.php';
-            
-            $mail = new PHPMailer\PHPMailer\PHPMailer(true);
-            
-            // Configurações do servidor da automação
-            $mail->isSMTP();
-            $mail->Host = SMTP_HOST; // smtp.gmail.com
-            $mail->SMTPAuth = true;
-            $mail->Username = SMTP_USERNAME; // dznaileofficial@gmail.com
-            $mail->Password = SMTP_PASSWORD;
-            $mail->SMTPSecure = SMTP_SECURE; // ssl para porta 465
-            $mail->Port = SMTP_PORT; // 465
-            $mail->CharSet = 'UTF-8';
-            
-            // Remetente da automação Rare7
-            $mail->setFrom(EMAIL_FROM, EMAIL_FROM_NAME); // dznaileofficial@gmail.com, Rare7 Nails
-            $mail->addAddress($email, $nome);
-            
-            // Conteúdo personalizado Rare7
-            $mail->isHTML(true);
-            $mail->Subject = $assunto;
-            
-            // Template HTML para emails Rare7
+
+        // Verificar PHPMailer
+        if (!file_exists('../../../phpmailer/src/PHPMailer.php')) {
+            error_log("📧 PHPMailer não encontrado - simulando envio para: $email");
+            return true;
+        }
+
+        require_once '../../../phpmailer/src/PHPMailer.php';
+        require_once '../../../phpmailer/src/SMTP.php';
+        require_once '../../../phpmailer/src/Exception.php';
+
+        $mail = new PHPMailer\PHPMailer\PHPMailer(true);
+        $mail->isSMTP();
+        $mail->Host       = SMTP_HOST;
+        $mail->SMTPAuth   = true;
+        $mail->Username   = SMTP_USERNAME;
+        $mail->Password   = SMTP_PASSWORD;
+        $mail->SMTPSecure = SMTP_SECURE;
+        $mail->Port       = SMTP_PORT;
+        $mail->CharSet    = 'UTF-8';
+        $mail->setFrom(EMAIL_FROM, EMAIL_FROM_NAME);
+        $mail->addAddress($email, $nome);
+        $mail->isHTML(true);
+        $mail->Subject = $assunto;
+
+        // Usar template rico se disponível e houver dados de pedido
+        if (function_exists('emailTemplatePedidoConfirmado') && !empty($dados_pedido)) {
+            $dados_pedido['nome_cliente']   = $dados_pedido['nome_cliente']   ?? $nome;
+            $dados_pedido['mensagem_extra'] = $dados_pedido['mensagem_extra'] ?? $mensagem;
+            $html_body = emailTemplatePedidoConfirmado($dados_pedido);
+        } else {
+            // Template simples de fallback
             $html_body = "
-            <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'>
-                <div style='background: #C6A75E; padding: 20px; text-align: center;'>
-                    <h1 style='color: white; margin: 0;'>Rare7 Nails</h1>
+            <div style='font-family:Arial,sans-serif; max-width:600px; margin:0 auto;'>
+                <div style='background:linear-gradient(135deg,#0F1C2E,#1a2f4a); padding:28px 40px;'>
+                    <p style='margin:0; font-size:22px; font-weight:bold; color:#C6A75E; letter-spacing:3px; font-family:Georgia,serif;'>RARE7</p>
+                    <p style='margin:2px 0 0; font-size:10px; color:#a08040; letter-spacing:5px;'>N &nbsp; A &nbsp; I &nbsp; L &nbsp; S</p>
                 </div>
-                <div style='padding: 30px; background: #f9f9f9;'>
-                    <h2 style='color: #333;'>Olá, {$nome}!</h2>
-                    <div style='background: white; padding: 20px; border-radius: 10px; margin: 20px 0;'>
+                <div style='padding:30px 40px; background:#ffffff;'>
+                    <h2 style='color:#0F1C2E;'>Olá, " . htmlspecialchars($nome) . "!</h2>
+                    <div style='background:#f8f5ef; border-left:4px solid #C6A75E; padding:16px 20px; border-radius:0 8px 8px 0; margin:20px 0;'>
                         " . nl2br(htmlspecialchars($mensagem)) . "
                     </div>
-                    <p style='color: #666; font-size: 14px;'>
-                        Este é um email automático. Para mais informações, entre em contato conosco.
-                    </p>
+                    <p style='color:#888; font-size:13px;'>Dúvidas? Fale pelo WhatsApp: <strong>(21) 98513-6806</strong></p>
                 </div>
-                <div style='background: #333; color: white; padding: 15px; text-align: center; font-size: 12px;'>
-                    © 2026 Rare7 Nails - Todos os direitos reservados
+                <div style='background:#0F1C2E; padding:20px 40px; text-align:center;'>
+                    <p style='margin:0; font-size:12px; color:#4a5a6a;'>&copy; " . date('Y') . " Rare7 Jerseys &mdash; Todos os direitos reservados.</p>
                 </div>
-            </div>
-            ";
-            
-            $mail->Body = $html_body;
-            $mail->AltBody = strip_tags($mensagem); // Versão texto
-            
-            $mail->send();
-            error_log("✅ Email Rare7 enviado com sucesso para: $email via " . SMTP_USERNAME);
-            return true;
-            
-        } else {
-            // Simulação caso PHPMailer não esteja disponível
-            $log_message = "📧 EMAIL Rare7 AUTOMÁTICO (PHPMailer não encontrado):\n";
-            $log_message .= "De: " . (defined('EMAIL_FROM') ? EMAIL_FROM : 'dznaileofficial@gmail.com') . "\n";
-            $log_message .= "Para: $email ($nome)\n";
-            $log_message .= "Assunto: $assunto\n";
-            $log_message .= "Mensagem: $mensagem\n";
-            $log_message .= "Data: " . date('Y-m-d H:i:s') . "\n";
-            $log_message .= "Configuração: Automação Rare7\n";
-            $log_message .= "---\n";
-            
-            error_log($log_message);
-            return true;
+            </div>";
         }
-        
+
+        $mail->Body    = $html_body;
+        $mail->AltBody = strip_tags($mensagem);
+        $mail->send();
+
+        error_log("✅ Email Rare7 enviado para: $email");
+        return true;
+
     } catch (Exception $e) {
         error_log("❌ Erro ao enviar email Rare7: " . $e->getMessage());
         return false;

@@ -6,10 +6,9 @@
 
 // Tentar incluir conexão (compatibilidade)
 if (!isset($conexao)) {
-    if (file_exists('../../../PHP/conexao.php')) {
-        require_once '../../../PHP/conexao.php';
-    } else {
-        require_once '../../../config/config.php';
+    $conexaoPath = dirname(__DIR__, 3) . '/PHP/conexao.php';
+    if (file_exists($conexaoPath)) {
+        require_once $conexaoPath;
     }
 }
 
@@ -29,11 +28,12 @@ class EmailAutomatico {
         $config = [
             'smtp_host' => 'smtp.gmail.com',
             'smtp_porta' => '465',
+            'smtp_secure' => '',
             'smtp_email' => '',
             'smtp_senha' => ''
         ];
         
-        $query = "SELECT campo, valor FROM configuracoes_gerais WHERE campo IN ('smtp_host', 'smtp_porta', 'smtp_email', 'smtp_senha')";
+        $query = "SELECT campo, valor FROM configuracoes_gerais WHERE campo IN ('smtp_host', 'smtp_porta', 'smtp_secure', 'smtp_email', 'smtp_senha')";
         $result = mysqli_query($this->conexao, $query);
         
         while ($row = mysqli_fetch_assoc($result)) {
@@ -68,17 +68,29 @@ class EmailAutomatico {
             $mail = new PHPMailer\PHPMailer\PHPMailer(true);
             
             // Configurações SMTP
+            $smtpPort = (int) ($config['smtp_porta'] ?? 0);
+            $smtpSecureConfig = strtolower(trim((string)($config['smtp_secure'] ?? '')));
+            $smtpSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+
+            if ($smtpSecureConfig === 'ssl' || $smtpSecureConfig === 'smtps') {
+                $smtpSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS;
+            } elseif ($smtpSecureConfig === 'tls' || $smtpSecureConfig === 'starttls') {
+                $smtpSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+            } elseif ($smtpPort === 465) {
+                $smtpSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS;
+            }
+
             $mail->isSMTP();
             $mail->Host = $config['smtp_host'];
             $mail->SMTPAuth = true;
             $mail->Username = $config['smtp_email'];
             $mail->Password = $config['smtp_senha'];
-            $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS;
-            $mail->Port = $config['smtp_porta'];
+            $mail->SMTPSecure = $smtpSecure;
+            $mail->Port = $smtpPort > 0 ? $smtpPort : 587;
             $mail->CharSet = 'UTF-8';
             
             // Remetente
-            $mail->setFrom($config['smtp_email'], 'Rare7 Nails');
+            $mail->setFrom($config['smtp_email'], 'Rare7 Jerseys');
             
             // Destinatário
             $mail->addAddress($para, $nome_destinatario);
@@ -175,7 +187,7 @@ class EmailAutomatico {
                 
                 <!-- Footer -->
                 <div style='background: #f8f9fa; padding: 20px; text-align: center; color: #666; font-size: 14px;'>
-                    <p style='margin: 0;'>Rare7 Nails - Beleza que transforma &#x1F485;</p>
+                    <p style='margin: 0;'>Rare7 Jerseys</p>
                     <p style='margin: 5px 0 0 0;'>Este e-mail foi enviado automaticamente. Por favor, não responda.</p>
                 </div>
             </div>
@@ -244,7 +256,7 @@ class EmailAutomatico {
                 
                 <!-- Footer -->
                 <div style='background: #f8f9fa; padding: 20px; text-align: center; color: #666; font-size: 14px;'>
-                    <p style='margin: 0;'>Rare7 Nails - Beleza que transforma &#x1F485;</p>
+                    <p style='margin: 0;'>Rare7 Jerseys</p>
                     <p style='margin: 5px 0 0 0;'>Este e-mail foi enviado automaticamente.</p>
                 </div>
             </div>
@@ -326,7 +338,7 @@ class EmailAutomatico {
                 
                 <!-- Footer -->
                 <div style='background: #f8f9fa; padding: 20px; text-align: center; color: #666; font-size: 14px;'>
-                    <p style='margin: 0;'>Rare7 Nails - Acompanhe seu pedido! &#x1F485;</p>
+                    <p style='margin: 0;'>Rare7 Jerseys &mdash; Acompanhe seu pedido!</p>
                 </div>
             </div>
         </body>
