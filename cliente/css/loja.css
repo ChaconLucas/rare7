@@ -1260,7 +1260,14 @@ a {
   position: relative;
   overflow: hidden;
   background-color: #070b13;
+  background-position: center center;
+  background-repeat: no-repeat;
+  background-size: cover;
   border: 0;
+}
+
+.showcase.section {
+  padding: 0;
 }
 
 .showcase-bg-image {
@@ -3015,6 +3022,20 @@ a {
 @media (max-width: 900px) {
   .section {
     padding: 5.2rem 0;
+  }
+
+  .showcase.section {
+    padding: 0;
+  }
+
+  .showcase {
+    aspect-ratio: auto;
+    height: clamp(190px, 42vw, 260px);
+    min-height: 0;
+  }
+
+  .showcase-bg-image {
+    display: none !important;
   }
 
   .floating-navbar {

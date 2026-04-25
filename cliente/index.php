@@ -1664,12 +1664,14 @@ $whatsappUrl = $whatsappDigits ? ('https://wa.me/' . $whatsappDigits) : '#';
                 bannerSection.classList.toggle('has-text-content', hasTextContent);
 
                 if (slide.image) {
+                    bannerSection.style.backgroundImage = `url("${String(slide.image).replace(/"/g, '\\"')}")`;
                     if (showcaseImage) {
                         showcaseImage.src = slide.image;
                         showcaseImage.style.display = 'block';
                     }
                     bannerSection.classList.add('has-banner-image');
                 } else {
+                    bannerSection.style.backgroundImage = 'none';
                     if (showcaseImage) {
                         showcaseImage.removeAttribute('src');
                         showcaseImage.style.display = 'none';

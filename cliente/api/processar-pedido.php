@@ -17,6 +17,7 @@ header('Content-Type: application/json; charset=utf-8');
 ob_clean();
 
 require_once '../config.php';
+require_once '../includes/email_automatico_bridge.php';
 
 // Função para resposta JSON
 function jsonResponse($success, $message = '', $data = []) {
@@ -450,6 +451,22 @@ try {
     
     // Commit da transação
     $pdo->commit();
+
+    // Disparos automáticos de novo pedido e status inicial
+    dispararEmailAutomaticoRare7('novo_pedido', [
+        'pedido_id' => $pedidoId,
+        'nome' => $cliente['nome'],
+        'email' => $cliente['email'],
+        'valor_total' => $valorTotal,
+        'itens' => $carrinho['items'] ?? []
+    ]);
+
+    dispararEmailAutomaticoRare7('status_pedido', [
+        'pedido_id' => $pedidoId,
+        'nome' => $cliente['nome'],
+        'email' => $cliente['email'],
+        'novo_status' => 'Pedido Recebido'
+    ]);
     
     // ===== INTEGRAÇÃO COM MERCADO PAGO =====
     $init_point = null;
@@ -1032,14 +1049,6 @@ try {
             'payment_message' => $friendlyMsg,
             'error_details' => $errorMsg
         ]);
-    }
-    
-    // ===== ENVIAR EMAIL DE CONFIRMAÇÃO (OPCIONAL) =====
-    try {
-        // Aqui você pode adicionar o envio de email
-        // usando PHPMailer ou similar
-    } catch (Exception $e) {
-        error_log("Erro ao enviar email: " . $e->getMessage());
     }
     
     // Retornar sucesso

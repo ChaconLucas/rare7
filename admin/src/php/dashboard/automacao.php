@@ -223,12 +223,25 @@ try {
     <!-- Aplicar tema imediatamente -->
     <script>
         (function() {
-            const savedTheme = localStorage.getItem('darkTheme');
-            if (savedTheme === 'true' || savedTheme === null) {
-                document.body.classList.add('dark-theme-variables');
-            } else {
-                document.body.classList.remove('dark-theme-variables');
+            function applyThemeClass() {
+                if (!document.body) {
+                    return;
+                }
+
+                const savedTheme = localStorage.getItem('darkTheme');
+                if (savedTheme === 'true') {
+                    document.body.classList.add('dark-theme-variables');
+                } else {
+                    document.body.classList.remove('dark-theme-variables');
+                }
             }
+
+            if (document.body) {
+                applyThemeClass();
+            } else {
+                document.addEventListener('DOMContentLoaded', applyThemeClass, { once: true });
+            }
+
         })();
     </script>
     
@@ -1105,10 +1118,10 @@ try {
                     </div>
                     
                     <div class="form-group">
-                        <label for="smtp_email">Email para Alertas</label>
+                           <label for="smtp_email">Email SMTP / Remetente</label>
                         <input type="email" id="smtp_email" name="smtp_email" 
                                value="<?= htmlspecialchars($configuracoes['smtp_email'] ?? 'dznailsofficial@gmail.com.br') ?>"
-                               placeholder="dznailsofficial@gmail.com.br">
+                               placeholder="conta que vai enviar os emails">
                     </div>
                     
                     <!-- Botão de Teste de E-mail -->

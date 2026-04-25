@@ -7,6 +7,7 @@ $freteGratisValor = isset($pdo) ? getFreteGratisThreshold($pdo) : 0;
 require_once '../config.php';
 require_once '../conexao.php';
 require_once '../cms_data_provider.php';
+require_once '../includes/email_automatico_bridge.php';
 
 $cms = new CMSProvider($conn);
 $footerData = $cms->getFooterData();
@@ -91,6 +92,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]);
 
                 $clienteId = $pdo->lastInsertId();
+
+                dispararEmailAutomaticoRare7('novo_cliente', [
+                    'cliente_id' => $clienteId,
+                    'nome' => $nome,
+                    'email' => $email
+                ]);
+
                 $_SESSION['cliente'] = [
                     'id' => $clienteId,
                     'nome' => $nome,
